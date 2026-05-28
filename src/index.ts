@@ -13,6 +13,14 @@ const minActionDelay = Number(process.env.MIN_ACTION_DELAY_MS ?? 400);
 const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 2000);
 let context: BrowserContext | undefined;
 
+type BookingSession = {
+    startTime: Date; // e.g. "18:00"
+    endTime: Date; // e.g. "19:00"
+    courtNumber: number; // e.g. 1
+    courtLocation: string; // e.g. "Redmond"
+    page: Page; // Playwright page instance for this booking session
+}
+
 function randomDelay(min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -65,6 +73,18 @@ async function openCourtReserveManualLogin() {
     return { page, context };
 }
 
+function getBookingsFound(page: Page): number {
+    // Check for number of bookings
+    // const bookingCount = await page.getByTestId('booking-count').textContent();
+    const text = await page.getByText("Booking Found").innerText();
+    const match = text.match(/(\d+)/);
+    const count = match ? Number(match[1]) : 0;
+
+    return count;
+}
+
+function
+
 async function openCourtReserve() {
     const storageState = JSON.parse(await fs.readFile(authPath, "utf-8"));
     context = await chromium.launchPersistentContext(profileDir, {
@@ -100,6 +120,22 @@ async function openCourtReserveDummy() {
     console.log(`Loaded local HTML from ./courtreserve_myreservation.html`);
     await waitForEnter();
     return { page, context };
+}
+
+async function editBooking(page: Page) {
+    const editReservationbutton = page.getByTestId('details-btn');
+
+    await editReservationbutton.scrollIntoViewIfNeeded();
+    await editReservationbutton.hover();
+
+    const box = await editReservationbutton.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 10 });
+    
+    pauseForAction();
+
+    // await editReservationbutton.click();
+    await page.mouse.down();
+    await page.mouse.up();
 }
 
 async function start() {
