@@ -1,0 +1,21 @@
+{
+    "name": "court-sign-up",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "tsc -w",
+        "playwright:install": "npx playwright install chromium"
+    },
+    "dependencies": {
+        "playwright": "*"
+    },
+    "devDependencies": {
+        "@types/node": "*",
+        "typescript": "*"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}
