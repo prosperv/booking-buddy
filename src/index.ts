@@ -42,6 +42,8 @@ async function fileExists(path: string): Promise<boolean> {
         return false;
     }
 }
+// Exporting utility functions for testing purposes
+export { randomDelay, delay, fileExists };
 
 async function waitForEnter(): Promise<void> {
     console.log("Press Enter after you have logged in successfully.");
@@ -73,7 +75,7 @@ async function openCourtReserveManualLogin() {
     return { page, context };
 }
 
-function getBookingsFound(page: Page): number {
+async function getBookingsFound(page: Page): Promise<number> {
     // Check for number of bookings
     // const bookingCount = await page.getByTestId('booking-count').textContent();
     const text = await page.getByText("Booking Found").innerText();
@@ -81,26 +83,6 @@ function getBookingsFound(page: Page): number {
     const count = match ? Number(match[1]) : 0;
 
     return count;
-}
-
-function
-
-async function openCourtReserve() {
-    const storageState = JSON.parse(await fs.readFile(authPath, "utf-8"));
-    context = await chromium.launchPersistentContext(profileDir, {
-        headless: false,
-        viewport: null,
-    });
-    context.setStorageState(authPath);
-
-    const page = await context.newPage();
-
-    await pauseForAction();
-    await page.goto(courtReserveUrl, { waitUntil: "domcontentloaded" });
-    await pauseForAction();
-    console.log(`Opened CourtReserve page at ${courtReserveUrl}`);
-    await page.pause();
-    return { page, context };
 }
 
 async function openCourtReserveDummy() {
@@ -129,13 +111,103 @@ async function editBooking(page: Page) {
     await editReservationbutton.hover();
 
     const box = await editReservationbutton.boundingBox();
+    if (!box) {
+        throw new Error("Could not determine edit button position.");
+    }
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 10 });
     
-    pauseForAction();
-
+    await pauseForAction();
     // await editReservationbutton.click();
     await page.mouse.down();
     await page.mouse.up();
+}
+
+async function convertBookingCardToBookingSession(bookingCard: Locator): Promise<BookingSession> {
+    // Get locations
+    const typename = await bookingCard.getByTestId("type-name").textContent();
+
+    // Get start and end times. and date
+    // Example text: "Sat, Jun 13th, 10:30 AM - 12:00 PM"
+    const datetimeText = (await bookingCard.getByTestId("row-date-and-times").textContent()) ?? "";
+
+    // Remove ordinal suffixes (st, nd, rd, th)
+    const cleaned = datetimeText.replace(/(\d+)(st|nd|rd|th)/, "$1");
+
+    // Split into date part + time range
+    const [weekday, monthDay, times] = cleaned.split(",");
+    const datePart = `${weekday.trim()}, ${monthDay.trim()}`; // "Sat, Jun 13"
+
+    // Split start/end times
+    const [startTime, endTime] = times.trim().split(" - ");
+
+    // Build full datetime strings
+    const startString = `${datePart}, ${startTime}`;
+    const endString = `${datePart}, ${endTime}`;
+
+    // Parse using Day.js
+    const start = dayjs(startString, "ddd, MMM D, h:mm A");
+    const end = dayjs(endString, "ddd, MMM D, h:mm A");
+
+    // Get day of week
+    const dayOfWeek = weekday.trim();
+
+    // Get court number. Extract from "Redmond 6"
+    const locationAndCourt = (await bookingCard.getByTestId("row-courts").textContent()) ?? "";
+    const courtNumber = Number(locationAndCourt.split(" ").pop() ?? "0");
+    const location = locationAndCourt.split(" ").slice(0, -1).join(" ");
+
+    // Get players. Ex. "Prosper Van, Xi S Chen"
+    const playersText = (await bookingCard.getByTestId("row-members").textContent()) ?? "";
+    const players = playersText ? playersText.split(",").map((player) => player.trim()) : [];
+
+    return {
+        dayOfWeek,
+        startTime: start.toDate(),
+        endTime: end.toDate(),
+        courtNumber,
+        courtLocation: location,
+        players,
+        page: bookingCard.page(),
+    };
+}
+
+async function collectBookingSessions(page: Page): Promise<BookingSession[]> {
+    const bookingCard = page.getByTestId("booking-card");
+    const count = await bookingCard.count();
+    const bookingSessions: BookingSession[] = [];
+
+    for (let i = 0; i < count; i++) {
+        bookingSessions.push(await convertBookingCardToBookingSession(bookingCard.nth(i)));
+    }
+
+    return bookingSessions;
+}
+
+async function openCourtReserve() {
+    const storageState = JSON.parse(await fs.readFile(authPath, "utf-8"));
+    context = await chromium.launchPersistentContext(profileDir, {
+        headless: false,
+        viewport: null,
+    });
+    context.setStorageState(authPath);
+
+    const page = await context.newPage();
+
+    await pauseForAction();
+    await page.goto(courtReserveUrl, { waitUntil: "domcontentloaded" });
+    await pauseForAction();
+    console.log(`Opened CourtReserve page at ${courtReserveUrl}`);
+    await page.pause();
+
+    // testing
+    const bookingCount = await getBookingsFound(page);
+    console.log(`Found ${bookingCount} bookings.`);
+    await page.pause();
+
+    const bookingSessions = await collectBookingSessions(page);
+    console.log(`Collected ${bookingSessions.length} booking sessions.`);
+
+    return { page, context };
 }
 
 async function start() {
@@ -153,10 +225,12 @@ async function start() {
     console.log("Browser automation initialized. Press Ctrl+C to stop.");
 }
 
+if (require.main === module) {
 start().catch((error) => {
     console.error("Failed to open CourtReserve login page:", error);
     process.exit(1);
 });
+}
 
 process.on("SIGINT", async () => {
     console.log("Shutting down gracefully...");
