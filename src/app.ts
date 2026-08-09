@@ -5,8 +5,15 @@ import { closeBrowserContext, openCourtReserve, openCourtReserveManualLogin } fr
 export async function start() {
     console.log(`Court Sign-Up service starting on port ${port}...`);
 
+    const argvForceManual = process.argv.includes("--manual-login");
+    const envForceManual = (process.env.MANUAL_LOGIN === "true") || (process.env.FORCE_MANUAL_LOGIN === "true");
+    const forceManual = argvForceManual || envForceManual;
+
     const hasSavedAuth = await fileExists(authPath);
-    if (!hasSavedAuth) {
+    if (forceManual) {
+        console.log("Forcing manual login flow (via CLI flag or env var).");
+        await openCourtReserveManualLogin();
+    } else if (!hasSavedAuth) {
         console.log(`No existing auth state found at ${authPath}. Will require manual login.`);
         await openCourtReserveManualLogin();
     } else {

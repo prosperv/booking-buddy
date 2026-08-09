@@ -22,6 +22,23 @@ Start the app with:
 
 `npm start`
 
+You can force the manual-login flow (useful to create or refresh `auth.json`) in several ways:
+
+- Using the convenience script (after building):
+
+   `npm run build`
+   `npm run start:manual`
+
+- Passing the CLI flag when running the built app:
+
+   `node dist/app.js --manual-login`
+
+- Using an environment variable:
+
+   `MANUAL_LOGIN=true node dist/app.js`
+
+The `start:manual` script simply runs `node dist/app.js --manual-login`.
+
 ## Development and tests
 
 Run the test suite with:
