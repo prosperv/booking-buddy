@@ -5,6 +5,7 @@
     "scripts": {
         "build": "tsc",
         "start": "node dist/app.js",
+        "start:manual": "node dist/app.js --manual-login",
         "dev": "tsc -w",
         "test": "vitest",
         "test:watch": "vitest watch",
