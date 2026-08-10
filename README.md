@@ -16,7 +16,25 @@ Build the TypeScript project with:
 
 `npm run build`
 
-## Run
+After building, the library is at `dist/index.js`.
+
+## Usage as a library
+
+```typescript
+import { CourtReserveClient } from "court-sign-up";
+
+const client = new CourtReserveClient({ headless: false });
+await client.init();
+const bookings = await client.getCurrentBookings({ weekday: "Sat" });
+console.log(bookings);
+await client.close();
+```
+
+## Run the example
+
+`npx tsx examples/usage.ts`
+
+## Run (old-style CLI app)
 
 Start the app with:
 
