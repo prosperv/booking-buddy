@@ -2,18 +2,9 @@ import { Locator, Page } from "playwright";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { pauseForAction } from "./utils";
+import { BookingFilters, BookingSession } from "./types";
 
 dayjs.extend(customParseFormat);
-
-export type BookingSession = {
-    dayOfWeek: string;
-    startTime: Date;
-    endTime: Date;
-    courtNumber: number;
-    courtLocation: string;
-    players: string[];
-    page: Page;
-};
 
 export async function getBookingsFound(page: Page): Promise<number> {
     const text = await page.getByText("Booking Found").innerText();
@@ -60,6 +51,34 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     }
 
     return bookingSessions;
+}
+
+export function filterBookings(bookings: BookingSession[], filters?: BookingFilters): BookingSession[] {
+    if (!filters) return bookings;
+
+    return bookings.filter((b) => {
+        if (filters.weekday && b.dayOfWeek.toLowerCase() !== filters.weekday.toLowerCase()) {
+            return false;
+        }
+        if (filters.date) {
+            const filterDate = typeof filters.date === "string" ? new Date(filters.date) : filters.date;
+            const bDate = new Date(b.startTime);
+            if (
+                bDate.getFullYear() !== filterDate.getFullYear() ||
+                bDate.getMonth() !== filterDate.getMonth() ||
+                bDate.getDate() !== filterDate.getDate()
+            ) {
+                return false;
+            }
+        }
+        if (filters.startTime) {
+            const bStart = `${String(b.startTime.getHours()).padStart(2, "0")}:${String(b.startTime.getMinutes()).padStart(2, "0")}`;
+            if (bStart !== filters.startTime) {
+                return false;
+            }
+        }
+        return true;
+    });
 }
 
 export async function editBooking(page: Page): Promise<void> {
