@@ -5,9 +5,7 @@
     "main": "dist/index.js",
     "scripts": {
         "build": "tsc",
-        "start": "node dist/app.js",
-        "start:manual": "node dist/app.js --manual-login",
-        "start:example": "npx tsx examples/usage.ts",
+        "start": "npx tsx examples/usage.ts",
         "dev": "tsc -w",
         "test": "vitest",
         "test:watch": "vitest watch",
