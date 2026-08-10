@@ -20,6 +20,6 @@ describe("dummy examples", () => {
 
   it("uses the compiled app entrypoint for npm start", () => {
     const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-    expect(packageJson.scripts.start).toBe("node dist/app.js");
+    expect(packageJson.scripts.start).toBe("npx tsx examples/usage.ts");
   });
 });

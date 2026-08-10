@@ -5,7 +5,7 @@ import { manualLogin, restoreAuth } from "./auth";
 import { navigateTo } from "./navigation";
 import { authPath, courtReserveMyReservationsUrl, headless } from "./constants";
 import { fileExists } from "./utils";
-import { collectBookingSessions, getBookingsFound, filterBookings } from "./booking";
+import { collectBookingSessions, filterBookings } from "./booking";
 
 export class CourtReserveClient {
     private context?: BrowserContext;
