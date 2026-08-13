@@ -1,10 +1,7 @@
 import { Locator, Page } from "playwright";
-import dayjs from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat";
 import { pauseForAction } from "./utils";
+import { parseDatetime, parseCourt, parsePlayers } from "./parsers";
 import { BookingFilters, BookingSession } from "./types";
-
-dayjs.extend(customParseFormat);
 
 export async function getBookingsFound(page: Page): Promise<number> {
     const text = await page.getByText("Booking Found").innerText();
@@ -16,26 +13,19 @@ export async function convertBookingCardToBookingSession(
     bookingCard: Locator,
 ): Promise<BookingSession> {
     const datetimeText = (await bookingCard.getByTestId("row-date-and-times").textContent()) ?? "";
-    const cleaned = datetimeText.replace(/(\d+)(st|nd|rd|th)/, "$1");
-    const [weekday, monthDay, times] = cleaned.split(",");
-    const datePart = `${weekday.trim()}, ${monthDay.trim()}`;
-    const [startTime, endTime] = times.trim().split(" - ");
-    const startString = `${datePart}, ${startTime}`;
-    const endString = `${datePart}, ${endTime}`;
-    const start = dayjs(startString, "ddd, MMM D, h:mm A");
-    const end = dayjs(endString, "ddd, MMM D, h:mm A");
     const locationAndCourt = (await bookingCard.getByTestId("row-courts").textContent()) ?? "";
-    const courtNumber = Number(locationAndCourt.split(" ").pop() ?? "0");
-    const location = locationAndCourt.split(" ").slice(0, -1).join(" ");
     const playersText = (await bookingCard.getByTestId("row-members").textContent()) ?? "";
-    const players = playersText ? playersText.split(",").map((player) => player.trim()) : [];
+
+    const { dayOfWeek, startTime, endTime } = parseDatetime(datetimeText);
+    const { courtNumber, courtLocation } = parseCourt(locationAndCourt);
+    const players = parsePlayers(playersText);
 
     return {
-        dayOfWeek: weekday.trim(),
-        startTime: start.toDate(),
-        endTime: end.toDate(),
+        dayOfWeek,
+        startTime,
+        endTime,
         courtNumber,
-        courtLocation: location,
+        courtLocation,
         players,
         page: bookingCard.page(),
     };
