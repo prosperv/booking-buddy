@@ -3,7 +3,7 @@ import { ClientOptions, Booking, BookingFilters, BookingSession, PlayerInput, Pl
 import { launchPersistentContext, closeBrowserContext } from "./browser";
 import { manualLogin, restoreAuth } from "./auth";
 import { navigateTo } from "./navigation";
-import { authPath, courtReserveMyReservationsUrl, headless } from "./constants";
+import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from "./constants";
 import { fileExists } from "./utils";
 import { collectBookingSessions, filterBookings } from "./booking";
 
@@ -16,14 +16,14 @@ export class CourtReserveClient {
         this.options = {
             headless: options?.headless ?? headless,
             authPath: options?.authPath ?? authPath,
-            profileDir: options?.profileDir ?? "./my-profile",
+            profileDir: options?.profileDir ?? profileDir,
             manualLogin: options?.manualLogin ?? false,
             debugPause: options?.debugPause ?? false,
         };
     }
 
     async init(): Promise<void> {
-        this.context = await launchPersistentContext(this.options.headless);
+        this.context = await launchPersistentContext(this.options.headless, this.options.profileDir);
 
         const hasSavedAuth = await fileExists(this.options.authPath);
         if (this.options.manualLogin || !hasSavedAuth) {
