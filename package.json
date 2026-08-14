@@ -7,7 +7,7 @@
         "build": "tsc",
         "start": "npx tsx examples/usage.ts",
         "dev": "tsc -w",
-        "test": "vitest",
+        "test": "vitest run",
         "test:watch": "vitest watch",
         "test:coverage": "vitest run --coverage",
         "playwright:install": "npx playwright install chromium"
