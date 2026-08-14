@@ -36,7 +36,7 @@ await client.close();
 
 | Option        | Type      | Default           | Description                                              |
 |---------------|-----------|-------------------|----------------------------------------------------------|
-| `headless`    | `boolean` | `false`           | Run browser in headless mode (no visible window).        |
+| `headless`    | `boolean` | `true`            | Run browser in headless mode (no visible window). Set `HEADLESS=false` or pass `headless: false` to see the window. |
 | `manualLogin` | `boolean` | `false`           | Force manual login on init, even if saved auth exists.   |
 | `authPath`    | `string`  | `./auth.json`     | Path to save/load the Playwright storage state file.     |
 | `profileDir`  | `string`  | `./my-profile`    | Directory for the persistent Chromium browser profile.   |
