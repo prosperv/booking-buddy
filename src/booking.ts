@@ -60,23 +60,51 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
 }
 
 /**
+ * Normalizes a `BookingFilters.date` into a local-time Date.
+ *
+ * A bare `yyyy-mm-dd` string is parsed as LOCAL midnight rather than letting
+ * `new Date()` treat it as UTC midnight, which would land on the previous day
+ * in any negative-offset timezone (the club is US Pacific) and silently filter
+ * out every booking. Throws on unparseable input instead of returning nothing.
+ */
+export function parseFilterDate(date: string | Date): Date {
+    if (date instanceof Date) {
+        if (Number.isNaN(date.getTime())) {
+            throw new Error("Invalid date filter: received an invalid Date object.");
+        }
+        return date;
+    }
+
+    const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+    const parsed = isoDateOnly
+        ? new Date(Number(isoDateOnly[1]), Number(isoDateOnly[2]) - 1, Number(isoDateOnly[3]))
+        : new Date(date);
+
+    if (Number.isNaN(parsed.getTime())) {
+        throw new Error(`Invalid date filter: ${JSON.stringify(date)} could not be parsed.`);
+    }
+
+    return parsed;
+}
+
+/**
  * Generic over `Booking` so it can be tested with plain booking objects,
  * while callers still get `BookingSession[]` back when they pass sessions in.
  */
 export function filterBookings<T extends Booking>(bookings: T[], filters?: BookingFilters): T[] {
     if (!filters) return bookings;
 
+    const filterDate = filters.date === undefined ? undefined : parseFilterDate(filters.date);
+
     return bookings.filter((b) => {
         if (filters.weekday && b.dayOfWeek.toLowerCase() !== filters.weekday.toLowerCase()) {
             return false;
         }
-        if (filters.date) {
-            const filterDate = typeof filters.date === "string" ? new Date(filters.date) : filters.date;
-            const bDate = new Date(b.startTime);
+        if (filterDate) {
             if (
-                bDate.getFullYear() !== filterDate.getFullYear() ||
-                bDate.getMonth() !== filterDate.getMonth() ||
-                bDate.getDate() !== filterDate.getDate()
+                b.startTime.getFullYear() !== filterDate.getFullYear() ||
+                b.startTime.getMonth() !== filterDate.getMonth() ||
+                b.startTime.getDate() !== filterDate.getDate()
             ) {
                 return false;
             }
