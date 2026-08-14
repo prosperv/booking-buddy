@@ -30,6 +30,47 @@ describe("parseDatetime", () => {
         expect(result.startTime.getMonth()).toBe(7); // August
         expect(result.startTime.getDate()).toBe(10);
     });
+
+    it("handles the double space the site emits after the date", () => {
+        expect(parseDatetime("Tue, Sep 8th,  9:00 PM - 10:00 PM").startTime.getHours()).toBe(21);
+    });
+
+    it("handles a date with no ordinal suffix", () => {
+        const result = parseDatetime("Mon, Aug 10, 6:00 PM - 8:00 PM");
+
+        expect(result.startTime.getDate()).toBe(10);
+        expect(result.startTime.getHours()).toBe(18);
+    });
+
+    it("defaults to the current year, since the site text carries no year", () => {
+        // Documents a known limitation: a December booking parsed in January
+        // will come back with the wrong year.
+        const result = parseDatetime("Mon, Aug 10th,  6:00 PM - 8:00 PM");
+
+        expect(result.startTime.getFullYear()).toBe(new Date().getFullYear());
+    });
+
+    it("produces an endTime before startTime for a cross-midnight booking", () => {
+        // Known limitation: no date rollover, so 11PM-12AM ends up going backwards.
+        const result = parseDatetime("Tue, Sep 8th,  11:00 PM - 12:00 AM");
+
+        expect(result.endTime.getTime()).toBeLessThan(result.startTime.getTime());
+    });
+
+    it("returns an Invalid Date when the time range separator is missing", () => {
+        const result = parseDatetime("Tue, Sep 8th,  9:00 PM");
+
+        expect(result.startTime.getHours()).toBe(21);
+        expect(Number.isNaN(result.endTime.getTime())).toBe(true);
+    });
+
+    it("throws when the text has no comma-separated time section", () => {
+        expect(() => parseDatetime("garbage")).toThrow(TypeError);
+    });
+
+    it("throws on empty input", () => {
+        expect(() => parseDatetime("")).toThrow(TypeError);
+    });
 });
 
 describe("parseCourt", () => {
@@ -45,6 +86,26 @@ describe("parseCourt", () => {
 
         expect(courtNumber).toBe(5);
         expect(courtLocation).toBe("Main");
+    });
+
+    it("parses the real site format", () => {
+        expect(parseCourt("Mukilteo 10")).toEqual({ courtNumber: 10, courtLocation: "Mukilteo" });
+    });
+
+    it("returns an empty location when there is only a number", () => {
+        expect(parseCourt("10")).toEqual({ courtNumber: 10, courtLocation: "" });
+    });
+
+    it("returns NaN when the trailing token is not numeric", () => {
+        // Documents a sharp edge: bad markup yields NaN rather than throwing.
+        const { courtNumber, courtLocation } = parseCourt("Court A");
+
+        expect(Number.isNaN(courtNumber)).toBe(true);
+        expect(courtLocation).toBe("Court");
+    });
+
+    it("returns court 0 for empty input", () => {
+        expect(parseCourt("")).toEqual({ courtNumber: 0, courtLocation: "" });
     });
 });
 
@@ -62,5 +123,22 @@ describe("parsePlayers", () => {
 
     it("returns single player for single name", () => {
         expect(parsePlayers("Lee Chong Wei")).toEqual(["Lee Chong Wei"]);
+    });
+
+    it("keeps empty entries from doubled or trailing commas", () => {
+        // Documents current behavior: entries are not filtered out.
+        expect(parsePlayers("A,,B")).toEqual(["A", "", "B"]);
+        expect(parsePlayers("A,")).toEqual(["A", ""]);
+    });
+
+    it("returns a single empty entry for whitespace-only input", () => {
+        expect(parsePlayers("   ")).toEqual([""]);
+    });
+
+    it("preserves trailing characters the site appends to names", () => {
+        expect(parsePlayers("Lee Chong Wei, Kento Momota ??")).toEqual([
+            "Lee Chong Wei",
+            "Kento Momota ??",
+        ]);
     });
 });
