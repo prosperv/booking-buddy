@@ -2,8 +2,11 @@ import { chromium, BrowserContext } from "playwright";
 import { profileDir } from "./constants";
 import { pauseForAction } from "./utils";
 
-export async function launchPersistentContext(headless: boolean): Promise<BrowserContext> {
-    const context = await chromium.launchPersistentContext(profileDir, {
+export async function launchPersistentContext(
+    headless: boolean,
+    profileDirOverride?: string,
+): Promise<BrowserContext> {
+    const context = await chromium.launchPersistentContext(profileDirOverride ?? profileDir, {
         headless,
         viewport: null,
     });

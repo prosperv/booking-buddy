@@ -1,12 +1,37 @@
 import { Locator, Page } from "playwright";
 import { pauseForAction } from "./utils";
 import { parseDatetime, parseCourt, parsePlayers } from "./parsers";
-import { BookingFilters, BookingSession } from "./types";
+import { Booking, BookingFilters, BookingSession } from "./types";
+
+/**
+ * Pulls the leading integer out of CourtReserve's "N Booking Found" label.
+ * Pure half of `getBookingsFound`, split out so it can be unit tested.
+ */
+export function parseBookingCount(text: string): number {
+    const match = text.match(/(\d+)/);
+    return match ? Number(match[1]) : 0;
+}
 
 export async function getBookingsFound(page: Page): Promise<number> {
     const text = await page.getByText("Booking Found").innerText();
-    const match = text.match(/(\d+)/);
-    return match ? Number(match[1]) : 0;
+    return parseBookingCount(text);
+}
+
+/**
+ * Assembles a `Booking` from the three raw row strings scraped off a card.
+ * Pure half of `convertBookingCardToBookingSession`, split out so the
+ * parser wiring can be unit tested without a browser.
+ */
+export function buildBooking(
+    datetimeText: string,
+    locationAndCourt: string,
+    playersText: string,
+): Booking {
+    const { dayOfWeek, startTime, endTime } = parseDatetime(datetimeText);
+    const { courtNumber, courtLocation } = parseCourt(locationAndCourt);
+    const players = parsePlayers(playersText);
+
+    return { dayOfWeek, startTime, endTime, courtNumber, courtLocation, players };
 }
 
 export async function convertBookingCardToBookingSession(
@@ -16,17 +41,8 @@ export async function convertBookingCardToBookingSession(
     const locationAndCourt = (await bookingCard.getByTestId("row-courts").textContent()) ?? "";
     const playersText = (await bookingCard.getByTestId("row-members").textContent()) ?? "";
 
-    const { dayOfWeek, startTime, endTime } = parseDatetime(datetimeText);
-    const { courtNumber, courtLocation } = parseCourt(locationAndCourt);
-    const players = parsePlayers(playersText);
-
     return {
-        dayOfWeek,
-        startTime,
-        endTime,
-        courtNumber,
-        courtLocation,
-        players,
+        ...buildBooking(datetimeText, locationAndCourt, playersText),
         page: bookingCard.page(),
     };
 }
@@ -43,7 +59,11 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     return bookingSessions;
 }
 
-export function filterBookings(bookings: BookingSession[], filters?: BookingFilters): BookingSession[] {
+/**
+ * Generic over `Booking` so it can be tested with plain booking objects,
+ * while callers still get `BookingSession[]` back when they pass sessions in.
+ */
+export function filterBookings<T extends Booking>(bookings: T[], filters?: BookingFilters): T[] {
     if (!filters) return bookings;
 
     return bookings.filter((b) => {
