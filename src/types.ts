@@ -30,3 +30,23 @@ export type PlayerIdentifier = { name: string };
 export type BookingSession = Booking & {
     page: Page;
 };
+
+export type PlayerAddReason =
+    | "already-added"
+    | "not-found"
+    | "ambiguous"
+    | "query-too-short";
+
+export type PlayerAddOutcome = {
+    name: string;
+    reason: PlayerAddReason;
+    candidates?: string[];
+};
+
+export type AddPlayersResult = {
+    players: string[];
+    added: string[];
+    skipped: PlayerAddOutcome[];
+    failed: PlayerAddOutcome[];
+    saved: boolean;
+};

@@ -122,18 +122,30 @@ describe("CourtReserveClient.getPlayersFromBooking", () => {
     });
 });
 
-describe("CourtReserveClient unimplemented player mutations", () => {
-    // These will fail once the methods are implemented, which is the point:
-    // they flag that real coverage is now required.
-    it("addPlayerToBooking throws until implemented", async () => {
-        await expect(
-            new CourtReserveClient().addPlayerToBooking(makeBooking(), { name: "New Player" }),
-        ).rejects.toThrow(/Not yet implemented/);
-    });
-
+describe("CourtReserveClient.unimplemented player mutation", () => {
+    // This will fail once removePlayerFromBooking is implemented, which is the
+    // point: it flags that real coverage is now required.
     it("removePlayerFromBooking throws until implemented", async () => {
         await expect(
             new CourtReserveClient().removePlayerFromBooking(makeBooking(), { name: "Prosper Van" }),
         ).rejects.toThrow(/Not yet implemented/);
+    });
+});
+
+describe("CourtReserveClient.addPlayerToBooking guards", () => {
+    it("rejects before init", async () => {
+        await expect(
+            new CourtReserveClient().addPlayerToBooking(makeBooking(), { name: "New Player" }),
+        ).rejects.toThrow("Client not initialized. Call init() first.");
+    });
+
+    it("rejects a booking without a bookingId", async () => {
+        // bookingId is validated before the (missing) browser session, so this
+        // does not need a real launch.
+        const client = new CourtReserveClient();
+
+        await expect(
+            client.addPlayerToBooking(makeBooking({ bookingId: "" }), { name: "New Player" }),
+        ).rejects.toThrow(/bookingId/);
     });
 });
