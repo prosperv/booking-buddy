@@ -33,6 +33,9 @@ Thumbs.db
 # Playwright / browser artifacts
 test-results/
 
+# Raw MHTML captures; only the pruned HTML fixtures are committed (see AGENTS.md)
+test/data/**/*.mhtml
+
 # Local profile and auth state
 my-profile/
 auth.json
