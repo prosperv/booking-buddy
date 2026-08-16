@@ -15,6 +15,7 @@ function optionsOf(client: CourtReserveClient): Required<ClientOptions> {
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
     return {
+        bookingId: "58800347",
         dayOfWeek: "Mon",
         startTime: new Date(2026, 7, 10, 18, 0),
         endTime: new Date(2026, 7, 10, 20, 0),

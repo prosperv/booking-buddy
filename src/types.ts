@@ -15,6 +15,7 @@ export type BookingFilters = {
 };
 
 export type Booking = {
+    bookingId: string;
     dayOfWeek: string;
     startTime: Date;
     endTime: Date;

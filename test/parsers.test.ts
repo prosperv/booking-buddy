@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDatetime, parseCourt, parsePlayers } from "../src/parsers";
+import { parseDatetime, parseCourt, parsePlayers, parseBookingId } from "../src/parsers";
 
 describe("parseDatetime", () => {
     it.each([
@@ -140,5 +140,27 @@ describe("parsePlayers", () => {
             "Prosper Van",
             "Peter Nguyen ??",
         ]);
+    });
+});
+
+describe("parseBookingId", () => {
+    it("parses the numeric suffix off the wrapper testid", () => {
+        expect(parseBookingId("booking-card-wrapper-58800347")).toBe("58800347");
+    });
+
+    it("tolerates surrounding whitespace", () => {
+        expect(parseBookingId("  booking-card-wrapper-59019419  ")).toBe("59019419");
+    });
+
+    it("throws when the prefix does not match", () => {
+        expect(() => parseBookingId("booking-card")).toThrow(/booking id/i);
+    });
+
+    it("throws when the suffix is not numeric", () => {
+        expect(() => parseBookingId("booking-card-wrapper-abc")).toThrow(/booking id/i);
+    });
+
+    it("throws on empty input", () => {
+        expect(() => parseBookingId("")).toThrow(/booking id/i);
     });
 });
