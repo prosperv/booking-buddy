@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
 import { BrowserContext, Page, chromium } from "playwright";
 import {
+    closeReservationConfirmation,
     confirmAddPlayer,
     openEditReservationModal,
     openReservationDetail,
@@ -140,6 +141,20 @@ describe("functional: add-player steps", () => {
             await loadFixture(page, "confirm-dialog.html");
 
             await expect(confirmAddPlayer(page)).resolves.toBeUndefined();
+        }, BROWSER_TEST_TIMEOUT);
+    });
+
+    describe("closeReservationConfirmation", () => {
+        it("waits for the confirmation modal and clicks Close", async () => {
+            await loadFixture(page, "reservation-confirmed.html");
+
+            const confirmation = page.getByTestId("reservation-confirm");
+            expect(await confirmation.isVisible()).toBe(true);
+            expect(await confirmation.getByTestId("title").textContent()).toContain(
+                "Reservation Confirmed",
+            );
+
+            await expect(closeReservationConfirmation(page)).resolves.toBeUndefined();
         }, BROWSER_TEST_TIMEOUT);
     });
 });
