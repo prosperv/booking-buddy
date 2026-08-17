@@ -54,12 +54,15 @@ no CI.
   served it.
 - The add-player fixtures (`reservation-detail.html`, `edit-modal.html`,
   `player-options.html`, `confirm-dialog.html`, `player-added.html`,
-  `no-player-options.html`, `two-bookings.html`) were pruned from
-  `test/data/adding-player/*.mhtml`. Two deliberate deviations from byte-for-byte:
-  the Kendo popup wrapper's `display:none`/`aria-hidden` is stripped (the capture
-  blurred the input, so the wrapper was captured hidden), and
-  `no-player-options.html` is hand-built from `edit-modal.html` to simulate the
-  "player not found" dropdown state.
+  `no-player-options.html`, `reservation-confirmed.html`, `two-bookings.html`)
+  were pruned from `test/data/adding-player/*.mhtml`. Two deliberate deviations
+  from byte-for-byte: the Kendo popup wrapper's `display:none`/`aria-hidden` is
+  stripped (the capture blurred the input, so the wrapper was captured hidden),
+  and `no-player-options.html` is hand-built from `edit-modal.html` to simulate
+  the "player not found" dropdown state. `reservation-confirmed.html` is pruned
+  from `6-click-save-reservation-confirmed.mhtml` (a plain HTML capture, not a
+  multipart MHTML) and its `<script>`/`<style>` blocks are stripped like the
+  others.
 - The captured MHTML pages contain NO JavaScript (Chrome stripped every script).
   So the add-player functional tests only cover per-state DOM/locators — the
   interactive Kendo ComboBox + sweetalert2 chain, the member-search XHR, and the
@@ -83,3 +86,9 @@ no CI.
 - sweetalert2 copy and the save POST (`/Online/Reservations/UpdateMyReservation/*`)
   semantics are pinned by the captures but the response body shape is unknown;
   `saveReservation` only asserts HTTP status.
+- On a successful save the edit modal is NOT detached — its content is swapped
+  in place for a "Reservation Confirmed" screen (`data-testid="reservation-confirm"`)
+  that `saveReservation` dismisses via `closeReservationConfirmation`. The site
+  also fires an async `reloadReservationDetail()` in parallel, so
+  `readDetailPlayers` immediately after close may still see the pre-save roster;
+  validate the read-back ordering on a live run.
