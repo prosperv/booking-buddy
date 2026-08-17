@@ -159,9 +159,23 @@ export async function confirmAddPlayer(page: Page): Promise<void> {
 }
 
 /**
+ * Dismisses the "Reservation Confirmed" screen shown after a successful save.
+ * The site does not detach the edit modal on save — it swaps the form for this
+ * confirmation view inside the same modal — so the save is only complete once
+ * this is acknowledged via its Close button.
+ */
+export async function closeReservationConfirmation(page: Page): Promise<void> {
+    const confirmation = page.getByTestId("reservation-confirm");
+    await confirmation.waitFor({ state: "visible" });
+    await humanClick(confirmation.getByTestId("Close"));
+}
+
+/**
  * Saves the reservation (persists the pending roster) and waits for the update
  * POST to succeed. The response body is opaque, so only the HTTP status is
- * checked; the caller re-reads the detail page to confirm what persisted.
+ * checked; on success the edit modal is replaced by a "Reservation Confirmed"
+ * screen, which is then dismissed. The caller re-reads the detail page to
+ * confirm what persisted.
  */
 export async function saveReservation(page: Page): Promise<void> {
     const responsePromise = page.waitForResponse(
@@ -177,10 +191,7 @@ export async function saveReservation(page: Page): Promise<void> {
         throw new Error(`Saving the reservation failed: ${response.status()} ${response.statusText()}`);
     }
 
-    await page
-        .getByTestId("update-reservation-modal")
-        .waitFor({ state: "detached" })
-        .catch(() => undefined);
+    await closeReservationConfirmation(page);
 }
 
 export async function closeModal(page: Page): Promise<void> {
