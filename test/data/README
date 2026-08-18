@@ -1,0 +1,48 @@
+# Test data
+
+The `.html` fixtures in this directory are pruned snapshots of the live
+CourtReserve "My Reservations" page (`app.courtreserve.com/Online/Bookings/List/7031`).
+
+## How they were created
+
+1. **Saved from live data.** Log in to CourtReserve in a real Chromium, open the
+   bookings list, and use the browser's "Save page as..." to capture the page
+   as an MHTML file (`.mhtml`). The raw captures live outside the repo in
+   `../test-data/` and are several MB each.
+
+2. **Prune to reduce size.** The scrapers only read the
+   `[data-testid="booking-tabs"]` subtree, so each capture is cut down to just
+   that `<div>` and everything inside it. The MHTML body is quoted-printable
+   encoded; decode it, then slice from `<div data-testid="booking-tabs">`
+   through its matching closing `</div>`. The result is wrapped in a minimal
+   HTML shell:
+
+   ```html
+   <!DOCTYPE html>
+   <html lang="en">
+   <head><meta charset="utf-8"><title>Booking List | powered by CourtReserve</title></head>
+   <body>
+   <div data-testid="booking-tabs">...subtree...</div>
+   </body>
+   </html>
+   ```
+
+   This shrinks each fixture from ~4.8 MB to a few KB. The markup inside the
+   `<div>` is byte-for-byte as the site served it; only the surrounding CSS,
+   images, and scripts are removed.
+
+## Fixtures
+
+- `one-booking-two-people.html` — one editable booking ("Edit Reservation").
+- `no-booking.html` — no booking cards.
+- `booking-by-other-people.html` — three bookings: one added by someone else
+  ("Details" button, not editable) and two owned by the current user
+  ("Edit Reservation" button).
+- `adding-player/` — raw MHTML captures of the edit-reservation flow, kept for
+  reverse-engineering the (unimplemented) add/remove-player methods.
+
+## Caveats
+
+Because the CSS is gone, the fixtures have no realistic layout. Assertions on
+geometry (bounding boxes, scrolling, hover targets) will not match production;
+only DOM structure and text are faithful.
