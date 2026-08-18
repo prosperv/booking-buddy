@@ -34,9 +34,23 @@ export function buildBooking(
     return { dayOfWeek, startTime, endTime, courtNumber, courtLocation, players };
 }
 
+/**
+ * Decides whether a booking card can be edited by the current user based on
+ * the text of its `details-btn`. CourtReserve renders "Edit Reservation" for
+ * bookings you own and "Details" for bookings someone else added you to.
+ */
+export function isEditableBooking(buttonText: string): boolean {
+    return /edit/i.test(buttonText.trim());
+}
+
 export async function convertBookingCardToBookingSession(
     bookingCard: Locator,
-): Promise<BookingSession> {
+): Promise<BookingSession | null> {
+    const detailsButtonText = (await bookingCard.getByTestId("details-btn").textContent()) ?? "";
+    if (!isEditableBooking(detailsButtonText)) {
+        return null;
+    }
+
     const datetimeText = (await bookingCard.getByTestId("row-date-and-times").textContent()) ?? "";
     const locationAndCourt = (await bookingCard.getByTestId("row-courts").textContent()) ?? "";
     const playersText = (await bookingCard.getByTestId("row-members").textContent()) ?? "";
@@ -53,7 +67,10 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     const bookingSessions: BookingSession[] = [];
 
     for (let i = 0; i < count; i += 1) {
-        bookingSessions.push(await convertBookingCardToBookingSession(bookingCard.nth(i)));
+        const session = await convertBookingCardToBookingSession(bookingCard.nth(i));
+        if (session) {
+            bookingSessions.push(session);
+        }
     }
 
     return bookingSessions;
