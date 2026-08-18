@@ -43,7 +43,7 @@ describe("functional: add-player steps", () => {
             await page.route("**/Online/MyProfile/Reservation/**", async (route) => {
                 requestedUrl = route.request().url();
                 await route.fulfill({
-                    body: readFileSync(fixturePath("reservation-detail.html"), "utf-8"),
+                    body: readFileSync(fixturePath("adding-player/reservation-detail.html"), "utf-8"),
                     contentType: "text/html",
                 });
             });
@@ -57,7 +57,7 @@ describe("functional: add-player steps", () => {
 
     describe("openEditReservationModal", () => {
         it("clicks Edit Reservation and returns the modal locator", async () => {
-            await loadFixture(page, "edit-modal.html");
+            await loadFixture(page, "adding-player/edit-modal.html");
 
             const modal = await openEditReservationModal(page);
 
@@ -67,7 +67,7 @@ describe("functional: add-player steps", () => {
 
     describe("readModalPlayers", () => {
         it("reads the pending roster from the modal", async () => {
-            await loadFixture(page, "edit-modal.html");
+            await loadFixture(page, "adding-player/edit-modal.html");
 
             const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
 
@@ -77,7 +77,7 @@ describe("functional: add-player steps", () => {
         });
 
         it("sees the added player after confirmation", async () => {
-            await loadFixture(page, "player-added.html");
+            await loadFixture(page, "adding-player/player-added.html");
 
             const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
 
@@ -88,7 +88,7 @@ describe("functional: add-player steps", () => {
 
     describe("readDetailPlayers", () => {
         it("reads the persisted roster from the detail page", async () => {
-            await loadFixture(page, "reservation-detail.html");
+            await loadFixture(page, "adding-player/reservation-detail.html");
 
             const players = await readDetailPlayers(page);
 
@@ -99,7 +99,7 @@ describe("functional: add-player steps", () => {
 
     describe("typePlayerSearch", () => {
         it("types a query into the owners combobox", async () => {
-            await loadFixture(page, "edit-modal.html");
+            await loadFixture(page, "adding-player/edit-modal.html");
             const modal = page.getByTestId("update-reservation-modal");
 
             await typePlayerSearch(modal, "Brandon");
@@ -112,7 +112,7 @@ describe("functional: add-player steps", () => {
 
     describe("readPlayerOptions", () => {
         it("reads the visible dropdown options in order", async () => {
-            await loadFixture(page, "player-options.html");
+            await loadFixture(page, "adding-player/player-options.html");
 
             const options = await readPlayerOptions(page);
 
@@ -122,7 +122,7 @@ describe("functional: add-player steps", () => {
         });
 
         it("returns an empty list when the dropdown shows no data", async () => {
-            await loadFixture(page, "no-player-options.html");
+            await loadFixture(page, "adding-player/no-player-options.html");
 
             await expect(readPlayerOptions(page)).resolves.toEqual([]);
         });
@@ -130,7 +130,7 @@ describe("functional: add-player steps", () => {
 
     describe("selectPlayerOption", () => {
         it("clicks the option at the given index", async () => {
-            await loadFixture(page, "player-options.html");
+            await loadFixture(page, "adding-player/player-options.html");
 
             await expect(selectPlayerOption(page, 5)).resolves.toBeUndefined();
         }, BROWSER_TEST_TIMEOUT);
@@ -138,7 +138,7 @@ describe("functional: add-player steps", () => {
 
     describe("confirmAddPlayer", () => {
         it("clicks Yes on the confirmation dialog", async () => {
-            await loadFixture(page, "confirm-dialog.html");
+            await loadFixture(page, "adding-player/confirm-dialog.html");
 
             await expect(confirmAddPlayer(page)).resolves.toBeUndefined();
         }, BROWSER_TEST_TIMEOUT);
@@ -146,7 +146,7 @@ describe("functional: add-player steps", () => {
 
     describe("closeReservationConfirmation", () => {
         it("waits for the confirmation modal and clicks Close", async () => {
-            await loadFixture(page, "reservation-confirmed.html");
+            await loadFixture(page, "adding-player/reservation-confirmed.html");
 
             const confirmation = page.getByTestId("reservation-confirm");
             expect(await confirmation.isVisible()).toBe(true);
