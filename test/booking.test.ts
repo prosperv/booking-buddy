@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBooking, filterBookings, parseBookingCount } from "../src/booking";
+import { buildBooking, filterBookings, isEditableBooking, parseBookingCount } from "../src/booking";
 import type { Booking } from "../src/types";
 
 /**
@@ -33,6 +33,26 @@ describe("parseBookingCount", () => {
 
     it("takes the first digit run anywhere in the text", () => {
         expect(parseBookingCount("Showing 2 of 5 Bookings Found")).toBe(2);
+    });
+});
+
+describe("isEditableBooking", () => {
+    it("treats the edit button as editable", () => {
+        expect(isEditableBooking("Edit Reservation")).toBe(true);
+    });
+
+    it("treats the details button as not editable", () => {
+        expect(isEditableBooking("Details")).toBe(false);
+    });
+
+    it("treats an empty button text as not editable", () => {
+        expect(isEditableBooking("")).toBe(false);
+        expect(isEditableBooking("   ")).toBe(false);
+    });
+
+    it("matches the edit label case-insensitively", () => {
+        expect(isEditableBooking("edit reservation")).toBe(true);
+        expect(isEditableBooking("EDIT RESERVATION")).toBe(true);
     });
 });
 

@@ -61,6 +61,19 @@ describe("functional: booking scraping", () => {
             expect(sessions[0].players[0]).toBe("Lin Dan");
             expect(sessions[0].players[1]).toContain("Viktor Axelsen");
         });
+
+        it("skips bookings owned by someone else", async () => {
+            await loadFixture(page, "booking-by-other-people.html");
+            const sessions = await collectBookingSessions(page);
+
+            expect(sessions).toHaveLength(2);
+            expect(sessions[0].dayOfWeek).toBe("Tue");
+            expect(sessions[0].courtLocation).toBe("Mukilteo");
+            expect(sessions[0].courtNumber).toBe(10);
+            expect(sessions[1].dayOfWeek).toBe("Sat");
+            expect(sessions[1].courtLocation).toBe("Mukilteo");
+            expect(sessions[1].courtNumber).toBe(1);
+        });
     });
 
 });
