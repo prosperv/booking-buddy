@@ -30,6 +30,37 @@ console.log(bookings);
 await client.close();
 ```
 
+### Adding players to a booking
+
+`getCurrentBookings()` returns bookings with a `bookingId` (parsed from each
+card). Pass one back to add players:
+
+```typescript
+const bookings = await client.getCurrentBookings({ weekday: "Sat" });
+const booking = bookings[0];
+
+const result = await client.addPlayerToBooking(booking, { name: "Peter Nguyen" });
+console.log(result.added);   // names successfully added
+console.log(result.skipped); // e.g. { name, reason: "already-added" }
+console.log(result.failed);  // e.g. { name, reason: "not-found", candidates: [...] }
+console.log(result.saved);   // true once the reservation POST succeeds
+console.log(result.players); // roster read back after save
+```
+
+`addPlayersToBooking(booking, players)` adds several players in one modal
+session (one navigation, one save). Each `AddPlayersResult` reports:
+
+| Field      | Type                  | Description                                              |
+|------------|-----------------------|----------------------------------------------------------|
+| `players`  | `string[]`            | Roster after the call (read back from the detail page on save, otherwise the original `booking.players`). |
+| `added`    | `string[]`            | Players that were added and saved.                       |
+| `skipped`  | `PlayerAddOutcome[]`  | Players already on the booking (`already-added`).        |
+| `failed`   | `PlayerAddOutcome[]`  | `not-found`, `ambiguous` (with `candidates`), or `query-too-short`. |
+| `saved`    | `boolean`             | Whether the reservation was POSTed (only when at least one player was added). |
+
+A name must contain at least 3 letters to be searchable, and the exact
+match always wins (so "Brandon Lu" selects "Brandon Lu", not "Brandon Luu").
+
 ### Options
 
 `ClientOptions` can be passed to the `CourtReserveClient` constructor:
@@ -92,6 +123,14 @@ or
 `npx tsx examples/usage.ts -f`
 
 The `--force` flag is shorthand for `manualLogin: true`.
+
+### Add a player (uses saved session if available)
+
+`npx tsx examples/add-player.ts "Peter Nguyen"`
+
+or with a forced login:
+
+`npx tsx examples/add-player.ts "Peter Nguyen" --force`
 
 ## Development and tests
 

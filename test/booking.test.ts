@@ -10,12 +10,13 @@ import type { Booking } from "../src/types";
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
     return {
+        bookingId: "58800347",
         dayOfWeek: "Mon",
         startTime: new Date(2026, 7, 10, 18, 0),
         endTime: new Date(2026, 7, 10, 20, 0),
         courtNumber: 3,
         courtLocation: "Bellevue Court",
-        players: ["Lee Chong Wei"],
+        players: ["Prosper Van"],
         ...overrides,
     };
 }
@@ -61,19 +62,26 @@ describe("buildBooking", () => {
         const booking = buildBooking(
             "Tue, Sep 8th,  9:00 PM - 10:00 PM",
             "Mukilteo 10",
-            "Lee Chong Wei, Kento Momota",
+            "Prosper Van, Peter Nguyen",
+            "58800347",
         );
 
+        expect(booking.bookingId).toBe("58800347");
         expect(booking.dayOfWeek).toBe("Tue");
         expect(booking.startTime.getHours()).toBe(21);
         expect(booking.endTime.getHours()).toBe(22);
         expect(booking.courtNumber).toBe(10);
         expect(booking.courtLocation).toBe("Mukilteo");
-        expect(booking.players).toEqual(["Lee Chong Wei", "Kento Momota"]);
+        expect(booking.players).toEqual(["Prosper Van", "Peter Nguyen"]);
     });
 
     it("does not include a page handle", () => {
-        const booking = buildBooking("Tue, Sep 8th,  9:00 PM - 10:00 PM", "Mukilteo 10", "A");
+        const booking = buildBooking(
+            "Tue, Sep 8th,  9:00 PM - 10:00 PM",
+            "Mukilteo 10",
+            "A",
+            "58800347",
+        );
 
         expect(booking).not.toHaveProperty("page");
     });

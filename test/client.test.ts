@@ -15,12 +15,13 @@ function optionsOf(client: CourtReserveClient): Required<ClientOptions> {
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
     return {
+        bookingId: "58800347",
         dayOfWeek: "Mon",
         startTime: new Date(2026, 7, 10, 18, 0),
         endTime: new Date(2026, 7, 10, 20, 0),
         courtNumber: 3,
         courtLocation: "Bellevue Court",
-        players: ["Lee Chong Wei", "Kento Momota"],
+        players: ["Prosper Van", "Peter Nguyen"],
         ...overrides,
     };
 }
@@ -109,8 +110,8 @@ describe("CourtReserveClient.getPlayersFromBooking", () => {
         const client = new CourtReserveClient();
 
         expect(client.getPlayersFromBooking(makeBooking())).toEqual([
-            "Lee Chong Wei",
-            "Kento Momota",
+            "Prosper Van",
+            "Peter Nguyen",
         ]);
     });
 
@@ -121,18 +122,30 @@ describe("CourtReserveClient.getPlayersFromBooking", () => {
     });
 });
 
-describe("CourtReserveClient unimplemented player mutations", () => {
-    // These will fail once the methods are implemented, which is the point:
-    // they flag that real coverage is now required.
-    it("addPlayerToBooking throws until implemented", async () => {
-        await expect(
-            new CourtReserveClient().addPlayerToBooking(makeBooking(), { name: "New Player" }),
-        ).rejects.toThrow(/Not yet implemented/);
-    });
-
+describe("CourtReserveClient.unimplemented player mutation", () => {
+    // This will fail once removePlayerFromBooking is implemented, which is the
+    // point: it flags that real coverage is now required.
     it("removePlayerFromBooking throws until implemented", async () => {
         await expect(
-            new CourtReserveClient().removePlayerFromBooking(makeBooking(), { name: "Lee Chong Wei" }),
+            new CourtReserveClient().removePlayerFromBooking(makeBooking(), { name: "Prosper Van" }),
         ).rejects.toThrow(/Not yet implemented/);
+    });
+});
+
+describe("CourtReserveClient.addPlayerToBooking guards", () => {
+    it("rejects before init", async () => {
+        await expect(
+            new CourtReserveClient().addPlayerToBooking(makeBooking(), { name: "New Player" }),
+        ).rejects.toThrow("Client not initialized. Call init() first.");
+    });
+
+    it("rejects a booking without a bookingId", async () => {
+        // bookingId is validated before the (missing) browser session, so this
+        // does not need a real launch.
+        const client = new CourtReserveClient();
+
+        await expect(
+            client.addPlayerToBooking(makeBooking({ bookingId: "" }), { name: "New Player" }),
+        ).rejects.toThrow(/bookingId/);
     });
 });

@@ -8,8 +8,12 @@ async function main() {
         manualLogin: forceLogin,
     });
     await client.init();
-    const bookings = await client.getCurrentBookings({ weekday: "Sat" });
-    console.log(bookings);
+    const bookings = await client.getCurrentBookings();
+    console.log(bookings.map(b => ({
+        ...b,
+        startTime: b.startTime.toString(),
+        endTime: b.endTime.toString(),
+    })));
     await client.close();
 }
 

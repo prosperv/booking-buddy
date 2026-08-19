@@ -36,3 +36,13 @@ export function parsePlayers(playersText: string): string[] {
     if (!playersText) return [];
     return playersText.split(",").map((p) => p.trim());
 }
+
+export function parseBookingId(wrapperTestId: string): string {
+    const match = /^booking-card-wrapper-(\d+)$/.exec(wrapperTestId.trim());
+    if (!match) {
+        throw new Error(
+            `Could not parse booking id from wrapper testid: ${JSON.stringify(wrapperTestId)}`,
+        );
+    }
+    return match[1];
+}

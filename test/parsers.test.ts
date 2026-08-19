@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDatetime, parseCourt, parsePlayers } from "../src/parsers";
+import { parseDatetime, parseCourt, parsePlayers, parseBookingId } from "../src/parsers";
 
 describe("parseDatetime", () => {
     it.each([
@@ -111,9 +111,9 @@ describe("parseCourt", () => {
 
 describe("parsePlayers", () => {
     it("parses comma-separated players", () => {
-        expect(parsePlayers("Lee Chong Wei, Kento Momota")).toEqual([
-            "Lee Chong Wei",
-            "Kento Momota",
+        expect(parsePlayers("Prosper Van, Peter Nguyen")).toEqual([
+            "Prosper Van",
+            "Peter Nguyen",
         ]);
     });
 
@@ -122,7 +122,7 @@ describe("parsePlayers", () => {
     });
 
     it("returns single player for single name", () => {
-        expect(parsePlayers("Lee Chong Wei")).toEqual(["Lee Chong Wei"]);
+        expect(parsePlayers("Prosper Van")).toEqual(["Prosper Van"]);
     });
 
     it("keeps empty entries from doubled or trailing commas", () => {
@@ -136,9 +136,31 @@ describe("parsePlayers", () => {
     });
 
     it("preserves trailing characters the site appends to names", () => {
-        expect(parsePlayers("Lee Chong Wei, Kento Momota ??")).toEqual([
-            "Lee Chong Wei",
-            "Kento Momota ??",
+        expect(parsePlayers("Prosper Van, Peter Nguyen ??")).toEqual([
+            "Prosper Van",
+            "Peter Nguyen ??",
         ]);
+    });
+});
+
+describe("parseBookingId", () => {
+    it("parses the numeric suffix off the wrapper testid", () => {
+        expect(parseBookingId("booking-card-wrapper-58800347")).toBe("58800347");
+    });
+
+    it("tolerates surrounding whitespace", () => {
+        expect(parseBookingId("  booking-card-wrapper-59019419  ")).toBe("59019419");
+    });
+
+    it("throws when the prefix does not match", () => {
+        expect(() => parseBookingId("booking-card")).toThrow(/booking id/i);
+    });
+
+    it("throws when the suffix is not numeric", () => {
+        expect(() => parseBookingId("booking-card-wrapper-abc")).toThrow(/booking id/i);
+    });
+
+    it("throws on empty input", () => {
+        expect(() => parseBookingId("")).toThrow(/booking id/i);
     });
 });

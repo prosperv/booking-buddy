@@ -1,6 +1,6 @@
 import { Locator, Page } from "playwright";
-import { pauseForAction } from "./utils";
-import { parseDatetime, parseCourt, parsePlayers } from "./parsers";
+import { humanClick } from "./interactions";
+import { parseDatetime, parseCourt, parsePlayers, parseBookingId } from "./parsers";
 import { Booking, BookingFilters, BookingSession } from "./types";
 
 /**
@@ -26,12 +26,13 @@ export function buildBooking(
     datetimeText: string,
     locationAndCourt: string,
     playersText: string,
+    bookingId: string,
 ): Booking {
     const { dayOfWeek, startTime, endTime } = parseDatetime(datetimeText);
     const { courtNumber, courtLocation } = parseCourt(locationAndCourt);
     const players = parsePlayers(playersText);
 
-    return { dayOfWeek, startTime, endTime, courtNumber, courtLocation, players };
+    return { bookingId, dayOfWeek, startTime, endTime, courtNumber, courtLocation, players };
 }
 
 /**
@@ -51,18 +52,24 @@ export async function convertBookingCardToBookingSession(
         return null;
     }
 
+    const wrapperTestId = (await bookingCard.getAttribute("data-testid")) ?? "";
     const datetimeText = (await bookingCard.getByTestId("row-date-and-times").textContent()) ?? "";
     const locationAndCourt = (await bookingCard.getByTestId("row-courts").textContent()) ?? "";
     const playersText = (await bookingCard.getByTestId("row-members").textContent()) ?? "";
 
     return {
-        ...buildBooking(datetimeText, locationAndCourt, playersText),
+        ...buildBooking(
+            datetimeText,
+            locationAndCourt,
+            playersText,
+            parseBookingId(wrapperTestId),
+        ),
         page: bookingCard.page(),
     };
 }
 
 export async function collectBookingSessions(page: Page): Promise<BookingSession[]> {
-    const bookingCard = page.getByTestId("booking-card");
+    const bookingCard = page.getByTestId(/^booking-card-wrapper-\d+$/);
     const count = await bookingCard.count();
     const bookingSessions: BookingSession[] = [];
 
@@ -138,18 +145,5 @@ export function filterBookings<T extends Booking>(bookings: T[], filters?: Booki
 
 export async function editBooking(page: Page): Promise<void> {
     const editReservationButton = page.getByTestId("details-btn");
-    await editReservationButton.scrollIntoViewIfNeeded();
-    await editReservationButton.hover();
-
-    const box = await editReservationButton.boundingBox();
-    if (!box) {
-        throw new Error("Could not determine edit button position.");
-    }
-
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, {
-        steps: 10,
-    });
-    await pauseForAction();
-    await page.mouse.down();
-    await page.mouse.up();
+    await humanClick(editReservationButton);
 }

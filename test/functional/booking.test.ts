@@ -36,6 +36,7 @@ describe("functional: booking scraping", () => {
             const sessions = await collectBookingSessions(page);
 
             expect(sessions).toHaveLength(1);
+            expect(sessions[0].bookingId).toBe("58800347");
             expect(sessions[0].dayOfWeek).toBe("Tue");
             expect(sessions[0].courtNumber).toBe(10);
             expect(sessions[0].courtLocation).toBe("Mukilteo");
