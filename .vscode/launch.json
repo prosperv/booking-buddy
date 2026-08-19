@@ -1,0 +1,68 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug examples/usage.ts",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/examples/usage.ts",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug examples/add-player.ts",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/examples/add-player.ts",
+            "args": [
+                "${input:playerName1}",
+                "${input:playerName2}"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug examples/usage.ts (force login)",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/examples/usage.ts",
+            "args": [
+                "--force"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "playerName1",
+            "type": "promptString",
+            "description": "Player name to add (spaces allowed)",
+            "default": ""
+        },
+        {
+            "id": "playerName2",
+            "type": "promptString",
+            "description": "Optional: another player name (leave blank to skip)",
+            "default": ""
+        },
+        {
+            "id": "playerName3",
+            "type": "promptString",
+            "description": "Optional: another player name (leave blank to skip)",
+            "default": ""
+        }
+    ]
+}
