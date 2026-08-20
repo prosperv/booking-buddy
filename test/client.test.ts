@@ -168,3 +168,29 @@ describe("CourtReserveClient.addPlayerToBooking guards", () => {
         ).rejects.toThrow(/bookingId/);
     });
 });
+
+describe("CourtReserveClient.swapPlayersOnBooking guards", () => {
+    it("rejects before init", async () => {
+        await expect(
+            new CourtReserveClient().swapPlayersOnBooking(
+                makeBooking(),
+                [{ name: "Kento Momota" }],
+                [{ name: "Chen Long" }],
+            ),
+        ).rejects.toThrow("Client not initialized. Call init() first.");
+    });
+
+    it("rejects a booking without a bookingId", async () => {
+        // bookingId is validated before the (missing) browser session, so this
+        // does not need a real launch.
+        const client = new CourtReserveClient();
+
+        await expect(
+            client.swapPlayersOnBooking(
+                makeBooking({ bookingId: "" }),
+                [{ name: "Kento Momota" }],
+                [{ name: "Chen Long" }],
+            ),
+        ).rejects.toThrow(/bookingId/);
+    });
+});
