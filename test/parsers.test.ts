@@ -111,9 +111,9 @@ describe("parseCourt", () => {
 
 describe("parsePlayers", () => {
     it("parses comma-separated players", () => {
-        expect(parsePlayers("Prosper Van, Peter Nguyen")).toEqual([
-            "Prosper Van",
-            "Peter Nguyen",
+        expect(parsePlayers("Viktor Axelsen, Kento Momota")).toEqual([
+            "Viktor Axelsen",
+            "Kento Momota",
         ]);
     });
 
@@ -122,7 +122,7 @@ describe("parsePlayers", () => {
     });
 
     it("returns single player for single name", () => {
-        expect(parsePlayers("Prosper Van")).toEqual(["Prosper Van"]);
+        expect(parsePlayers("Viktor Axelsen")).toEqual(["Viktor Axelsen"]);
     });
 
     it("keeps empty entries from doubled or trailing commas", () => {
@@ -136,9 +136,9 @@ describe("parsePlayers", () => {
     });
 
     it("preserves trailing characters the site appends to names", () => {
-        expect(parsePlayers("Prosper Van, Peter Nguyen ??")).toEqual([
-            "Prosper Van",
-            "Peter Nguyen ??",
+        expect(parsePlayers("Viktor Axelsen, Kento Momota ??")).toEqual([
+            "Viktor Axelsen",
+            "Kento Momota ??",
         ]);
     });
 });

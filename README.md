@@ -39,7 +39,7 @@ card). Pass one back to add players:
 const bookings = await client.getCurrentBookings({ weekday: "Sat" });
 const booking = bookings[0];
 
-const result = await client.addPlayerToBooking(booking, { name: "Peter Nguyen" });
+const result = await client.addPlayerToBooking(booking, { name: "Kento Momota" });
 console.log(result.added);   // names successfully added
 console.log(result.skipped); // e.g. { name, reason: "already-added" }
 console.log(result.failed);  // e.g. { name, reason: "not-found", candidates: [...] }
@@ -59,7 +59,7 @@ session (one navigation, one save). Each `AddPlayersResult` reports:
 | `saved`    | `boolean`             | Whether the reservation was POSTed (only when at least one player was added). |
 
 A name must contain at least 3 letters to be searchable, and the exact
-match always wins (so "Brandon Lu" selects "Brandon Lu", not "Brandon Luu").
+match always wins (so "Lee Zii Jia" selects "Lee Zii Jia", not "Lee Zii Jiaa").
 
 ### Options
 
@@ -126,11 +126,11 @@ The `--force` flag is shorthand for `manualLogin: true`.
 
 ### Add a player (uses saved session if available)
 
-`npx tsx examples/add-player.ts "Peter Nguyen"`
+`npx tsx examples/add-player.ts "Kento Momota"`
 
 or with a forced login:
 
-`npx tsx examples/add-player.ts "Peter Nguyen" --force`
+`npx tsx examples/add-player.ts "Kento Momota" --force`
 
 ## Development and tests
 

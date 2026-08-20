@@ -16,7 +16,7 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
         endTime: new Date(2026, 7, 10, 20, 0),
         courtNumber: 3,
         courtLocation: "Bellevue Court",
-        players: ["Prosper Van"],
+        players: ["Viktor Axelsen"],
         ...overrides,
     };
 }
@@ -62,7 +62,7 @@ describe("buildBooking", () => {
         const booking = buildBooking(
             "Tue, Sep 8th,  9:00 PM - 10:00 PM",
             "Mukilteo 10",
-            "Prosper Van, Peter Nguyen",
+            "Viktor Axelsen, Kento Momota",
             "58800347",
         );
 
@@ -72,7 +72,7 @@ describe("buildBooking", () => {
         expect(booking.endTime.getHours()).toBe(22);
         expect(booking.courtNumber).toBe(10);
         expect(booking.courtLocation).toBe("Mukilteo");
-        expect(booking.players).toEqual(["Prosper Van", "Peter Nguyen"]);
+        expect(booking.players).toEqual(["Viktor Axelsen", "Kento Momota"]);
     });
 
     it("does not include a page handle", () => {

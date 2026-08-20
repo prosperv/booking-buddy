@@ -72,8 +72,8 @@ describe("functional: add-player steps", () => {
             const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
 
             expect(players).toHaveLength(3);
-            expect(players[0]).toBe("Prosper Van");
-            expect(players).toContain("Peter Nguyen ??");
+            expect(players[0]).toBe("Viktor Axelsen");
+            expect(players).toContain("Kento Momota ??");
         });
 
         it("sees the added player after confirmation", async () => {
@@ -82,7 +82,7 @@ describe("functional: add-player steps", () => {
             const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
 
             expect(players).toHaveLength(4);
-            expect(players).toContain("Brandon Luu");
+            expect(players).toContain("Lee Zii Jiaa");
         });
     });
 
@@ -93,7 +93,7 @@ describe("functional: add-player steps", () => {
             const players = await readDetailPlayers(page);
 
             expect(players).toHaveLength(3);
-            expect(players[0]).toBe("Prosper Van");
+            expect(players[0]).toBe("Viktor Axelsen");
         });
     });
 
@@ -102,10 +102,10 @@ describe("functional: add-player steps", () => {
             await loadFixture(page, "adding-player/edit-modal.html");
             const modal = page.getByTestId("update-reservation-modal");
 
-            await typePlayerSearch(modal, "Brandon");
+            await typePlayerSearch(modal, "Lee Zii");
 
             expect(await modal.locator('input[name="OwnersDropdown_input"]').inputValue()).toBe(
-                "Brandon",
+                "Lee Zii",
             );
         }, BROWSER_TEST_TIMEOUT);
     });
@@ -117,8 +117,8 @@ describe("functional: add-player steps", () => {
             const options = await readPlayerOptions(page);
 
             expect(options).toHaveLength(11);
-            expect(options[0]).toBe("Brandon Chau");
-            expect(options).toContain("Brandon Luu");
+            expect(options[0]).toBe("Lee Zii Chau");
+            expect(options).toContain("Lee Zii Jiaa");
         });
 
         it("returns an empty list when the dropdown shows no data", async () => {

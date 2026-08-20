@@ -8,12 +8,12 @@ import {
 
 describe("normalizePlayerName", () => {
     it("collapses internal whitespace", () => {
-        expect(normalizePlayerName("Prosper   Van")).toBe("prosper van");
+        expect(normalizePlayerName("Viktor   Axelsen")).toBe("viktor axelsen");
     });
 
     it("strips trailing question marks the site appends", () => {
-        expect(normalizePlayerName("Peter Nguyen ??")).toBe("peter nguyen");
-        expect(normalizePlayerName("Viktor Axelsen ?")).toBe("viktor axelsen");
+        expect(normalizePlayerName("Kento Momota ??")).toBe("kento momota");
+        expect(normalizePlayerName("Lee Zii Jia ?")).toBe("lee zii jia");
     });
 
     it("does not strip interior question marks", () => {
@@ -21,13 +21,13 @@ describe("normalizePlayerName", () => {
     });
 
     it("casefolds", () => {
-        expect(normalizePlayerName("Brandon Luu")).toBe("brandon luu");
+        expect(normalizePlayerName("Lee Zii Jiaa")).toBe("lee zii jiaa");
     });
 });
 
 describe("searchNameError", () => {
     it("accepts a query with at least 3 letters", () => {
-        expect(searchNameError("Brandon")).toBeNull();
+        expect(searchNameError("Lee Zii")).toBeNull();
         expect(searchNameError("Lin")).toBeNull();
     });
 
@@ -43,18 +43,18 @@ describe("searchNameError", () => {
 });
 
 describe("matchPlayerOption", () => {
-    const options = ["Brandon Chau", "Brandon Lu", "Brandon Luu", "Chen Long"];
+    const options = ["Lee Zii Chau", "Lee Zii Jia", "Lee Zii Jiaa", "Chen Long"];
 
     it("returns an exact match even when it is a prefix of another name", () => {
-        expect(matchPlayerOption(options, "Brandon Lu")).toEqual({
+        expect(matchPlayerOption(options, "Lee Zii Jia")).toEqual({
             status: "exact",
-            name: "Brandon Lu",
+            name: "Lee Zii Jia",
             index: 1,
         });
     });
 
     it("returns an exact match case-insensitively with junk stripped", () => {
-        expect(matchPlayerOption(options, "brandon luu ??").status).toBe("exact");
+        expect(matchPlayerOption(options, "lee zii jiaa ??").status).toBe("exact");
     });
 
     it("returns a unique substring match", () => {
@@ -66,21 +66,21 @@ describe("matchPlayerOption", () => {
     });
 
     it("returns ambiguous with candidates when multiple options match", () => {
-        expect(matchPlayerOption(options, "Brandon")).toEqual({
+        expect(matchPlayerOption(options, "Lee Zii")).toEqual({
             status: "ambiguous",
-            candidates: ["Brandon Chau", "Brandon Lu", "Brandon Luu"],
+            candidates: ["Lee Zii Chau", "Lee Zii Jia", "Lee Zii Jiaa"],
         });
     });
 
     it("returns not-found with candidates when nothing matches", () => {
         expect(matchPlayerOption(options, "Zed")).toEqual({
             status: "not-found",
-            candidates: ["Brandon Chau", "Brandon Lu", "Brandon Luu", "Chen Long"],
+            candidates: ["Lee Zii Chau", "Lee Zii Jia", "Lee Zii Jiaa", "Chen Long"],
         });
     });
 
     it("returns not-found for an empty option list", () => {
-        expect(matchPlayerOption([], "Brandon")).toEqual({
+        expect(matchPlayerOption([], "Lee Zii")).toEqual({
             status: "not-found",
             candidates: [],
         });

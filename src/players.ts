@@ -15,7 +15,7 @@ const TYPING_DELAY_MS = 80;
 
 /**
  * Collapses whitespace, drops the trailing "?" characters the site appends to
- * some names (e.g. "Peter Nguyen ??"), and casefolds. Used to compare the
+ * some names (e.g. "Kento Momota ??"), and casefolds. Used to compare the
  * current roster against the requested player and to match dropdown options.
  */
 export function normalizePlayerName(name: string): string {
@@ -42,7 +42,7 @@ export type PlayerMatch =
 /**
  * Resolves a search query against the dropdown options. An exact
  * (case-insensitive, junk-stripped) match always wins over a substring match,
- * so searching "Brandon Lu" picks "Brandon Lu" rather than "Brandon Luu".
+ * so searching "Lee Zii Jia" picks "Lee Zii Jia" rather than "Lee Zii Jiaa".
  */
 export function matchPlayerOption(options: string[], query: string): PlayerMatch {
     const q = normalizePlayerName(query);

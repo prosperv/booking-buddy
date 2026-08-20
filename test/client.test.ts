@@ -21,7 +21,7 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
         endTime: new Date(2026, 7, 10, 20, 0),
         courtNumber: 3,
         courtLocation: "Bellevue Court",
-        players: ["Prosper Van", "Peter Nguyen"],
+        players: ["Viktor Axelsen", "Kento Momota"],
         ...overrides,
     };
 }
@@ -110,8 +110,8 @@ describe("CourtReserveClient.getPlayersFromBooking", () => {
         const client = new CourtReserveClient();
 
         expect(client.getPlayersFromBooking(makeBooking())).toEqual([
-            "Prosper Van",
-            "Peter Nguyen",
+            "Viktor Axelsen",
+            "Kento Momota",
         ]);
     });
 
