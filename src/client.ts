@@ -1,12 +1,15 @@
-import { BrowserContext, Page } from "playwright";
+import { BrowserContext, Locator, Page } from "playwright";
 import {
     AddPlayersResult,
     Booking,
     BookingFilters,
     BookingSession,
     ClientOptions,
+    PlayerAddOutcome,
     PlayerInput,
+    PlayerRemoveOutcome,
     RemovePlayersResult,
+    SwapPlayerResult,
 } from "./types";
 import { launchPersistentContext, closeBrowserContext } from "./browser";
 import { manualLogin, restoreAuth } from "./auth";
@@ -30,6 +33,91 @@ import {
     selectPlayerOption,
     typePlayerSearch,
 } from "./players";
+
+type RemoveLoopResult = {
+    removed: string[];
+    skipped: PlayerRemoveOutcome[];
+    failed: PlayerRemoveOutcome[];
+};
+
+/**
+ * Removes each requested player from the edit modal's pending roster. Outcomes
+ * are accumulated into `result` rather than returned, so the caller can reuse
+ * the same accumulator across a remove-then-add swap without tracking return
+ * values per player.
+ */
+async function runRemoveLoop(modal: Locator, players: PlayerInput[], result: RemoveLoopResult): Promise<void> {
+    for (const { name } of players) {
+        const outcome = await removeMemberFromModal(modal, name);
+        await pauseForAction();
+
+        if (outcome.status === "removed") {
+            result.removed.push(outcome.name);
+        } else if (outcome.status === "not-found") {
+            result.skipped.push({ name, reason: "not-in-roster" });
+        } else {
+            result.failed.push({ name: outcome.name, reason: "not-removable" });
+        }
+    }
+}
+
+type AddLoopResult = {
+    added: string[];
+    skipped: PlayerAddOutcome[];
+    failed: PlayerAddOutcome[];
+};
+
+/**
+ * Adds each requested player to the edit modal's pending roster via the member
+ * search. `roster` is the source of truth for the "already-added" check; it is
+ * mutated in place as players are added so duplicates within the request are
+ * caught. The caller must seed it with the current (post-removal, for a swap)
+ * roster.
+ */
+async function runAddLoop(
+    page: Page,
+    modal: Locator,
+    players: PlayerInput[],
+    roster: string[],
+    result: AddLoopResult,
+): Promise<void> {
+    for (const { name } of players) {
+        if (roster.some((existing) => normalizePlayerName(existing) === normalizePlayerName(name))) {
+            result.skipped.push({ name, reason: "already-added" });
+            continue;
+        }
+
+        const tooShort = searchNameError(name);
+        if (tooShort) {
+            result.failed.push({ name, reason: "query-too-short" });
+            continue;
+        }
+
+        await typePlayerSearch(modal, name);
+        await pauseForAction();
+
+        const options = await readPlayerOptions(page);
+        const match = matchPlayerOption(options, name);
+
+        if (match.status === "exact" || match.status === "unique") {
+            await selectPlayerOption(page, match.index);
+            await pauseForAction();
+            await confirmAddPlayer(page);
+            await modal
+                .locator('[data-testid="player-fullname"]')
+                .filter({ hasText: match.name })
+                .first()
+                .waitFor({ state: "attached" });
+
+            result.added.push(match.name);
+            roster.push(match.name);
+        } else if (match.status === "ambiguous") {
+            result.failed.push({ name, reason: "ambiguous", candidates: match.candidates });
+        } else {
+            result.failed.push({ name, reason: "not-found", candidates: match.candidates });
+        }
+    }
+}
 
 export class CourtReserveClient {
     private context?: BrowserContext;
@@ -89,21 +177,18 @@ export class CourtReserveClient {
         return booking.players;
     }
 
-    async addPlayerToBooking(booking: Booking, player: PlayerInput): Promise<AddPlayersResult> {
-        return this.addPlayersToBooking(booking, [player]);
-    }
-
     /**
-     * Adds players to a booking through the edit-reservation modal. Runs on a
-     * throwaway page so `this.page` (the bookings list) is left untouched for
-     * later `getCurrentBookings()` calls.
-     *
-     * Per-player problems (already added, not found, ambiguous, too short a
-     * search) are reported in the result rather than thrown. Structural
-     * failures — no session, missing bookingId, page/modal not loading, or a
-     * failed save — still throw.
+     * Opens the edit-reservation modal on a throwaway page and runs `run`
+     * inside it. `run` reports whether the pending roster changed; when it did
+     * the modal is saved once and the persisted detail roster is returned,
+     * otherwise the modal is closed unsaved and `booking.players` is returned.
+     * The throwaway page is always closed in `finally`, leaving `this.page` (the
+     * bookings list) untouched for later `getCurrentBookings()` calls.
      */
-    async addPlayersToBooking(booking: Booking, players: PlayerInput[]): Promise<AddPlayersResult> {
+    private async withEditModal(
+        booking: Booking,
+        run: (page: Page, modal: Locator) => Promise<boolean>,
+    ): Promise<{ saved: boolean; players: string[] }> {
         if (!booking.bookingId) {
             throw new Error("Booking is missing bookingId; cannot navigate to its detail page.");
         }
@@ -111,6 +196,39 @@ export class CourtReserveClient {
             throw new Error("Client not initialized. Call init() first.");
         }
 
+        const page = await this.context.newPage();
+        try {
+            await openReservationDetail(page, booking.bookingId);
+            const modal = await openEditReservationModal(page);
+            await pauseForAction();
+
+            const changed = await run(page, modal);
+
+            if (changed) {
+                await saveReservation(page);
+                return { saved: true, players: await readDetailPlayers(page) };
+            }
+
+            await closeModal(page);
+            return { saved: false, players: booking.players };
+        } finally {
+            await page.close().catch(() => undefined);
+        }
+    }
+
+    async addPlayerToBooking(booking: Booking, player: PlayerInput): Promise<AddPlayersResult> {
+        return this.addPlayersToBooking(booking, [player]);
+    }
+
+    /**
+     * Adds players to a booking through the edit-reservation modal.
+     *
+     * Per-player problems (already added, not found, ambiguous, too short a
+     * search) are reported in the result rather than thrown. Structural
+     * failures — no session, missing bookingId, page/modal not loading, or a
+     * failed save — still throw.
+     */
+    async addPlayersToBooking(booking: Booking, players: PlayerInput[]): Promise<AddPlayersResult> {
         const result: AddPlayersResult = {
             players: [],
             added: [],
@@ -119,63 +237,14 @@ export class CourtReserveClient {
             saved: false,
         };
 
-        const page = await this.context.newPage();
-        try {
-            await openReservationDetail(page, booking.bookingId);
-            const modal = await openEditReservationModal(page);
-            await pauseForAction();
-
+        const { saved, players: finalPlayers } = await this.withEditModal(booking, async (page, modal) => {
             const roster = await readModalPlayers(modal);
+            await runAddLoop(page, modal, players, roster, result);
+            return result.added.length > 0;
+        });
 
-            for (const { name } of players) {
-                if (roster.some((existing) => normalizePlayerName(existing) === normalizePlayerName(name))) {
-                    result.skipped.push({ name, reason: "already-added" });
-                    continue;
-                }
-
-                const tooShort = searchNameError(name);
-                if (tooShort) {
-                    result.failed.push({ name, reason: "query-too-short" });
-                    continue;
-                }
-
-                await typePlayerSearch(modal, name);
-                await pauseForAction();
-
-                const options = await readPlayerOptions(page);
-                const match = matchPlayerOption(options, name);
-
-                if (match.status === "exact" || match.status === "unique") {
-                    await selectPlayerOption(page, match.index);
-                    await pauseForAction();
-                    await confirmAddPlayer(page);
-                    await modal
-                        .locator('[data-testid="player-fullname"]')
-                        .filter({ hasText: match.name })
-                        .first()
-                        .waitFor({ state: "attached" });
-
-                    result.added.push(match.name);
-                    roster.push(match.name);
-                } else if (match.status === "ambiguous") {
-                    result.failed.push({ name, reason: "ambiguous", candidates: match.candidates });
-                } else {
-                    result.failed.push({ name, reason: "not-found", candidates: match.candidates });
-                }
-            }
-
-            if (result.added.length > 0) {
-                await saveReservation(page);
-                result.saved = true;
-                result.players = await readDetailPlayers(page);
-            } else {
-                await closeModal(page);
-                result.players = booking.players;
-            }
-        } finally {
-            await page.close().catch(() => undefined);
-        }
-
+        result.saved = saved;
+        result.players = finalPlayers;
         return result;
     }
 
@@ -184,9 +253,7 @@ export class CourtReserveClient {
     }
 
     /**
-     * Removes players from a booking through the edit-reservation modal. Runs
-     * on a throwaway page so `this.page` (the bookings list) is left untouched
-     * for later `getCurrentBookings()` calls.
+     * Removes players from a booking through the edit-reservation modal.
      *
      * Per-player problems (not in the roster, or not removable — e.g. the
      * reservation owner) are reported in the result rather than thrown.
@@ -194,13 +261,6 @@ export class CourtReserveClient {
      * loading, or a failed save — still throw.
      */
     async removePlayersFromBooking(booking: Booking, players: PlayerInput[]): Promise<RemovePlayersResult> {
-        if (!booking.bookingId) {
-            throw new Error("Booking is missing bookingId; cannot navigate to its detail page.");
-        }
-        if (!this.context) {
-            throw new Error("Client not initialized. Call init() first.");
-        }
-
         const result: RemovePlayersResult = {
             players: [],
             removed: [],
@@ -209,37 +269,50 @@ export class CourtReserveClient {
             saved: false,
         };
 
-        const page = await this.context.newPage();
-        try {
-            await openReservationDetail(page, booking.bookingId);
-            const modal = await openEditReservationModal(page);
-            await pauseForAction();
+        const { saved, players: finalPlayers } = await this.withEditModal(booking, async (_page, modal) => {
+            await runRemoveLoop(modal, players, result);
+            return result.removed.length > 0;
+        });
 
-            for (const { name } of players) {
-                const outcome = await removeMemberFromModal(modal, name);
-                await pauseForAction();
-
-                if (outcome.status === "removed") {
-                    result.removed.push(outcome.name);
-                } else if (outcome.status === "not-found") {
-                    result.skipped.push({ name, reason: "not-in-roster" });
-                } else {
-                    result.failed.push({ name: outcome.name, reason: "not-removable" });
-                }
-            }
-
-            if (result.removed.length > 0) {
-                await saveReservation(page);
-                result.saved = true;
-                result.players = await readDetailPlayers(page);
-            } else {
-                await closeModal(page);
-                result.players = booking.players;
-            }
-        } finally {
-            await page.close().catch(() => undefined);
-        }
-
+        result.saved = saved;
+        result.players = finalPlayers;
         return result;
+    }
+
+    /**
+     * Swaps players on a booking in a single edit-reservation session: removes
+     * `playersToRemove`, then adds `playersToAdd`, then saves once.
+     *
+     * Per-player problems are reported in the result rather than thrown, in the
+     * same shape as the add/remove methods. Structural failures — no session,
+     * missing bookingId, page/modal not loading, or a failed save — still throw.
+     */
+    async swapPlayersOnBooking(
+        booking: Booking,
+        playersToRemove: PlayerInput[],
+        playersToAdd: PlayerInput[],
+    ): Promise<SwapPlayerResult> {
+        const removeLoop: RemoveLoopResult = { removed: [], skipped: [], failed: [] };
+        const addLoop: AddLoopResult = { added: [], skipped: [], failed: [] };
+
+        const { saved, players: finalPlayers } = await this.withEditModal(booking, async (page, modal) => {
+            await runRemoveLoop(modal, playersToRemove, removeLoop);
+
+            // Seed the add loop from the post-removal roster. Using the opening
+            // snapshot here would report a just-removed player as already-added.
+            const roster = await readModalPlayers(modal);
+            await runAddLoop(page, modal, playersToAdd, roster, addLoop);
+
+            return removeLoop.removed.length > 0 || addLoop.added.length > 0;
+        });
+
+        return {
+            players: finalPlayers,
+            removed: removeLoop.removed,
+            added: addLoop.added,
+            skipped: [...removeLoop.skipped, ...addLoop.skipped],
+            failed: [...removeLoop.failed, ...addLoop.failed],
+            saved,
+        };
     }
 }

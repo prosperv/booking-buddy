@@ -64,3 +64,12 @@ export type RemovePlayersResult = {
     failed: PlayerRemoveOutcome[];
     saved: boolean;
 };
+
+export type SwapPlayerResult = {
+    players: string[];
+    removed: string[];
+    added: string[];
+    skipped: (PlayerAddOutcome | PlayerRemoveOutcome)[];
+    failed: (PlayerAddOutcome | PlayerRemoveOutcome)[];
+    saved: boolean;
+};

@@ -10,5 +10,6 @@ export type {
     PlayerRemoveOutcome,
     PlayerRemoveReason,
     RemovePlayersResult,
+    SwapPlayerResult,
 } from "./types";
 export { delay, randomDelay, pauseForAction, fileExists, waitForEnter, retry } from "./utils";
