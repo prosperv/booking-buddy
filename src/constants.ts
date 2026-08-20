@@ -9,5 +9,5 @@ export const googleUrl = "https://www.google.com/";
 export const authPath = process.env.AUTH_PATH ?? "./auth.json";
 export const profileDir = process.env.PROFILE_DIR ?? "./my-profile";
 export const headless = process.env.HEADLESS !== "false";
-export const minActionDelay = Number(process.env.MIN_ACTION_DELAY_MS ?? 400);
-export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 2000);
+export const minActionDelay = Number(process.env.MIN_ACTION_DELAY_MS ?? 1000);
+export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 3000);
