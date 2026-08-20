@@ -6,7 +6,7 @@ import {
     BookingSession,
     ClientOptions,
     PlayerInput,
-    PlayerIdentifier,
+    RemovePlayersResult,
 } from "./types";
 import { launchPersistentContext, closeBrowserContext } from "./browser";
 import { manualLogin, restoreAuth } from "./auth";
@@ -24,6 +24,7 @@ import {
     readDetailPlayers,
     readModalPlayers,
     readPlayerOptions,
+    removeMemberFromModal,
     saveReservation,
     searchNameError,
     selectPlayerOption,
@@ -178,7 +179,67 @@ export class CourtReserveClient {
         return result;
     }
 
-    async removePlayerFromBooking(booking: Booking, player: PlayerIdentifier): Promise<void> {
-        throw new Error("Not yet implemented — needs CourtReserve edit-page reverse-engineering.");
+    async removePlayerFromBooking(booking: Booking, player: PlayerInput): Promise<RemovePlayersResult> {
+        return this.removePlayersFromBooking(booking, [player]);
+    }
+
+    /**
+     * Removes players from a booking through the edit-reservation modal. Runs
+     * on a throwaway page so `this.page` (the bookings list) is left untouched
+     * for later `getCurrentBookings()` calls.
+     *
+     * Per-player problems (not in the roster, or not removable — e.g. the
+     * reservation owner) are reported in the result rather than thrown.
+     * Structural failures — no session, missing bookingId, page/modal not
+     * loading, or a failed save — still throw.
+     */
+    async removePlayersFromBooking(booking: Booking, players: PlayerInput[]): Promise<RemovePlayersResult> {
+        if (!booking.bookingId) {
+            throw new Error("Booking is missing bookingId; cannot navigate to its detail page.");
+        }
+        if (!this.context) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+
+        const result: RemovePlayersResult = {
+            players: [],
+            removed: [],
+            skipped: [],
+            failed: [],
+            saved: false,
+        };
+
+        const page = await this.context.newPage();
+        try {
+            await openReservationDetail(page, booking.bookingId);
+            const modal = await openEditReservationModal(page);
+            await pauseForAction();
+
+            for (const { name } of players) {
+                const outcome = await removeMemberFromModal(modal, name);
+                await pauseForAction();
+
+                if (outcome.status === "removed") {
+                    result.removed.push(outcome.name);
+                } else if (outcome.status === "not-found") {
+                    result.skipped.push({ name, reason: "not-in-roster" });
+                } else {
+                    result.failed.push({ name: outcome.name, reason: "not-removable" });
+                }
+            }
+
+            if (result.removed.length > 0) {
+                await saveReservation(page);
+                result.saved = true;
+                result.players = await readDetailPlayers(page);
+            } else {
+                await closeModal(page);
+                result.players = booking.players;
+            }
+        } finally {
+            await page.close().catch(() => undefined);
+        }
+
+        return result;
     }
 }

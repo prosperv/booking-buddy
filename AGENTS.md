@@ -32,11 +32,15 @@ no CI.
 - `pauseForAction()` inserts random 400–2000ms delays between browser actions
   (`MIN_ACTION_DELAY_MS` / `MAX_ACTION_DELAY_MS` env vars) — deliberate anti-bot
   pacing. Use fake timers in unit tests; never assert real timing.
-- `CourtReserveClient.removePlayerFromBooking` is an unimplemented stub that
-  throws (`src/client.ts`).
 - `addPlayerToBooking`/`addPlayersToBooking` run on a throwaway
   `context.newPage()` and close it, so `this.page` stays on the bookings list
-  and later `getCurrentBookings()` calls keep working.
+  and later `getCurrentBookings()` calls keep working. The same applies to
+  `removePlayerFromBooking`/`removePlayersFromBooking`.
+- Removing a player clicks the `remove-member-btn` in that player's row of the
+  modal's `member-table`. There is **no** confirmation dialog (unlike adding),
+  but the change is only persisted by a later `saveReservation`. The
+  reservation owner's row has no remove button, so removing them is reported as
+  `not-removable` rather than thrown.
 - All scraping depends on CourtReserve `data-testid` attributes and dayjs
   parsing (`src/booking.ts`); if the site markup changes, parsing breaks.
 
@@ -67,6 +71,11 @@ no CI.
   So the add-player functional tests only cover per-state DOM/locators — the
   interactive Kendo ComboBox + sweetalert2 chain, the member-search XHR, and the
   save POST cannot be exercised offline and are gated on a live run.
+- The remove-player fixtures (`modal-player-list.html`, `modal-player-removed.html`)
+  are pruned from `test/data/removing-player/*.mhtml`. They capture the edit modal
+  before and after removing "Kento Momota" (5 players -> 4). As with the add
+  fixtures, `removeMemberFromModal` only clicks the button; the DOM does not
+  actually drop the row offline, so the post-removal state is a separate fixture.
 - Because the CSS is gone, the fixtures have no realistic layout. Assertions on
   geometry (`boundingBox()`, scrolling, hover targets) will not reflect
   production; only DOM structure and text are faithful. `humanClick`

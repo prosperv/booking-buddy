@@ -25,7 +25,6 @@ export type Booking = {
 };
 
 export type PlayerInput = { name: string };
-export type PlayerIdentifier = { name: string };
 
 export type BookingSession = Booking & {
     page: Page;
@@ -48,5 +47,20 @@ export type AddPlayersResult = {
     added: string[];
     skipped: PlayerAddOutcome[];
     failed: PlayerAddOutcome[];
+    saved: boolean;
+};
+
+export type PlayerRemoveReason = "not-in-roster" | "not-removable";
+
+export type PlayerRemoveOutcome = {
+    name: string;
+    reason: PlayerRemoveReason;
+};
+
+export type RemovePlayersResult = {
+    players: string[];
+    removed: string[];
+    skipped: PlayerRemoveOutcome[];
+    failed: PlayerRemoveOutcome[];
     saved: boolean;
 };

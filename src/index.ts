@@ -6,7 +6,9 @@ export type {
     ClientOptions,
     PlayerAddOutcome,
     PlayerAddReason,
-    PlayerIdentifier,
     PlayerInput,
+    PlayerRemoveOutcome,
+    PlayerRemoveReason,
+    RemovePlayersResult,
 } from "./types";
 export { delay, randomDelay, pauseForAction, fileExists, waitForEnter, retry } from "./utils";

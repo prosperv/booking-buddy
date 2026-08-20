@@ -71,6 +71,24 @@ export function matchPlayerOption(options: string[], query: string): PlayerMatch
     return { status: "not-found", candidates: options.map((o) => o.trim()) };
 }
 
+export type RosterPlayerMatch =
+    | { status: "exact"; name: string; index: number }
+    | { status: "not-found"; candidates: string[] };
+
+/**
+ * Resolves a player against the edit modal's pending roster. Unlike the member
+ * search, removal matches on normalized equality only — a substring match
+ * would risk removing "Lee Zii Jia" when the caller asked for "Lee Zii Jiaa".
+ */
+export function matchRosterPlayer(roster: string[], query: string): RosterPlayerMatch {
+    const q = normalizePlayerName(query);
+    const match = roster.findIndex((raw) => normalizePlayerName(raw) === q);
+    if (match === -1) {
+        return { status: "not-found", candidates: roster };
+    }
+    return { status: "exact", name: roster[match].trim(), index: match };
+}
+
 /**
  * URL of a single reservation's detail page. The edit-reservation modal is
  * opened from here, so a `bookingId` is all that is needed to reach it.
@@ -106,6 +124,36 @@ export async function readModalPlayers(modal: Locator): Promise<string[]> {
         .locator('[data-testid="member-table"] [data-testid="player-fullname"]')
         .allTextContents()
         .then((names) => names.map((n) => n.replace(/\s+/g, " ").trim()));
+}
+
+export type RemoveMemberOutcome =
+    | { status: "removed"; name: string }
+    | { status: "not-found"; name: string }
+    | { status: "not-removable"; name: string };
+
+/**
+ * Removes one player from the edit modal's pending roster by clicking that
+ * row's `remove-member-btn`. There is no confirmation dialog (unlike adding) —
+ * the row is dropped client-side and persisted by a later `saveReservation`.
+ * The reservation owner has no remove button, so trying to remove them yields
+ * `not-removable` rather than throwing.
+ */
+export async function removeMemberFromModal(modal: Locator, name: string): Promise<RemoveMemberOutcome> {
+    const roster = await readModalPlayers(modal);
+    const match = matchRosterPlayer(roster, name);
+
+    if (match.status === "not-found") {
+        return { status: "not-found", name };
+    }
+
+    const row = modal.locator("tr.k-master-row").nth(match.index);
+    const removeButton = row.getByTestId("remove-member-btn");
+    if ((await removeButton.count()) === 0) {
+        return { status: "not-removable", name: match.name };
+    }
+
+    await humanClick(removeButton);
+    return { status: "removed", name: match.name };
 }
 
 /**

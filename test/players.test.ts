@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     matchPlayerOption,
+    matchRosterPlayer,
     normalizePlayerName,
     reservationDetailUrl,
     searchNameError,
@@ -92,5 +93,50 @@ describe("reservationDetailUrl", () => {
         expect(reservationDetailUrl("58800347")).toBe(
             "https://app.courtreserve.com/Online/MyProfile/Reservation/7031/58800347",
         );
+    });
+});
+
+describe("matchRosterPlayer", () => {
+    const roster = ["Viktor Axelsen", "Kento Momota ??", "Chen Long ??", "Lee Zii Jia", "Chou Tien-chen"];
+
+    it("returns an exact normalized match with its index", () => {
+        expect(matchRosterPlayer(roster, "Kento Momota")).toEqual({
+            status: "exact",
+            name: "Kento Momota ??",
+            index: 1,
+        });
+    });
+
+    it("matches case-insensitively and strips trailing question marks", () => {
+        expect(matchRosterPlayer(roster, "kento momota ??").status).toBe("exact");
+    });
+
+    it("matches the first occurrence by index", () => {
+        expect(matchRosterPlayer(roster, "Viktor Axelsen")).toEqual({
+            status: "exact",
+            name: "Viktor Axelsen",
+            index: 0,
+        });
+    });
+
+    it("does not match a substring of another player", () => {
+        expect(matchRosterPlayer(roster, "Lee")).toEqual({
+            status: "not-found",
+            candidates: roster,
+        });
+    });
+
+    it("returns not-found with candidates when nothing matches", () => {
+        expect(matchRosterPlayer(roster, "Zed")).toEqual({
+            status: "not-found",
+            candidates: roster,
+        });
+    });
+
+    it("returns not-found for an empty roster", () => {
+        expect(matchRosterPlayer([], "Kento Momota")).toEqual({
+            status: "not-found",
+            candidates: [],
+        });
     });
 });

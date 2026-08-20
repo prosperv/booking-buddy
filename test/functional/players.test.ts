@@ -9,6 +9,7 @@ import {
     readDetailPlayers,
     readModalPlayers,
     readPlayerOptions,
+    removeMemberFromModal,
     reservationDetailUrl,
     selectPlayerOption,
     typePlayerSearch,
@@ -155,6 +156,74 @@ describe("functional: add-player steps", () => {
             );
 
             await expect(closeReservationConfirmation(page)).resolves.toBeUndefined();
+        }, BROWSER_TEST_TIMEOUT);
+    });
+});
+
+describe("functional: remove-player steps", () => {
+    let context: BrowserContext;
+    let page: Page;
+
+    beforeAll(async () => {
+        context = await chromium.launch({ headless: true });
+        page = await context.newPage();
+    });
+
+    afterAll(async () => {
+        await page.close();
+        await context.close();
+    });
+
+    describe("readModalPlayers", () => {
+        it("reads the full roster from the modal", async () => {
+            await loadFixture(page, "removing-player/modal-player-list.html");
+
+            const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
+
+            expect(players).toHaveLength(5);
+            expect(players[0]).toBe("Viktor Axelsen");
+            expect(players).toContain("Kento Momota ??");
+        });
+
+        it("sees the removed player is gone after removal", async () => {
+            await loadFixture(page, "removing-player/modal-player-removed.html");
+
+            const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
+
+            expect(players).toHaveLength(4);
+            expect(players).not.toContain("Kento Momota ??");
+        });
+    });
+
+    describe("removeMemberFromModal", () => {
+        it("removes a player from the roster", async () => {
+            await loadFixture(page, "removing-player/modal-player-list.html");
+            const modal = page.getByTestId("update-reservation-modal");
+
+            await expect(removeMemberFromModal(modal, "Kento Momota")).resolves.toEqual({
+                status: "removed",
+                name: "Kento Momota ??",
+            });
+        }, BROWSER_TEST_TIMEOUT);
+
+        it("reports a player who is not on the roster", async () => {
+            await loadFixture(page, "removing-player/modal-player-list.html");
+            const modal = page.getByTestId("update-reservation-modal");
+
+            await expect(removeMemberFromModal(modal, "Zed")).resolves.toEqual({
+                status: "not-found",
+                name: "Zed",
+            });
+        }, BROWSER_TEST_TIMEOUT);
+
+        it("reports the reservation owner as not removable", async () => {
+            await loadFixture(page, "removing-player/modal-player-list.html");
+            const modal = page.getByTestId("update-reservation-modal");
+
+            await expect(removeMemberFromModal(modal, "Viktor Axelsen")).resolves.toEqual({
+                status: "not-removable",
+                name: "Viktor Axelsen",
+            });
         }, BROWSER_TEST_TIMEOUT);
     });
 });
