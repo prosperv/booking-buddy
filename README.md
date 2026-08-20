@@ -61,6 +61,36 @@ session (one navigation, one save). Each `AddPlayersResult` reports:
 A name must contain at least 3 letters to be searchable, and the exact
 match always wins (so "Lee Zii Jia" selects "Lee Zii Jia", not "Lee Zii Jiaa").
 
+### Swapping players on a booking
+
+`swapPlayersOnBooking(booking, playersToRemove, playersToAdd)` removes and
+adds players in one edit-reservation session (one navigation, one save):
+
+```typescript
+const result = await client.swapPlayersOnBooking(
+    booking,
+    [{ name: "Kento Momota" }],
+    [{ name: "Chen Long" }],
+);
+console.log(result.removed); // players removed from the roster
+console.log(result.added);   // players added to the roster
+console.log(result.skipped); // e.g. { name, reason: "already-added" | "not-in-roster" }
+console.log(result.failed);  // e.g. { name, reason: "not-removable" | "not-found" | "ambiguous" }
+console.log(result.saved);   // true once the reservation POST succeeds
+console.log(result.players); // roster read back after save
+```
+
+Each `SwapPlayerResult` reports:
+
+| Field      | Type                                                    | Description                                              |
+|------------|---------------------------------------------------------|----------------------------------------------------------|
+| `players`  | `string[]`                                              | Roster after the call (read back from the detail page on save, otherwise the original `booking.players`). |
+| `removed`  | `string[]`                                              | Players that were removed from the pending roster.       |
+| `added`    | `string[]`                                              | Players that were added to the pending roster.           |
+| `skipped`  | `(PlayerAddOutcome \| PlayerRemoveOutcome)[]`           | `already-added` or `not-in-roster`.                      |
+| `failed`   | `(PlayerAddOutcome \| PlayerRemoveOutcome)[]`           | `not-removable`, `not-found`, `ambiguous` (with `candidates`), or `query-too-short`. |
+| `saved`    | `boolean`                                               | Whether the reservation was POSTed (only when at least one player was removed or added). |
+
 ### Options
 
 `ClientOptions` can be passed to the `CourtReserveClient` constructor:
@@ -131,6 +161,14 @@ The `--force` flag is shorthand for `manualLogin: true`.
 or with a forced login:
 
 `npx tsx examples/add-player.ts "Kento Momota" --force`
+
+### Swap players (uses saved session if available)
+
+`npx tsx examples/swap-player.ts --remove "Kento Momota" --add "Chen Long"`
+
+or with a forced login:
+
+`npx tsx examples/swap-player.ts --remove "Kento Momota" --add "Chen Long" --force`
 
 ## Development and tests
 
