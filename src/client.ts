@@ -206,6 +206,7 @@ export class CourtReserveClient {
 
             if (changed) {
                 await saveReservation(page);
+                await openReservationDetail(page, booking.bookingId);
                 return { saved: true, players: await readDetailPlayers(page) };
             }
 

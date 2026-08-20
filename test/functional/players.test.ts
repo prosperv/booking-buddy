@@ -157,6 +157,12 @@ describe("functional: add-player steps", () => {
 
             await expect(closeReservationConfirmation(page)).resolves.toBeUndefined();
         }, BROWSER_TEST_TIMEOUT);
+
+        it("resolves without throwing when no confirmation page appears", async () => {
+            await loadFixture(page, "adding-player/reservation-detail.html");
+
+            await expect(closeReservationConfirmation(page)).resolves.toBeUndefined();
+        }, BROWSER_TEST_TIMEOUT);
     });
 });
 

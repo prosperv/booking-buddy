@@ -14,6 +14,14 @@ import { pauseForAction } from "./utils";
 const TYPING_DELAY_MS = 80;
 
 /**
+ * How long to wait for the "Reservation Confirmed" screen after a save. The
+ * screen is only shown when the detail page was reached directly (empty
+ * `document.referrer`); otherwise the site navigates away and no confirmation
+ * appears. Kept short so the no-confirmation path doesn't stall.
+ */
+const CONFIRMATION_TIMEOUT_MS = 3000;
+
+/**
  * Collapses whitespace, drops the trailing "?" characters the site appends to
  * some names (e.g. "Kento Momota ??"), and casefolds. Used to compare the
  * current roster against the requested player and to match dropdown options.
@@ -207,14 +215,21 @@ export async function confirmAddPlayer(page: Page): Promise<void> {
 }
 
 /**
- * Dismisses the "Reservation Confirmed" screen shown after a successful save.
- * The site does not detach the edit modal on save — it swaps the form for this
- * confirmation view inside the same modal — so the save is only complete once
- * this is acknowledged via its Close button.
+ * Dismisses the "Reservation Confirmed" screen if one appears after a
+ * successful save. The site does not detach the edit modal on save — it swaps
+ * the form for this confirmation view inside the same modal — but only when
+ * the detail page was reached directly (empty `document.referrer`). When the
+ * page was navigated to, the site instead redirects away and no confirmation
+ * is shown, so this waits a bounded time and silently returns if it never
+ * appears.
  */
 export async function closeReservationConfirmation(page: Page): Promise<void> {
     const confirmation = page.getByTestId("reservation-confirm");
-    await confirmation.waitFor({ state: "visible" });
+    try {
+        await confirmation.waitFor({ state: "visible", timeout: CONFIRMATION_TIMEOUT_MS });
+    } catch {
+        return;
+    }
     await humanClick(confirmation.getByTestId("Close"));
 }
 
