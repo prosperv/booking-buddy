@@ -5,6 +5,26 @@ export const courtReserveMyReservationsUrl =
     `${courtReserveUrl}Online/Bookings/List/${courtReserveOrgId}?type=1`;
 export const courtReserveUpdateMyReservationUrl =
     `${courtReserveUrl}Online/Reservations/UpdateMyReservation/${courtReserveOrgId}`;
+export const courtReserveCreateReservationUrl =
+    `https://reservations.courtreserve.com/Online/ReservationsApi/CreateReservation/${courtReserveOrgId}`;
+export const courtReserveProcessPaymentUrl =
+    `${courtReserveUrl}Online/Payments/ProcessPayment/${courtReserveOrgId}`;
+
+export const courtLocations = {
+    bellevue: 1476,
+    mukilteo: 1478,
+    redmond: 17109,
+    renton: 1479,
+    southcenter: 32997,
+} as const;
+
+export type CourtLocation = keyof typeof courtLocations;
+
+export function scheduleUrl(location: CourtLocation): string {
+    const sId = courtLocations[location];
+    return `${courtReserveUrl}Online/Reservations/Bookings/${courtReserveOrgId}?sId=${sId}`;
+}
+
 export const googleUrl = "https://www.google.com/";
 export const authPath = process.env.AUTH_PATH ?? "./auth.json";
 export const profileDir = process.env.PROFILE_DIR ?? "./my-profile";
