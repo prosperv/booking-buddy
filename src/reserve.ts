@@ -67,7 +67,15 @@ export function parseCourtLabel(label: string): { courtLocation: string; courtNu
 }
 
 export function combineDateTime(date: string | Date, time: string): Date {
-    const d = typeof date === "string" ? new Date(date) : date;
+    let d: Date;
+    if (typeof date === "string") {
+        const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+        d = isoDateOnly
+            ? new Date(Number(isoDateOnly[1]), Number(isoDateOnly[2]) - 1, Number(isoDateOnly[3]))
+            : new Date(date);
+    } else {
+        d = date;
+    }
     if (Number.isNaN(d.getTime())) {
         throw new Error(`Invalid date: ${JSON.stringify(date)}`);
     }
