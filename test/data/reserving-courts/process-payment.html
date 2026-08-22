@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Process Payment | powered by CourtReserve</title></head>
+<body>
+<form action="https://app.courtreserve.com/Online/Payments/ProcessPayment/7031" autocomplete="off" id="payWithCard-form" method="post" novalidate="novalidate">
+
+
+
+
+
+
+    <div class="mt20">
+    <div id="Checkout" class="inline">
+        <div class="fn-mobile-calculation">
+
+            <div class="fn-height-setter-form">
+                <div>
+
+                        <div class="d-flex justify-content-between">
+                            <span>
+                                
+                            </span>
+
+
+                            <span style="padding-bottom: 10px">
+                                <a href="https://app.courtreserve.com/Online/Payments/Index/7031" class="btn btn-org fn-disable cart-payment" data-testid="view-btn">
+                                    <span class="align-middle">View Cart </span>
+                                </a>
+
+                                <a href="https://app.courtreserve.com/Online/MyBalance/Index/7031" class="btn btn-org fn-disable hide cart-my-balance" data-testid="view-btn-balance">
+                                    <span class="align-middle">View Cart </span>
+                                </a>
+                            </span>
+                        </div>
+
+
+
+
+
+
+<div class="k-grid k-widget k-grid-display-block"><table id="kendo-table-grid" class="k-grid-content" style="display: inline-table; height: auto;" data-testid="table-grid" data-role="grid" role="grid"><colgroup><col><col><col></colgroup>
+<thead class="k-grid-header" role="rowgroup"><tr role="row">
+    <th data-fn-hide-mobile-title="true" class="k-header" data-index="0">Date/Time</th>
+        <th data-fn-hide-mobile-title="true" class="k-header" data-index="1">Description</th>
+        <th class="total-column-class text-center k-header" style="width: 240px;" data-index="2">Total</th>
+</tr>
+
+</thead>
+<tbody data-testid="table-grid-body" role="rowgroup"><tr class="k-master-row" data-uid="d2031832-d9c9-4069-b75c-a75c955ea04b" role="row"><td class="k-mobile-td" role="gridcell">
+                   <span>
+                       <span data-testid="date">
+                                         Sun, Sep 13th
+                                         </span>
+                       <br>
+                       <span class="sm-ml-auto" data-testid="time"> 9a - 10a </span>
+                   </span>
+            </td><td class="k-mobile-td" role="gridcell">
+                    <div class="w100">
+                            <span class="kendo-sm-between" data-testid="type-section">
+                                <span class="fn-grid-dots k-mobile-title">Type</span>
+                                <span data-testid="type">
+                                    Court Reservation - Mukilteo
+                                </span>
+                            </span>
+
+                            <span class="kendo-sm-between">
+                                <span class="fn-grid-dots k-mobile-title">Player</span>
+                                <span data-testid="member-fullName">
+                                    Prosper Van
+                                </span>
+                            </span>
+
+                            <span class="kendo-sm-between">
+                                <span class="k-mobile-title"></span>
+                                <span data-testid="court">
+                                         Mukilteo - Mukilteo 1
+                                </span>
+                            </span>
+                        
+
+
+
+                    </div>
+                </td><td class="k-mobile-td text-center" role="gridcell"><span class="k-mobile-title">Total</span>
+                    
+                    
+                    <div class="fn-cost-cell text-center" style="flex:1 1 auto;">
+                        <div class="fn-item-price" data-testid="cost" data-item-key="res-59375394-member-123799682" data-original-price="39.82">
+                            $39.82
+                        </div>
+
+                        
+                    </div>
+
+                </td></tr></tbody>
+</table></div>
+
+
+
+                        
+                        
+
+                    <div class="row hide-on-using-packages d-flex justify-content-between mt20">
+
+                            <div class="col-lg-6 form-group onlinePaymentContainer">
+                                <label for="BillingInformation_PaymentProfileId" id="BillingInformation_PaymentProfileId_label">Payment Method</label>
+<span title="" class="k-picker k-dropdown k-widget form-control fn-required-dd-item k-picker-solid k-picker-md k-rounded-md" unselectable="on" role="listbox" aria-haspopup="listbox" aria-expanded="false" tabindex="0" aria-owns="BillingInformation_PaymentProfileId_listbox" aria-controls="BillingInformation_PaymentProfileId_listbox" aria-labelledby="BillingInformation_PaymentProfileId_label" aria-live="polite" aria-disabled="false" aria-readonly="false" aria-busy="false" style="" aria-activedescendant="bd5c21a0-184d-4f51-9104-261439962d63"><span id="bd5c21a0-184d-4f51-9104-261439962d63" unselectable="on" role="option" aria-selected="true" class="k-input-inner"><span class="k-input-value-text">Credit Card **********7343</span></span><button type="button" tabindex="-1" unselectable="on" class="k-select k-input-button k-button k-button-md k-button-solid k-button-solid-base k-icon-button" aria-label="select"><span class="k-icon k-i-arrow-s k-button-icon"></span></button><input class="form-control fn-required-dd-item" data-val="true" data-val-number="The field Payment Method must be a number." id="BillingInformation_PaymentProfileId" name="BillingInformation.PaymentProfileId" type="text" value="790793" data-role="dropdownlist" style="display: none;"></span>
+                            </div>
+                    </div>
+                    <div class="onlinePaymentContainer hide-on-using-packages mt-3">
+                        <div class="card-row cardProfileData hide">
+                            <span class="visa"></span>
+                            <span class="mastercard"></span>
+                            <span class="amex"></span>
+                            <span class="discover"></span>
+                        </div>
+                            <div class="row cardProfileData hide">
+                                <div class="form-group col-lg-6">
+                                    <label class="required-label" data-testid="firstName-label" for="BillingInformation_FirstName">First Name</label>
+                                    <input class="form-control" data-testid="firstName-input" data-val="true" data-val-requiredif="First Name is required field" data-val-requiredif-dependentproperty="IsCreditCardDatarequired" data-val-requiredif-dependentvalue="True" data-val-requiredif-operator="EqualTo" id="BillingInformation_FirstName" name="BillingInformation.FirstName" type="text" value="Prosper">
+                                    <span class="field-validation-valid" data-valmsg-for="BillingInformation.FirstName" data-valmsg-replace="true"></span>
+                                </div>
+
+                                <div class="form-group col-lg-6">
+                                    <label class="required-label" data-testid="lastName-label" for="BillingInformation_LastName">Last Name</label>
+                                    <input class="form-control" data-testid="lastName-input" data-val="true" data-val-requiredif="Last Name is required field" data-val-requiredif-dependentproperty="IsCreditCardDatarequired" data-val-requiredif-dependentvalue="True" data-val-requiredif-operator="EqualTo" id="BillingInformation_LastName" name="BillingInformation.LastName" type="text" value="Van">
+                                    <span class="field-validation-valid" data-valmsg-for="BillingInformation.LastName" data-valmsg-replace="true"></span>
+                                </div>
+                            </div>
+                                <div class="form-group cardProfileData hide">
+                                    <hr>
+                                </div>
+                                <div class="row cardProfileData hide">
+                                    <div class="form-group col-lg-6">
+                                        <div id="payment-form" data-testid="stripe-payment-form">
+                                            <div class="form-row">
+                                                <label for="card-element" class="required-label" data-testid="-stripe-card-number-label">
+                                                    Card Number
+                                                </label>
+                                                <div id="card-element" class="StripeElement StripeElement--empty"><div class="__PrivateStripeElement" style="margin: 0px !important; padding: 0px !important; border-width: medium !important; border-style: none !important; border-color: currentcolor !important; border-image: none !important; display: block !important; background: transparent !important; position: relative !important; opacity: 1 !important;"><iframe name="__privateStripeFrame2654" frameborder="0" allowtransparency="true" scrolling="no" role="presentation" allow="payment *" src="cid:frame-DB24AEB236B8FA7EB25446B073F2E98D@mhtml.blink" title="Secure card payment input frame" style="border: 0px !important; margin: 0px !important; padding: 0px !important; width: 1px !important; min-width: 100% !important; overflow: hidden !important; display: block !important; user-select: none !important; transform: translate(0px) !important; color-scheme: light only !important; height: 19.2px;"></iframe><input class="__PrivateStripeElement-input" aria-hidden="true" aria-label=" " autocomplete="false" maxlength="1" style="border-width: medium !important; border-style: none !important; border-color: currentcolor !important; border-image: none !important; display: block !important; position: absolute !important; height: 1px !important; top: -1px !important; left: 0px !important; padding: 0px !important; margin: 0px !important; width: 100% !important; opacity: 0 !important; background: transparent !important; pointer-events: none !important; font-size: 16px !important;"></div></div>
+
+                                                <!-- Used to display Element errors. -->
+                                                <div id="card-errors" class="text-danger" role="alert"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row fn-promo-section">
+                                    <div class="form-group col-lg-6">
+                                        
+                                        <div class="fn-promo-expanded">
+                                            <label class="control-label">Promo Code</label>
+                                            <div style="display:flex; gap:8px;">
+                                                <div style="flex:1; position:relative;">
+                                                    <input type="text" class="form-control fn-promo-input" data-testid="promo-input" placeholder="Enter promo code">
+                                                </div>
+                                                <button type="button" class="btn btn-primary fn-promo-apply-btn" data-testid="promo-apply-btn">Apply</button>
+                                            </div>
+                                            <div class="promo-error-msg fn-promo-error" data-testid="promo-error" style="display:none;">
+                                                <i class="fa fa-times-circle"></i><span class="fn-promo-error-text" data-testid="promo-error-text"></span>
+                                            </div>
+                                        </div>
+
+                                        
+                                        <div class="fn-promo-applied" data-testid="promo-applied" style="display:none;">
+                                            <label class="control-label">Promo Code</label>
+                                            <div class="promo-applied-inline">
+                                                <span class="promo-applied-inline-wrapper">
+                                                    <span class="promo-applied-icon"><i class="fa-solid fa-circle-check"></i></span>
+                                                    <span class="promo-applied-tag">
+                                                        <span class="fn-promo-applied-code" data-testid="promo-applied-code"></span>
+                                                    </span>
+                                                    <span class="promo-applied-discount fn-promo-applied-tag"></span>
+                                                </span>
+                                                <button type="button" class="promo-remove-btn" data-testid="promo-remove-btn" aria-label="Remove promo code">×</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <div class="billing-address-section" data-testid="billing-address-section">
+                                    <div class="form-group cardProfileData hide" style="clear: both; margin-bottom: 0">
+                                        <hr>
+                                    </div>
+                                    <div class="zip-code-group form-group cardProfileData hide">
+                                        <h4 data-testid="billing-address-label"> Billing address </h4>
+                                    </div>
+
+                                <div class="row cardProfileData hide">
+                                    <div class="form-group col-lg-6">
+                                        <label data-testid="billing-address1-label" for="BillingInformation_Address1">Street Address</label>
+                                        <input class="form-control" data-testid="billing-address1-input" id="BillingInformation_Address1" name="BillingInformation.Address1" type="text" value="13706 26 Pl W">
+                                        <span class="field-validation-valid" data-valmsg-for="BillingInformation.Address1" data-valmsg-replace="true"></span>
+                                    </div>
+
+                                    <div class="form-group col-lg-6">
+                                        <label data-testid="billing-address2-label" for="BillingInformation_Address2">Street Address 2</label>
+                                        <div class="input-container">
+                                            <input class="form-control" data-testid="billing-address2-input" id="BillingInformation_Address2" name="BillingInformation.Address2" placeholder="Apt., ste., bldg." type="text" value="13706 26 Pl W">
+                                        </div>
+                                        <span class="field-validation-valid" data-valmsg-for="BillingInformation.Address2" data-valmsg-replace="true"></span>
+                                    </div>
+                                </div>
+
+                                <div class="row cardProfileData hide">
+                                    <div class="col-lg-4 form-group">
+                                        <label data-testid="billing-city-label" for="BillingInformation_City">City</label>
+                                        <input class="form-control" data-testid="billing-city-input" id="BillingInformation_City" name="BillingInformation.City" type="text" value="Lynnwood">
+                                        <span class="field-validation-valid" data-valmsg-for="BillingInformation.City" data-valmsg-replace="true"></span>
+                                    </div>
+                                    <div class="col-lg-4 form-group">
+
+                                        <label data-testid="billing-state-label" for="BillingInformation_State">State</label>
+                                        <input class="form-control" data-testid="billing-state-input" id="BillingInformation_State" name="BillingInformation.State" type="text" value="Washington">
+                                        
+                                        <span class="field-validation-valid" data-valmsg-for="BillingInformation.State" data-valmsg-replace="true"></span>
+                                    </div>
+                                    <div class="col-lg-4 form-group">
+                                        <label class="required-label" data-testid="billing-zipcode-label" for="BillingInformation_ZipCode">Zip Code</label>
+                                        <input class="form-control" data-testid="billing-zipcode-input" id="BillingInformation_ZipCode" name="BillingInformation.ZipCode" type="text" value="98087">
+                                        <span class="field-validation-valid" data-valmsg-for="BillingInformation.ZipCode" data-valmsg-replace="true"></span>
+                                    </div>
+                                </div>
+
+                                <div class="row cardProfileData hide">
+                                </div>
+                            </div>
+        <div class="row cardProfileData hide" data-testid="save-payment-profile-section">
+            <div class="col-lg-4 form-group">
+                <label class="pointer" for="BillingInformation_SaveDataForFutureUse">Save Payment Profile</label>
+                <div class="input-container rowCheckbox">
+<input class="save-profile-box k-checkbox k-checkbox-md k-rounded-md" data-role="checkbox" data-testid="save-payment-profile" id="BillingInformation_SaveDataForFutureUse" name="BillingInformation.SaveDataForFutureUse" type="checkbox" value="true"><span class="check-box-helper "></span><label for="BillingInformation_SaveDataForFutureUse" class="k-checkbox-label"> </label>
+                </div>
+            </div>
+                <div class="col-lg-4 form-group" id="isDefaultBlock" style="display: none">
+                    <label class="pointer" for="BillingInformation_IsDefaultPaymentProfile">Set Preferred Payment Profile</label>
+                    <div class="input-container rowCheckbox">
+<input class="save-profile-box k-checkbox k-checkbox-md k-rounded-md" data-role="checkbox" data-testid="make-default-checkbox" id="BillingInformation_IsDefaultPaymentProfile" name="BillingInformation.IsDefaultPaymentProfile" type="checkbox" value="true"><span class="check-box-helper "></span><label for="BillingInformation_IsDefaultPaymentProfile" class="k-checkbox-label"> </label>
+                    </div>
+                </div>
+        </div>
+                    </div>
+
+                    
+
+
+
+
+
+
+
+<div class="d-flex justify-content-end">
+    <span class="proc-payment-wrapper">
+        
+            <div class="fn-always-subtotal-line" data-testid="always-subtotal-line">
+                    <span style="display: flex; align-items: center; justify-content: flex-end;">
+                        <span style="text-align: end;">
+                            <div>
+                                <label class="payment-label-col">Subtotal:&nbsp;</label>
+                                <span class="fee-span-value fn-always-subtotal-value" data-testid="always-subtotal-value">$36.00</span>
+                            </div>
+                        </span>
+                    </span>
+            </div>
+
+        <div class="fn-promo-subtotal-line fn-promo-standalone" style="display: none;" data-testid="promo-subtotal-line">
+                <span style="display: flex; align-items: center; justify-content: flex-end;">
+                    <span style="text-align: end;">
+                        <div>
+                            <label class="payment-label-col">Subtotal:&nbsp;</label>
+                            <span class="fee-span-value fn-promo-subtotal-value" data-testid="promo-subtotal-value"></span>
+                        </div>
+                    </span>
+                </span>
+        </div>
+
+        
+        <div class="fn-promo-discount-line fn-promo-standalone promo-discount-row" data-testid="promo-discount-line" style="display: none;">
+                <span style="display: flex; align-items: center; justify-content: flex-end;">
+                    <span style="text-align: end;">
+                        <div>
+                            <label class="payment-label-col">Discount:&nbsp;</label>
+                            <span class="fee-span-value" style="font-weight: 500;">
+                                -<span class="fn-promo-discount-value" data-testid="promo-discount-value"></span>
+                            </span>
+                        </div>
+                    </span>
+                </span>
+        </div>
+
+        
+            <div class="fn-always-tax-line" data-testid="always-tax-line">
+                    <span style="display: flex; align-items: center; justify-content: flex-end;">
+                        <span style="text-align: end;">
+                            <div>
+                                <label class="payment-label-col">Tax:&nbsp;</label>
+                                <span class="fee-span-value fn-always-tax-value" data-testid="always-tax-value">$3.82</span>
+                            </div>
+                        </span>
+                    </span>
+            </div>
+                        
+            <div class="form-group mb-3 total-due-amount-wrapper" style="display: flex;align-items: center;justify-content: flex-end;padding-top: 10px;">
+                <label class="text-uppercase payment-label-col" data-testid="total-label" style="font-weight:700;">Total Due:&nbsp;</label>
+                <span class="amount-placeholder fee-span-value">
+                    <h4 style="margin-left: 4px !important;text-align: end; display:inline;" class="total-due-amount m-0 fn-on-conv-fee-show fee-span-value hide fn-convedence-total-value" data-testid="convenience-total-value">
+                        $39.82
+                    </h4>
+                    <h4 class="total-due-amount m-0 fn-off-conv-fee-show fn-total-due-amount" style="display:inline;" data-testid="total-value">$39.82</h4>
+                </span>
+            </div>
+            </span>
+</div>
+
+
+                </div>
+            </div>
+            
+
+        <div class="field-3d-secure-non-card ">
+                <div class="d-flex justify-content-end mt-3">
+
+                    <button id="PayButton" class="btn btn-pay btn-submit btn-details-page" type="button" data-testid="pay-btn">
+                        <span class="align-middle">Pay</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</form>
+</body>
+</html>

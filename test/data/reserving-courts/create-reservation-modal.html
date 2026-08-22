@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Create Reservation | powered by CourtReserve</title></head>
+<body>
+<div class="modal-outer-container" id="main-reservation-container" data-testid="create-reservation">
+    <div class="modal-outer-inner-container">
+        <div class="container">
+            <div class="modal-page-inner">
+                <form action="https://reservations.courtreserve.com//Online/ReservationsApi/CreateReservation/7031?uiCulture=en-US" data-ajax="true" data-ajax-begin="disableButtonsByClass('btn-submit')" data-ajax-method="POST" data-ajax-success="reservationFunctionSuccess(data,this)" id="createReservation-Form" method="post">
+
+                    
+
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+
+                    
+
+                    <div class="modal-header-container" data-testid="remove-or-withdraw-modal"><div class="modal-title"><span class="modal-title-span" data-testid="title">Create Reservation</span></div><div class="modal-title-buttons"><button type="reset" data-testid="close-btn-modal-header" class="btn btn-light " data-dismiss="modal">Close</button><button type="button" data-testid="save-btn" class="btn btn-primary btn-submit">Save</button></div></div><hr class="modal-header-hr">
+
+                    
+
+                    <div class="modal-body" id="createReservation-Form-container">
+                        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="https://app.courtreserve.com/Vendor/Remodal/remodal.css" rel="stylesheet">
+<link href="https://app.courtreserve.com/Vendor/Remodal/remodal-default-theme.css" rel="stylesheet">
+
+
+
+
+
+
+
+
+
+
+
+<div class="panel-group">
+    <div class="panel">
+        <div class=" card-section">
+            <div class="colapsed-header-rcu tglIsOpenReservation" style="display: none">
+                <div class="card-header accordion-toggle collapsed" href="#reservation-general-info" style="cursor:pointer" data-toggle="collapse" aria-expanded="true">
+                    <h5 class="mb-0 panel-title">
+                        <span>
+                            General Info
+                        </span>
+                    </h5>
+                </div>
+            </div>
+
+            <div id="reservation-general-info" class="">
+                <div class=" card-body-section">
+                    <div class="row">
+
+                    </div>
+                    <div class="row">
+                        <div class="form-group col-lg-6">
+                            <label for="ReservationTypeId" id="reservationTypeIdLabel" class="required-label">Reservation Type </label>
+                                <div class="block">
+<span title="" class="k-picker k-dropdown k-widget form-control k-picker-solid k-picker-md k-rounded-md" unselectable="on" role="listbox" aria-haspopup="listbox" aria-expanded="false" tabindex="0" aria-owns="ReservationTypeId_listbox" aria-controls="ReservationTypeId_listbox" aria-labelledby="reservationTypeIdLabel" aria-live="polite" aria-disabled="false" aria-readonly="false" style="" aria-busy="false" aria-activedescendant="fd3dc507-22ba-40e8-9023-479c6ab962c9"><span id="fd3dc507-22ba-40e8-9023-479c6ab962c9" unselectable="on" role="option" aria-selected="true" class="k-input-inner"><span class="k-input-value-text">Court Reservation - Mukilteo</span></span><button type="button" tabindex="-1" unselectable="on" class="k-select k-input-button k-button k-button-md k-button-solid k-button-solid-base k-icon-button" aria-label="select"><span class="k-icon k-i-arrow-s k-button-icon"></span></button><input class="form-control" data-testid="ReservationTypeId" data-val="true" data-val-number="The field Reservation Type must be a number." data-val-required="The Reservation Type field is required." id="ReservationTypeId" name="ReservationTypeId" type="text" value="19942" data-role="dropdownlist" style="display: none;"></span>
+                                </div>
+                            <span class="field-validation-valid" data-valmsg-for="ReservationTypeId" data-valmsg-replace="true"></span>
+                        </div>
+
+                    </div>
+                    
+
+
+                    <div class="row">
+                            <div class="form-group col-lg-3">
+                                <label for="StartTime">Start Time</label>
+                                <span class="form-control display-end-time form-control-display" disabled="disabled" data-testid="start-time">
+                                    10:00 AM
+                                </span>
+                                <span class="field-validation-valid" data-valmsg-for="StartTime" data-valmsg-replace="true"></span>
+                            </div>
+                            <div class="form-group col-lg-4">
+                                <label class="required-label" for="Duration" id="Duration_label">Duration</label>
+                                <div class="block">
+<span title="" class="k-picker k-dropdown k-widget form-control k-picker-solid k-picker-md k-rounded-md" unselectable="on" role="listbox" aria-haspopup="listbox" aria-expanded="false" tabindex="0" aria-owns="Duration_listbox" aria-controls="Duration_listbox" aria-labelledby="Duration_label" aria-live="polite" aria-disabled="false" aria-readonly="false" style="" aria-busy="false" aria-activedescendant="e32d59f2-c541-4bbd-90e4-8458de69b649"><span id="e32d59f2-c541-4bbd-90e4-8458de69b649" unselectable="on" role="option" aria-selected="true" class="k-input-inner"><span class="k-input-value-text">1 hour</span></span><button type="button" tabindex="-1" unselectable="on" class="k-select k-input-button k-button k-button-md k-button-solid k-button-solid-base k-icon-button" aria-label="select"><span class="k-icon k-i-arrow-s k-button-icon"></span></button><input class="form-control" data-testid="Duration" data-val="true" data-val-number="The field Duration must be a number." data-val-requiredif="Duration is required." data-val-requiredif-dependentproperty="IsAllowedToPickStartAndEndTime" data-val-requiredif-dependentvalue="False" data-val-requiredif-operator="EqualTo" id="Duration" name="Duration" type="text" data-role="dropdownlist" style="display: none;"></span>
+                                </div>
+                                <span class="field-validation-valid" data-valmsg-for="Duration" data-valmsg-replace="true"></span>
+                            </div>
+                            <div class="form-group col-lg-3 fn-endtime-container">
+                                <label for="EndTime">End Time</label> <span class="field-validation-valid" data-valmsg-for="EndTime" data-valmsg-replace="true"></span>
+                                <input class="form-control display-end-time form-control-display" data-testid="end-time" disabled="disabled" id="EndTime" name="EndTime" type="text" value="10:30 AM">
+                            </div>
+                    </div>
+
+                        <div class="row">
+                            <div class="form-group col-lg-12">
+                                    <label for="CourtIds" class="required-label" id="CourtIds_label">Court(s)</label><span id="availableCourtcount"></span>
+<span class="field-validation-valid" data-valmsg-for="CourtIds" data-valmsg-replace="true"></span>                                    <div class="block">
+<span class="k-multiselect k-input form-control k-multiselect-clearable k-input-solid k-input-md k-rounded-md" unselectable="on" role="combobox" title="" aria-expanded="false" style="" aria-owns="CourtIds_listbox" aria-controls="CourtIds_listbox"><select class="form-control" data-testid="CourtIds" id="CourtIds" multiple="multiple" name="CourtIds" data-role="multiselect" style="display: none;"><option value="16465" selected="">Mukilteo - Mukilteo 1</option></select><div unselectable="on" class="k-input-values k-selection-multiple k-chip-list k-chip-list-md" id="CourtIds_taglist"><span class="k-chip k-chip-md k-rounded-md k-chip-solid k-chip-solid-base" unselectable="on"><span unselectable="on" class="k-chip-content">Mukilteo - Mukilteo 1</span><span class="k-chip-icon k-icon k-i-x" unselectable="on" aria-hidden="true" aria-label="delete" title="delete"></span></span><input class="k-input-inner" autocomplete="off" role="textbox" title="" aria-autocomplete="list" tabindex="0" aria-describedby="CourtIds_taglist" aria-controls="CourtIds_listbox" aria-labelledby="CourtIds_label" aria-disabled="false" aria-readonly="false" aria-busy="false"></div><span unselectable="on" class="k-clear-value" title="clear" role="button" tabindex="-1"><span class="k-icon k-i-x"></span></span><span class="k-icon k-i-loading k-hidden"></span><span style="font-family: Inter; font-size: 15px; font-stretch: 100%; font-style: normal; font-weight: 400; letter-spacing: normal; text-transform: none; line-height: 24.63px; position: absolute; visibility: hidden; top: -3333px; left: -3333px;"></span></span>
+
+                                        <span class="fat fa-chevron-right mobile-chevron"></span>
+                                    </div>
+
+                            </div>
+                        </div>
+
+                    <div class="row" id="tglAllowMemberToPickOtherMembersToPlayWith">
+                        <div class="form-group col-lg-7 col-sm-7 col-xs-12">
+                                <label for="OwnersDropdown" id="OwnersDropdown_label">Additional Player(s)</label>
+                                <small class="owner-helper-text d-xs-block">(Enter at least 2 letters)</small>
+                                <div class="d-block">
+<span class="k-input k-combobox k-widget form-control k-combobox-clearable k-input-solid k-input-md k-rounded-md" style=""><input name="OwnersDropdown_input" class="k-input-inner form-control" type="text" autocomplete="off" title="" style="" role="combobox" aria-expanded="false" placeholder="Search for other player(s) to play with" tabindex="0" aria-disabled="false" aria-readonly="false" aria-autocomplete="list" aria-owns="OwnersDropdown_listbox" aria-controls="OwnersDropdown_listbox" aria-labelledby="OwnersDropdown_label"><span unselectable="on" class="k-clear-value k-hidden" title="clear" role="button" tabindex="-1"><span class="k-icon k-i-x"></span></span><button type="button" class="k-select k-input-button k-button k-button-md k-button-solid k-button-solid-base k-icon-button" aria-label="expand combobox" role="button" tabindex="-1" aria-controls="OwnersDropdown_listbox"><span class="k-icon k-i-arrow-s k-button-icon"></span></button><input class="form-control" data-testid="OwnersDropdown" id="OwnersDropdown" name="OwnersDropdown" placeholder="Search for..." type="text" data-role="combobox" style="display: none;" aria-disabled="false" aria-readonly="false"></span>
+                                </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group col-lg-12 col-xs-12" id="DisplayMembersContainer">
+
+
+
+
+
+
+    <label class="mob-layout-none" style="display: inherit">Player(s)</label>
+    <div id="members-container-wrapper">
+        <div class="row">
+            <div class="col-lg-12 custom-lg-12">
+
+                <div class="k-grid k-widget k-grid-display-block"><table id="membersTable" class="k-grid-content css-kendo-table-grid" style="display: inline-table; height: auto;" data-testid="member-table" data-role="grid" role="grid"><colgroup><col><col><col><col><col><col></colgroup>
+                    <thead class="k-grid-header" role="rowgroup"><tr role="row">
+                            <th scope="col" style="width: 30px;" class="text-center mob-layout-none k-header" data-index="0">
+                                <span class="d-none">order</span> 
+                                #
+                            </th>
+                            <th scope="col" class="k-header" data-index="1">Name</th>
+
+                                <th scope="col" style="width: 80px;" class="text-center mob-layout-none k-header" data-index="2">Cost</th>
+                                    <th scope="col" style="width: 80px;" class="text-center mob-layout-none k-header" data-index="3">Tax</th>
+                                <th scope="col" style="width: 80px;" class="text-center mob-layout-none k-header" data-index="4">
+                                    Due
+                                </th>
+
+
+                            <th scope="col" style="width: 60px;" class="text-center mob-layout-none k-header" data-class="p0" data-index="5">
+                                <span class="d-none">remove</span>
+                            </th>
+                        </tr>
+                        
+                    </thead>
+
+                    <tbody data-testid="players-table" role="rowgroup"><tr class="k-master-row" data-uid="ed06e924-5a7c-414a-807c-19da597ead85" role="row"><td class="k-mobile-td text-center mob-layout-none" role="gridcell"><span class="k-mobile-title">
+                                <span class="d-none">order</span> 
+                                #
+                            </span>
+                                    <span data-testid="reservation-member-orderid">
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+
+                                        1
+
+                                    </span>
+                                </td><td class="k-mobile-td" role="gridcell"><span class="k-mobile-title">Name</span>
+                                    <span data-testid="reservation-member-fullname">
+                                            <span class="mobile-grid-layout-title">
+                                                <span data-testid="player-fullname">
+                                                    Prosper Van
+                                                </span>
+                                            </span>
+
+                                            <span class="mob-layout-show mobile-layout-value" data-testid="member-total-due">
+                                                $39.82
+                                            </span>
+
+                                        <span class="fat fa-chevron-right mobile-chevron" style="display: none !important;" data-fullname="Prosper Van" data-omi="2307050"></span>
+                                        <span class="hide" style="width: 60px"> 
+                                        </span>
+                                    </span>
+                                </td><td class="k-mobile-td text-center mob-layout-none" role="gridcell"><span class="k-mobile-title">Cost</span>
+                                            <div class="d-flex justify-content-center">
+
+                                                <span class="member-price-display_2307050" data-testid="member-price-to-pay">
+                                                    $36.00
+                                                </span>
+                                            </div>
+                                    </td><td class="k-mobile-td text-center mob-layout-none" role="gridcell"><span class="k-mobile-title">Tax</span>
+                                                <span class="member-tax-row_2307050">
+
+                                                    <span class="member-tax-span_2307050" data-testid="member-tax-price">
+                                                        $3.82
+                                                    </span>
+                                                </span>
+                                        </td><td class="k-mobile-td text-center mob-layout-none" role="gridcell"><span class="k-mobile-title">
+                                    Due
+                                </span>
+
+                                            <div>
+                                                
+
+                                                <span data-testid="member-total-due" style="margin-left: auto;" class="total-due-price_2307050">
+                                                    $39.82
+                                                </span>
+                                            </div>
+                                    </td><td class="k-mobile-td p0 text-center mob-layout-none" role="gridcell"><span class="k-mobile-title">
+                                <span class="d-none">remove</span>
+                            </span>
+                                    <span class="w-100">
+                                        <span class="kendo-sm-between">
+
+                                            <span class="d-sm-none d-md-block">
+                                            </span>
+                                        </span>
+                                    </span>
+                                </td></tr></tbody>
+                </table></div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+                    </div>
+
+                        <div class="row">
+                            <div class="form-group col-lg-3 guestsDiv" id="guestsDiv">
+                                <label for="SelectedNumberOfGuests" id="SelectedNumberOfGuests_label"># of Guest(s)</label>
+                                <div class="block">
+                                    <span title="" class="k-picker k-dropdown k-widget form-control k-picker-solid k-picker-md k-rounded-md" unselectable="on" role="listbox" aria-haspopup="listbox" aria-expanded="false" tabindex="0" aria-owns="SelectedNumberOfGuests_listbox" aria-controls="SelectedNumberOfGuests_listbox" aria-labelledby="SelectedNumberOfGuests_label" aria-live="polite" aria-disabled="false" aria-readonly="false" aria-busy="false" aria-activedescendant="f2f813dd-a808-4144-a376-18df5c4f2ab9" style="width: 100%;"><span id="f2f813dd-a808-4144-a376-18df5c4f2ab9" unselectable="on" role="option" aria-selected="true" class="k-input-inner"><span class="k-input-value-text"> </span></span><button type="button" tabindex="-1" unselectable="on" class="k-select k-input-button k-button k-button-md k-button-solid k-button-solid-base k-icon-button" aria-label="select"><span class="k-icon k-i-arrow-s k-button-icon"></span></button><input class="form-control" data-testid="SelectedNumberOfGuests" id="SelectedNumberOfGuests" name="SelectedNumberOfGuests" style="width: 100%; display: none;" type="text" value=" " data-role="dropdownlist"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="hide col-lg-12 custom-lg-12 mb10" id="guestsListDiv"></div>
+                        </div>
+
+                        <div>
+                            <div class="row fee-responsibility-section hide">
+                                <div class="form-group col-lg-8 col-sm-12 mb-0 radioData">
+                                    <label class="required-label" for="FeeResponsibility">Fee Responsibility</label>
+                                    <div class="block pl-0 radio-btn-label radioData">
+                                        <label class="radio-parent"><input class="form-control k-radio k-radio-md" data-testid="FeeResponsibility" id="FeeResponsibility_1" name="FeeResponsibility" type="radio" data-role="radiobutton" value="1"><label class="radio-icon"></label></label><label for="FeeResponsibility_1" class="k-radio-label">Reservation Owner</label>
+                                        <label class="radio-parent"><input class="form-control k-radio k-radio-md" data-testid="FeeResponsibility" id="FeeResponsibility_2" name="FeeResponsibility" type="radio" data-role="radiobutton" value="2"><label class="radio-icon"></label></label><label for="FeeResponsibility_2" class="k-radio-label">Each Player Equally</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                    <div id="reservationUdfsContainer">
+</div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    <div class="row totalCostContainer" id="totalCostContainer" style="">
+            <div class="col-lg-8 d-flex">
+                    <span style="margin-left: initial">
+                        <label class="warning" style="color: red; font-weight: normal;" data-testid="timer-message">
+                            You will have 15 minutes to pay for this reservation
+                        </label>
+                        <label id="pre-authorization-payment-message" class="warning hide" style="color: red; font-weight: normal; display: block;">
+                            
+                        </label>
+                    </span>
+            </div>
+            <div class="col-lg-4" style="text-align: right; margin: auto;" data-testid="total-container">
+                <label class="total-due" data-testid="total-due-label">Total Due:</label>
+                <label class="total-due-amount" data-testid="total-due-val">$39.82</label>
+
+                <span class="mp-type-tax"></span>
+            </div>
+    </div>
+
+
+
+    <div class="disclosure-container">
+        <div class="row">
+            <div data-zindex="1000000" class="form-group col-lg-12">
+                <label>
+                    BBC Waiver
+                </label>
+                <div class="disclosure-description">
+
+
+                    CLUB POLICIES, RULES &amp; REGULATIONS BBC has the following policies and rules and regulations (Rules &amp; Regulations) which apply to all visitors of all BBC locations. By acknowledging this waiver, all visitors agree to abide by the Rules and Regulations ...
+
+                        <a data-zindex="1000000" class="a-modal btn btn-secondary">View More</a>
+
+                    <span class="fat fa-chevron-right mobile-chevron"></span>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="row">
+            <div class="form-group col-lg-12" style="display: -webkit-inline-box;">
+
+                <div class="d-block">
+                    <span class="rowCheckbox">
+<input class="k-checkbox k-checkbox-md k-rounded-md" data-role="checkbox" data-testid="DisclosureAgree" id="DisclosureAgree" name="DisclosureAgree" type="checkbox" value="true"><span class="check-box-helper "></span><label for="DisclosureAgree" class="k-checkbox-label">Check to agree to above disclosure</label>
+                    </span>
+                </div>
+
+                <span class="field-validation-valid" data-valmsg-for="DisclosureAgree" data-valmsg-replace="true"></span>
+            </div>
+        </div>
+       
+    </div>
+
+
+
+
+
+
+                    </div>
+
+                    <hr class="modal-footer-hr"><div class="modal-footer-container"><div class="modal-title-buttons "><button type="reset" data-testid="Close" class="btn btn-light fn-reservation-create-close " data-dismiss="modal">Close</button><button data-testid="Save" type="button" class="btn btn-primary btn-submit ">Save</button></div></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
