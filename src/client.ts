@@ -9,8 +9,12 @@ import {
     PlayerInput,
     PlayerRemoveOutcome,
     RemovePlayersResult,
+    ReserveCourtOptions,
+    ReserveCourtResult,
+    ReservedSlot,
     SwapPlayerResult,
 } from "./types";
+import { CourtLocation } from "./constants";
 import { launchPersistentContext, closeBrowserContext } from "./browser";
 import { manualLogin, restoreAuth } from "./auth";
 import { navigateTo } from "./navigation";
@@ -33,6 +37,19 @@ import {
     selectPlayerOption,
     typePlayerSearch,
 } from "./players";
+import {
+    checkWaiver,
+    combineDateTime,
+    findCandidateCourts,
+    openCreateModal,
+    openSchedule,
+    parseCourtLabel,
+    payReservation,
+    readFreeCells,
+    readReservedSlots,
+    saveNewReservation,
+    selectDuration,
+} from "./reserve";
 
 type RemoveLoopResult = {
     removed: string[];
@@ -315,5 +332,146 @@ export class CourtReserveClient {
             failed: [...removeLoop.failed, ...addLoop.failed],
             saved,
         };
+    }
+
+    async getReservedSlots(location: CourtLocation, date: string | Date): Promise<ReservedSlot[]> {
+        if (!this.context) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+
+        const page = await this.context.newPage();
+        try {
+            await openSchedule(page, location, date);
+            return await readReservedSlots(page);
+        } finally {
+            await page.close().catch(() => undefined);
+        }
+    }
+
+    async attemptReserveCourt(options: ReserveCourtOptions): Promise<ReserveCourtResult> {
+        if (!this.context) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+
+        const page = await this.context.newPage();
+        try {
+            const start = combineDateTime(options.date, options.startTime);
+
+            await openSchedule(page, options.location, options.date);
+            const freeCells = await readFreeCells(page);
+
+            const candidates = findCandidateCourts(
+                freeCells,
+                options.preferCourts ?? [],
+                start,
+                options.durationMinutes,
+            );
+
+            if (candidates.length === 0) {
+                throw new Error(
+                    `No courts available for ${options.startTime} (${options.durationMinutes} min) on ${options.date}`,
+                );
+            }
+
+            // Try courts in order (preferred first, then fallback)
+            let lastError: Error | undefined;
+            for (const courtLabel of candidates) {
+                try {
+                    const btn = page.locator('[data-testid="reserveBtn"]', {
+                        has: page.locator(`[data-courtlabel="${courtLabel}"]`),
+                    }).filter({ hasText: `Reserve ` }).first();
+
+                    // More precise: find the button with matching courtlabel and start time
+                    const allBtns = page.locator(`button[data-testid="reserveBtn"][courtlabel="${courtLabel}"]`);
+                    const btnCount = await allBtns.count();
+                    let targetBtn = allBtns.first();
+                    for (let i = 0; i < btnCount; i++) {
+                        const b = allBtns.nth(i);
+                        const startAttr = await b.getAttribute("start");
+                        if (startAttr && new Date(startAttr).getTime() === start.getTime()) {
+                            targetBtn = b;
+                            break;
+                        }
+                    }
+
+                    const modal = await openCreateModal(page, targetBtn);
+                    await selectDuration(page, options.durationMinutes);
+
+                    // Add players
+                    const addResult = { added: [] as string[], skipped: [] as PlayerAddOutcome[], failed: [] as PlayerAddOutcome[] };
+                    const rosterNames = await modal
+                        .locator('[data-testid="member-table"] [data-testid="player-fullname"]')
+                        .allTextContents()
+                        .then((names) => names.map((n) => n.replace(/\s+/g, " ").trim()));
+                    const roster = [...rosterNames];
+
+                    for (const { name } of options.players) {
+                        if (roster.some((existing) => normalizePlayerName(existing) === normalizePlayerName(name))) {
+                            addResult.skipped.push({ name, reason: "already-added" });
+                            continue;
+                        }
+
+                        const tooShort = searchNameError(name);
+                        if (tooShort) {
+                            addResult.failed.push({ name, reason: "query-too-short" });
+                            continue;
+                        }
+
+                        await typePlayerSearch(modal, name);
+                        await pauseForAction();
+
+                        const playerOptions = await readPlayerOptions(page);
+                        const match = matchPlayerOption(playerOptions, name);
+
+                        if (match.status === "exact" || match.status === "unique") {
+                            await selectPlayerOption(page, match.index);
+                            await pauseForAction();
+                            await confirmAddPlayer(page);
+                            await modal
+                                .locator('[data-testid="player-fullname"]')
+                                .filter({ hasText: match.name })
+                                .first()
+                                .waitFor({ state: "attached" });
+
+                            addResult.added.push(match.name);
+                            roster.push(match.name);
+                        } else if (match.status === "ambiguous") {
+                            addResult.failed.push({ name, reason: "ambiguous", candidates: match.candidates });
+                        } else {
+                            addResult.failed.push({ name, reason: "not-found", candidates: match.candidates });
+                        }
+                    }
+
+                    await checkWaiver(modal);
+                    await saveNewReservation(page);
+                    const totalDue = await payReservation(page);
+
+                    const { courtLocation, courtNumber } = parseCourtLabel(courtLabel);
+                    const endTime = new Date(start.getTime() + options.durationMinutes * 60_000);
+
+                    return {
+                        reserved: true,
+                        paid: true,
+                        courtLabel,
+                        courtNumber,
+                        startTime: start,
+                        endTime,
+                        totalDue,
+                        players: roster,
+                        added: addResult.added,
+                        skipped: addResult.skipped,
+                        failed: addResult.failed,
+                    };
+                } catch (err) {
+                    lastError = err instanceof Error ? err : new Error(String(err));
+                    // Try next court
+                    continue;
+                }
+            }
+
+            throw lastError ?? new Error("No courts could be reserved");
+        } finally {
+            await page.close().catch(() => undefined);
+        }
     }
 }
