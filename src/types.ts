@@ -1,4 +1,5 @@
 import { Page } from "playwright";
+import { CourtLocation } from "./constants";
 
 export type ClientOptions = {
     headless?: boolean;
@@ -72,4 +73,37 @@ export type SwapPlayerResult = {
     skipped: (PlayerAddOutcome | PlayerRemoveOutcome)[];
     failed: (PlayerAddOutcome | PlayerRemoveOutcome)[];
     saved: boolean;
+};
+
+export type ReserveDurationMinutes = 60 | 90 | 120 | 150 | 180;
+
+export type ReserveCourtOptions = {
+    location: CourtLocation;
+    date: string | Date;
+    startTime: string;
+    durationMinutes: ReserveDurationMinutes;
+    players: PlayerInput[];
+    preferCourts?: number[];
+};
+
+export type ReservedSlot = {
+    courtLocation: string;
+    courtNumber: number;
+    startTime: Date;
+    endTime: Date;
+    players: string[];
+};
+
+export type ReserveCourtResult = {
+    reserved: boolean;
+    paid: boolean;
+    courtLabel: string;
+    courtNumber: number;
+    startTime: Date;
+    endTime: Date;
+    totalDue: string;
+    players: string[];
+    added: string[];
+    skipped: PlayerAddOutcome[];
+    failed: PlayerAddOutcome[];
 };
