@@ -183,9 +183,18 @@ export async function navigateScheduleToDate(page: Page, date: Date): Promise<vo
 }
 
 export async function readReservedSlots(page: Page): Promise<ReservedSlot[]> {
+    // Try the toolbar date first (works on live site with Kendo JS).
+    // Fall back to the first reserveBtn's start attribute (works in test fixtures).
+    let dateStr: string;
     const dateText = (await page.locator(".k-lg-date-format").textContent()) ?? "";
     const viewDate = dayjs(dateText.trim(), "dddd, MMMM D, YYYY");
-    const dateStr = viewDate.format("YYYY-MM-DD");
+    if (viewDate.isValid()) {
+        dateStr = viewDate.format("YYYY-MM-DD");
+    } else {
+        const firstBtn = page.locator('[data-testid="reserveBtn"]').first();
+        const startAttr = (await firstBtn.getAttribute("start")) ?? "";
+        dateStr = dayjs(startAttr.trim()).format("YYYY-MM-DD");
+    }
 
     const events = page.locator('[data-testid="reservation-action"]');
     const count = await events.count();
@@ -195,7 +204,10 @@ export async function readReservedSlots(page: Page): Promise<ReservedSlot[]> {
         const event = events.nth(i);
         const courtLabel = (await event.getAttribute("data-courtlabel")) ?? "";
         const timesText = (await event.locator('[data-testid="reservation-times"]').textContent()) ?? "";
-        const membersText = (await event.locator('[data-testid="reservation-members"]').textContent()) ?? "";
+        const membersCount = await event.locator('[data-testid="reservation-members"]').count();
+        const membersText = membersCount > 0
+            ? (await event.locator('[data-testid="reservation-members"]').textContent()) ?? ""
+            : "";
 
         const [startStr, endStr] = timesText.split(" - ").map((s) => s.trim());
         const startTime = dayjs(`${dateStr} ${startStr}`, "YYYY-MM-DD h:mm A").toDate();
