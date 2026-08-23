@@ -86,6 +86,16 @@ export function combineDateTime(date: string | Date, time: string): Date {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), Number(match[1]), Number(match[2]));
 }
 
+/**
+ * The `title` attribute CourtReserve puts on each calendar date cell, e.g.
+ * `Friday, September 18, 2026`. This is the only stable key for a date cell:
+ * `data-value` uses a zero-indexed month and the cell's text is just the day
+ * number. Extracted so the format is unit-tested against the captured markup.
+ */
+export function calendarDateTitle(date: Date): string {
+    return dayjs(date).format("dddd, MMMM D, YYYY");
+}
+
 export function findCandidateCourts(
     freeCells: FreeCell[],
     preferCourts: number[],
@@ -192,8 +202,9 @@ export async function navigateCalendarToDate(page: Page, target: dayjs.Dayjs): P
 
     // Click the target date cell. Scoped to the calendar table so the footer
     // "today" link (which also carries a `title`) can't be matched.
-    const title = target.format("dddd, MMMM D, YYYY");
-    const dateCell = calendar.locator(`table.k-calendar-table a.k-link[title="${title}"]`);
+    const dateCell = calendar.locator(
+        `table.k-calendar-table a.k-link[title="${calendarDateTitle(target.toDate())}"]`,
+    );
     await humanClick(dateCell);
 
     // Wait for the calendar to close and the scheduler to reload the day.

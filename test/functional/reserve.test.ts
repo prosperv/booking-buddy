@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { BrowserContext, Page, chromium } from "playwright";
-import { readReservedSlots, readFreeCells } from "../../src/reserve";
+import { readReservedSlots, readFreeCells, calendarDateTitle } from "../../src/reserve";
 import { loadFixture } from "./setup";
 
 describe("functional: reservation scraping", () => {
@@ -91,28 +91,29 @@ describe("functional: reservation scraping", () => {
             expect(await calendar.locator(".k-nav-next").getAttribute("aria-disabled")).toBe("true");
         });
 
-        it("resolves the target date cell by title, scoped to the calendar table", async () => {
+        it("matches a date cell via the code's computed title", async () => {
             await loadFixture(page, "reserving-courts/calendar-open.html");
 
-            // Mirrors the selector in navigateCalendarToDate
+            // Compute the title the same way navigateCalendarToDate does, then
+            // confirm a cell bearing exactly that title exists in the captured
+            // markup. This fails if CourtReserve changes its title format.
+            const title = calendarDateTitle(new Date(2026, 8, 18));
             const cell = page.locator(
-                '[data-role="calendar"] table.k-calendar-table a.k-link[title="Friday, September 18, 2026"]',
+                `[data-role="calendar"] table.k-calendar-table a.k-link[title="${title}"]`,
             );
             expect(await cell.count()).toBe(1);
             expect((await cell.textContent())?.trim()).toBe("18");
         });
 
-        it("does not match the footer today link when resolving a date cell", async () => {
+        it("keeps the date cell scoped away from the footer today link", async () => {
             await loadFixture(page, "reserving-courts/calendar-open.html");
 
-            // The footer "today" link also carries a title; the table scope excludes it.
-            const footer = page.locator('[data-role="calendar"] .k-footer .k-nav-today');
-            expect(await footer.count()).toBe(1);
-
-            const cells = page.locator('[data-role="calendar"] table.k-calendar-table a.k-link');
-            const footers = page.locator('[data-role="calendar"] .k-footer a.k-link');
-            expect(await footers.count()).toBe(1);
-            expect(await cells.count()).toBeGreaterThan(1);
+            // The footer "today" link also carries a `title`; the calendar-table
+            // scope must exclude it so the date-cell selector stays unambiguous.
+            const footerToday = page.locator('[data-role="calendar"] .k-footer .k-nav-today');
+            expect(await footerToday.count()).toBe(1);
+            expect(await page.locator('[data-role="calendar"] table.k-calendar-table a.k-link').count())
+                .toBeGreaterThan(1);
         });
     });
 

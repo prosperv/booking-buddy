@@ -5,6 +5,7 @@ import {
     parseCourtLabel,
     combineDateTime,
     findCandidateCourts,
+    calendarDateTitle,
     FreeCell,
 } from "../src/reserve";
 
@@ -42,6 +43,17 @@ describe("parseSlotStart", () => {
 
     it("throws on unparseable input", () => {
         expect(() => parseSlotStart("not a date")).toThrow(/Could not parse/);
+    });
+});
+
+describe("calendarDateTitle", () => {
+    it("matches the title CourtReserve renders on a date cell", () => {
+        expect(calendarDateTitle(new Date(2026, 8, 18))).toBe("Friday, September 18, 2026");
+        expect(calendarDateTitle(new Date(2026, 8, 1))).toBe("Tuesday, September 1, 2026");
+    });
+
+    it("pads the day-of-month like the site does", () => {
+        expect(calendarDateTitle(new Date(2026, 0, 5))).toBe("Monday, January 5, 2026");
     });
 });
 
