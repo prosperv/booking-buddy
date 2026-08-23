@@ -32,6 +32,26 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Debug examples/reserve-court.ts",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/examples/reserve-court.ts",
+            "args": [
+                "--location", "${input:reserveLocation}",
+                "--date", "${input:reserveDate}",
+                "--time", "${input:reserveTime}",
+                "--duration", "${input:reserveDuration}",
+                "--court", "${input:reserveCourt}",
+                "${input:reservePlayer}"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Debug examples/usage.ts (force login)",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
             "program": "${workspaceFolder}/examples/usage.ts",
@@ -62,6 +82,44 @@
             "id": "playerName3",
             "type": "promptString",
             "description": "Optional: another player name (leave blank to skip)",
+            "default": ""
+        },
+        {
+            "id": "reserveLocation",
+            "type": "pickString",
+            "description": "Court location",
+            "options": ["mukilteo", "bellevue", "redmond", "renton", "southcenter"],
+            "default": "mukilteo"
+        },
+        {
+            "id": "reserveDate",
+            "type": "promptString",
+            "description": "Reservation date (YYYY-MM-DD, blank = today)",
+            "default": ""
+        },
+        {
+            "id": "reserveTime",
+            "type": "promptString",
+            "description": "Start time (HH:MM)",
+            "default": "18:00"
+        },
+        {
+            "id": "reserveDuration",
+            "type": "pickString",
+            "description": "Duration in minutes",
+            "options": ["60", "90", "120", "150", "180"],
+            "default": "60"
+        },
+        {
+            "id": "reserveCourt",
+            "type": "promptString",
+            "description": "Preferred court number (blank for none)",
+            "default": ""
+        },
+        {
+            "id": "reservePlayer",
+            "type": "promptString",
+            "description": "Player name to add (required)",
             "default": ""
         }
     ]
