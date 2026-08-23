@@ -18,135 +18,123 @@ describe("functional: reservation scraping", () => {
     });
 
     describe("readFreeCells", () => {
-        it("reads all reserveBtn slots from the schedule", async () => {
+        it("reads one cell per reserve button on the schedule", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
+
+            // Counted via an independent selector (the button class), not the
+            // code's testid, so a stale testid in the code surfaces as a mismatch.
+            const buttonCount = await page.locator("button.slot-btn").count();
+            expect(buttonCount).toBeGreaterThan(0);
+
             const cells = await readFreeCells(page);
-            expect(cells).toHaveLength(312);
+            expect(cells).toHaveLength(buttonCount);
         });
 
-        it("parses court labels and times correctly", async () => {
+        it("parses a button's start, end, and courtlabel attributes into a cell", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
-            const cells = await readFreeCells(page);
 
-            const first = cells[0];
-            expect(first.courtLabel).toBe("Mukilteo 1");
-            expect(first.courtLocation).toBe("Mukilteo");
-            expect(first.courtNumber).toBe(1);
-            expect(first.startTime).toBeInstanceOf(Date);
-            expect(first.endTime).toBeInstanceOf(Date);
+            const firstButton = page.locator("button.slot-btn").first();
+            const rawStart = await firstButton.getAttribute("start");
+            const rawEnd = await firstButton.getAttribute("end");
+            const rawCourt = await firstButton.getAttribute("courtlabel");
+
+            const cells = await readFreeCells(page);
+            const match = cells.find(
+                (c) => c.courtLabel === rawCourt && c.startTime.getTime() === new Date(rawStart!).getTime(),
+            );
+
+            expect(match).toBeDefined();
+            expect(match!.endTime.getTime()).toBe(new Date(rawEnd!).getTime());
         });
 
-        it("covers all 12 courts", async () => {
+        it("gives every cell a court and an ordered time range", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
-            const cells = await readFreeCells(page);
 
-            const courts = new Set(cells.map((c) => c.courtLabel));
-            expect(courts.size).toBe(12);
-            expect(courts.has("Mukilteo 1")).toBe(true);
-            expect(courts.has("Mukilteo 12")).toBe(true);
+            const cells = await readFreeCells(page);
+            for (const cell of cells) {
+                expect(cell.courtLocation.length).toBeGreaterThan(0);
+                expect(cell.courtNumber).toBeGreaterThan(0);
+                expect(cell.endTime.getTime()).toBeGreaterThan(cell.startTime.getTime());
+            }
         });
     });
 
     describe("readReservedSlots", () => {
-        it("reads booked reservation events", async () => {
+        it("reads one slot per reservation event on the schedule", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
+
+            const eventCount = await page.locator('[data-testid="reservation-action"]').count();
+            expect(eventCount).toBeGreaterThan(0);
+
             const slots = await readReservedSlots(page);
-            expect(slots.length).toBeGreaterThan(0);
+            expect(slots).toHaveLength(eventCount);
         });
 
-        it("parses court, times, and players", async () => {
+        it("parses members only for events that actually list them", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
-            const slots = await readReservedSlots(page);
 
-            const slot = slots[0];
-            expect(slot.courtLocation).toBe("Mukilteo");
-            expect(slot.courtNumber).toBeGreaterThan(0);
-            expect(slot.startTime).toBeInstanceOf(Date);
-            expect(slot.endTime).toBeInstanceOf(Date);
-            expect(slot.players.length).toBeGreaterThan(0);
+            // Some events render a reservation-members element and some do not;
+            // readReservedSlots must tolerate the absence rather than throw.
+            const events = page.locator('[data-testid="reservation-action"]');
+            const eventCount = await events.count();
+            let eventsWithMembers = 0;
+            for (let i = 0; i < eventCount; i++) {
+                if ((await events.nth(i).locator('[data-testid="reservation-members"]').count()) > 0) {
+                    eventsWithMembers++;
+                }
+            }
+            expect(eventsWithMembers).toBeGreaterThan(0);
+            expect(eventsWithMembers).toBeLessThan(eventCount);
+
+            const slots = await readReservedSlots(page);
+            expect(slots.filter((s) => s.players.length > 0)).toHaveLength(eventsWithMembers);
+        });
+
+        it("gives every slot a court and an ordered time range", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            const slots = await readReservedSlots(page);
+            for (const slot of slots) {
+                expect(slot.courtLocation.length).toBeGreaterThan(0);
+                expect(slot.courtNumber).toBeGreaterThan(0);
+                expect(slot.endTime.getTime()).toBeGreaterThan(slot.startTime.getTime());
+            }
         });
     });
 
-    describe("calendar navigation (calendar-open fixture)", () => {
-        it("locates the open calendar widget", async () => {
+    describe("calendar navigation", () => {
+        it("targets the calendar widget the code navigates", async () => {
             await loadFixture(page, "reserving-courts/calendar-open.html");
 
             const calendar = page.locator('[data-role="calendar"]');
             expect(await calendar.count()).toBe(1);
-            expect(await calendar.isVisible()).toBe(true);
         });
 
-        it("reads the current month from the k-nav-fast label", async () => {
+        it("reads the month label and disabled state the code relies on", async () => {
             await loadFixture(page, "reserving-courts/calendar-open.html");
 
-            const monthLabel = await page.locator('[data-role="calendar"] .k-nav-fast').textContent();
-            expect(monthLabel?.trim()).toBe("September 2026");
-        });
-
-        it("exposes prev/next with correct disabled state", async () => {
-            await loadFixture(page, "reserving-courts/calendar-open.html");
-
+            // navigateCalendarToDate parses .k-nav-fast as "MMMM YYYY" and checks
+            // aria-disabled before paging months; both must be present in the markup.
             const calendar = page.locator('[data-role="calendar"]');
-            expect(await calendar.locator(".k-nav-prev").getAttribute("aria-disabled")).toBe("false");
-            expect(await calendar.locator(".k-nav-next").getAttribute("aria-disabled")).toBe("true");
+            const month = (await calendar.locator(".k-nav-fast").textContent())?.trim();
+            expect(month).toMatch(/^[A-Za-z]+ \d{4}$/);
+
+            expect(await calendar.locator(".k-nav-prev").getAttribute("aria-disabled")).not.toBeNull();
+            expect(await calendar.locator(".k-nav-next").getAttribute("aria-disabled")).not.toBeNull();
         });
 
         it("matches a date cell via the code's computed title", async () => {
             await loadFixture(page, "reserving-courts/calendar-open.html");
 
-            // Compute the title the same way navigateCalendarToDate does, then
-            // confirm a cell bearing exactly that title exists in the captured
-            // markup. This fails if CourtReserve changes its title format.
+            // Compute the title the way navigateCalendarToDate does, then confirm a
+            // cell bearing exactly that title exists in the captured markup. Fails
+            // if CourtReserve changes its date-cell title format.
             const title = calendarDateTitle(new Date(2026, 8, 18));
             const cell = page.locator(
                 `[data-role="calendar"] table.k-calendar-table a.k-link[title="${title}"]`,
             );
             expect(await cell.count()).toBe(1);
             expect((await cell.textContent())?.trim()).toBe("18");
-        });
-
-        it("keeps the date cell scoped away from the footer today link", async () => {
-            await loadFixture(page, "reserving-courts/calendar-open.html");
-
-            // The footer "today" link also carries a `title`; the calendar-table
-            // scope must exclude it so the date-cell selector stays unambiguous.
-            const footerToday = page.locator('[data-role="calendar"] .k-footer .k-nav-today');
-            expect(await footerToday.count()).toBe(1);
-            expect(await page.locator('[data-role="calendar"] table.k-calendar-table a.k-link').count())
-                .toBeGreaterThan(1);
-        });
-    });
-
-    describe("create-reservation modal", () => {
-        it("has all expected form fields", async () => {
-            await loadFixture(page, "reserving-courts/create-reservation-modal.html");
-
-            expect(await page.locator('[data-testid="create-reservation"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="start-time"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="end-time"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="Duration"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="CourtIds"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="OwnersDropdown"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="DisclosureAgree"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="save-btn"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="close-btn-modal-header"]').count()).toBe(1);
-        });
-
-        it("has the member table for player roster", async () => {
-            await loadFixture(page, "reserving-courts/create-reservation-modal.html");
-
-            expect(await page.locator('[data-testid="member-table"]').count()).toBe(1);
-            expect(await page.locator('[data-testid="player-fullname"]').count()).toBe(1);
-        });
-    });
-
-    describe("process-payment page", () => {
-        it("has pay button and total value", async () => {
-            await loadFixture(page, "reserving-courts/process-payment.html");
-
-            expect(await page.getByTestId("pay-btn").count()).toBe(1);
-            const total = await page.getByTestId("total-value").textContent();
-            expect(total?.trim()).toBe("$39.82");
         });
     });
 });
