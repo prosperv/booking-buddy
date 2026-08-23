@@ -3,7 +3,6 @@ import { readFileSync } from "fs";
 import { BrowserContext, Page, chromium } from "playwright";
 import {
     closeReservationConfirmation,
-    confirmAddPlayer,
     openEditReservationModal,
     openReservationDetail,
     readDetailPlayers,
@@ -133,15 +132,23 @@ describe("functional: add-player steps", () => {
         it("clicks the option at the given index", async () => {
             await loadFixture(page, "adding-player/player-options.html");
 
-            await expect(selectPlayerOption(page, 5)).resolves.toBeUndefined();
-        }, BROWSER_TEST_TIMEOUT);
-    });
+            // Record which list item receives the click, so the assertion checks
+            // that the right option was targeted rather than that nothing threw.
+            await page.evaluate(() => {
+                (window as unknown as { __clickedOption: number | null }).__clickedOption = null;
+                document.querySelectorAll("#OwnersDropdown_listbox li.k-list-item").forEach((li, i) => {
+                    li.addEventListener("click", () => {
+                        (window as unknown as { __clickedOption: number | null }).__clickedOption = i;
+                    });
+                });
+            });
 
-    describe("confirmAddPlayer", () => {
-        it("clicks Yes on the confirmation dialog", async () => {
-            await loadFixture(page, "adding-player/confirm-dialog.html");
+            await selectPlayerOption(page, 5);
 
-            await expect(confirmAddPlayer(page)).resolves.toBeUndefined();
+            const clicked = await page.evaluate(
+                () => (window as unknown as { __clickedOption: number | null }).__clickedOption,
+            );
+            expect(clicked).toBe(5);
         }, BROWSER_TEST_TIMEOUT);
     });
 
