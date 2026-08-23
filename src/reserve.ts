@@ -155,30 +155,49 @@ export async function navigateScheduleToDate(page: Page, date: Date): Promise<vo
 
     // Click the current-date link to open the Kendo calendar popup
     await humanClick(page.locator('[data-testid="link-0"]'));
-    await page.locator('[data-testid="options-container"]').waitFor({ state: "visible" });
+    await navigateCalendarToDate(page, target);
+}
 
+/**
+ * Operates on an already-open Kendo calendar popup: pages through months
+ * until the target month is showing, then clicks the target date cell.
+ * Split out of `navigateScheduleToDate` so the month/date logic can be
+ * exercised against a fixture that already has the calendar rendered open.
+ */
+export async function navigateCalendarToDate(page: Page, target: dayjs.Dayjs): Promise<void> {
     const calendar = page.locator('[data-role="calendar"]');
-    const monthLabel = calendar.locator(".k-nav-fast");
+    await calendar.waitFor({ state: "visible" });
 
-    // Navigate month-by-month until we reach the target month
+    // Page through months until the target month is showing. The calendar
+    // only renders the current month (plus trailing/leading other-month
+    // cells), so the month label is the source of truth.
+    const monthLabel = calendar.locator(".k-nav-fast");
     for (let i = 0; i < 36; i++) {
         const currentText = (await monthLabel.textContent()) ?? "";
         const current = dayjs(currentText.trim(), "MMMM YYYY");
         if (current.month() === target.month() && current.year() === target.year()) break;
+
         if (current.isBefore(target)) {
-            await humanClick(calendar.locator(".k-nav-next"));
+            const next = calendar.locator(".k-nav-next");
+            // "Next" is disabled once the booking window's far edge is reached.
+            if ((await next.getAttribute("aria-disabled")) === "true") break;
+            await humanClick(next);
         } else {
-            await humanClick(calendar.locator(".k-nav-prev"));
+            const prev = calendar.locator(".k-nav-prev");
+            if ((await prev.getAttribute("aria-disabled")) === "true") break;
+            await humanClick(prev);
         }
         await pauseForAction();
     }
 
-    // Click the target date cell
-    const dateCell = calendar.locator(`a[title="${target.format("dddd, MMMM D, YYYY")}"]`);
+    // Click the target date cell. Scoped to the calendar table so the footer
+    // "today" link (which also carries a `title`) can't be matched.
+    const title = target.format("dddd, MMMM D, YYYY");
+    const dateCell = calendar.locator(`table.k-calendar-table a.k-link[title="${title}"]`);
     await humanClick(dateCell);
 
-    // Wait for the calendar to close and scheduler to update
-    await page.locator('[data-testid="options-container"]').waitFor({ state: "hidden" });
+    // Wait for the calendar to close and the scheduler to reload the day.
+    await calendar.waitFor({ state: "hidden" });
     await pauseForAction();
 }
 

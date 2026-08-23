@@ -67,6 +67,55 @@ describe("functional: reservation scraping", () => {
         });
     });
 
+    describe("calendar navigation (calendar-open fixture)", () => {
+        it("locates the open calendar widget", async () => {
+            await loadFixture(page, "reserving-courts/calendar-open.html");
+
+            const calendar = page.locator('[data-role="calendar"]');
+            expect(await calendar.count()).toBe(1);
+            expect(await calendar.isVisible()).toBe(true);
+        });
+
+        it("reads the current month from the k-nav-fast label", async () => {
+            await loadFixture(page, "reserving-courts/calendar-open.html");
+
+            const monthLabel = await page.locator('[data-role="calendar"] .k-nav-fast').textContent();
+            expect(monthLabel?.trim()).toBe("September 2026");
+        });
+
+        it("exposes prev/next with correct disabled state", async () => {
+            await loadFixture(page, "reserving-courts/calendar-open.html");
+
+            const calendar = page.locator('[data-role="calendar"]');
+            expect(await calendar.locator(".k-nav-prev").getAttribute("aria-disabled")).toBe("false");
+            expect(await calendar.locator(".k-nav-next").getAttribute("aria-disabled")).toBe("true");
+        });
+
+        it("resolves the target date cell by title, scoped to the calendar table", async () => {
+            await loadFixture(page, "reserving-courts/calendar-open.html");
+
+            // Mirrors the selector in navigateCalendarToDate
+            const cell = page.locator(
+                '[data-role="calendar"] table.k-calendar-table a.k-link[title="Friday, September 18, 2026"]',
+            );
+            expect(await cell.count()).toBe(1);
+            expect((await cell.textContent())?.trim()).toBe("18");
+        });
+
+        it("does not match the footer today link when resolving a date cell", async () => {
+            await loadFixture(page, "reserving-courts/calendar-open.html");
+
+            // The footer "today" link also carries a title; the table scope excludes it.
+            const footer = page.locator('[data-role="calendar"] .k-footer .k-nav-today');
+            expect(await footer.count()).toBe(1);
+
+            const cells = page.locator('[data-role="calendar"] table.k-calendar-table a.k-link');
+            const footers = page.locator('[data-role="calendar"] .k-footer a.k-link');
+            expect(await footers.count()).toBe(1);
+            expect(await cells.count()).toBeGreaterThan(1);
+        });
+    });
+
     describe("create-reservation modal", () => {
         it("has all expected form fields", async () => {
             await loadFixture(page, "reserving-courts/create-reservation-modal.html");
