@@ -38,6 +38,7 @@ import {
     typePlayerSearch,
 } from "./players";
 import {
+    assertFutureStart,
     checkWaiver,
     combineDateTime,
     findCandidateCourts,
@@ -356,6 +357,7 @@ export class CourtReserveClient {
         const page = await this.context.newPage();
         try {
             const start = combineDateTime(options.date, options.startTime);
+            assertFutureStart(start);
 
             await openSchedule(page, options.location, options.date);
             const freeCells = await readFreeCells(page);

@@ -87,6 +87,21 @@ export function combineDateTime(date: string | Date, time: string): Date {
 }
 
 /**
+ * Rejects reservation starts that are not strictly in the future. `now` is
+ * injectable so the boundary can be unit-tested without real time; it defaults
+ * to the current instant. A start equal to now is rejected — a court can't be
+ * reserved for a time that has already begun.
+ */
+export function assertFutureStart(start: Date, now: Date = new Date()): void {
+    if (Number.isNaN(start.getTime())) {
+        throw new Error("Reservation start is not a valid date.");
+    }
+    if (start.getTime() <= now.getTime()) {
+        throw new Error(`Reservation start ${start.toString()} must be in the future.`);
+    }
+}
+
+/**
  * The `title` attribute CourtReserve puts on each calendar date cell, e.g.
  * `Friday, September 18, 2026`. This is the only stable key for a date cell:
  * `data-value` uses a zero-indexed month and the cell's text is just the day
@@ -182,22 +197,41 @@ export async function navigateCalendarToDate(page: Page, target: dayjs.Dayjs): P
     // only renders the current month (plus trailing/leading other-month
     // cells), so the month label is the source of truth.
     const monthLabel = calendar.locator(".k-nav-fast");
+    let reachedTargetMonth = false;
     for (let i = 0; i < 36; i++) {
         const currentText = (await monthLabel.textContent()) ?? "";
         const current = dayjs(currentText.trim(), "MMMM YYYY");
-        if (current.month() === target.month() && current.year() === target.year()) break;
+        if (current.month() === target.month() && current.year() === target.year()) {
+            reachedTargetMonth = true;
+            break;
+        }
 
         if (current.isBefore(target)) {
             const next = calendar.locator(".k-nav-next");
-            // "Next" is disabled once the booking window's far edge is reached.
-            if ((await next.getAttribute("aria-disabled")) === "true") break;
+            // "Next" is disabled once the booking window's far edge is reached:
+            // the target date is beyond the furthest date the club allows.
+            if ((await next.getAttribute("aria-disabled")) === "true") {
+                throw new Error(
+                    `Reservation date ${target.format("MMMM D, YYYY")} is beyond the bookable window.`,
+                );
+            }
             await humanClick(next);
         } else {
             const prev = calendar.locator(".k-nav-prev");
-            if ((await prev.getAttribute("aria-disabled")) === "true") break;
+            // "Prev" is disabled at the earliest viewable month; a future target
+            // should never hit this, but surface it clearly rather than stalling.
+            if ((await prev.getAttribute("aria-disabled")) === "true") {
+                throw new Error(
+                    `Could not navigate the calendar back to ${target.format("MMMM D, YYYY")}.`,
+                );
+            }
             await humanClick(prev);
         }
         await pauseForAction();
+    }
+
+    if (!reachedTargetMonth) {
+        throw new Error(`Could not navigate the calendar to ${target.format("MMMM YYYY")}.`);
     }
 
     // Click the target date cell. Scoped to the calendar table so the footer

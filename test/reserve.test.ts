@@ -6,6 +6,7 @@ import {
     combineDateTime,
     findCandidateCourts,
     calendarDateTitle,
+    assertFutureStart,
     FreeCell,
 } from "../src/reserve";
 
@@ -43,6 +44,28 @@ describe("parseSlotStart", () => {
 
     it("throws on unparseable input", () => {
         expect(() => parseSlotStart("not a date")).toThrow(/Could not parse/);
+    });
+});
+
+describe("assertFutureStart", () => {
+    const now = new Date(2026, 8, 12, 12, 0, 0); // Sep 12 2026, noon
+
+    it("accepts a start after now", () => {
+        expect(() => assertFutureStart(new Date(2026, 8, 12, 12, 0, 1), now)).not.toThrow();
+        expect(() => assertFutureStart(new Date(2026, 8, 13), now)).not.toThrow();
+    });
+
+    it("rejects a start equal to now", () => {
+        expect(() => assertFutureStart(new Date(2026, 8, 12, 12, 0, 0), now)).toThrow(/future/);
+    });
+
+    it("rejects a start in the past", () => {
+        expect(() => assertFutureStart(new Date(2026, 8, 12, 11, 59), now)).toThrow(/future/);
+        expect(() => assertFutureStart(new Date(2026, 8, 11), now)).toThrow(/future/);
+    });
+
+    it("rejects an invalid date", () => {
+        expect(() => assertFutureStart(new Date("nonsense"), now)).toThrow(/valid date/);
     });
 });
 
