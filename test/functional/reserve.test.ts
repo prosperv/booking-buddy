@@ -111,6 +111,20 @@ describe("functional: reservation scraping", () => {
             expect(candidates[0]).toBe("Mukilteo 3");
             expect(candidates[1]).toBe("Mukilteo 1");
         });
+
+        it("rejects courts whose booking would strand a 30-min orphan", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            const freeCells = await readFreeCells(page);
+            // Ten courts' bookable runs begin at 18:30 (before that they are
+            // Reserved blocks), so a 19:00 start would strand a lone
+            // 18:30–19:00 cell on each of them. Mukilteo 11/12 start earlier
+            // and keep two-plus cells before the window, so they survive.
+            const start = new Date(2026, 8, 12, 19, 0);
+            const candidates = findCandidateCourts(freeCells, [], start, 60);
+
+            expect(candidates.sort()).toEqual(["Mukilteo 11", "Mukilteo 12"]);
+        });
     });
 
     describe("readReservedSlots", () => {

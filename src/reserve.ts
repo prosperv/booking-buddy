@@ -142,6 +142,24 @@ export function parseScheduleDateText(text: string): dayjs.Dayjs | null {
     return short.isValid() ? short : null;
 }
 
+const HALF_HOUR_MS = 30 * 60_000;
+
+/**
+ * Counts the consecutive free cells in the run adjacent to a reserved window's
+ * edge: walking backward from `start - 30min` or forward from `end`. A missing
+ * cell terminates the run whether it is another session/block or outside the
+ * venue's open hours — which is exactly the boundary the no-orphan rule needs.
+ */
+function countFreeRun(starts: Map<number, boolean>, edge: number, step: 1 | -1): number {
+    let count = 0;
+    let t = edge;
+    while (starts.has(t)) {
+        count += 1;
+        t += step * HALF_HOUR_MS;
+    }
+    return count;
+}
+
 export function findCandidateCourts(
     freeCells: FreeCell[],
     preferCourts: number[],
@@ -158,18 +176,27 @@ export function findCandidateCourts(
         courtMap.get(cell.courtLabel)!.set(cell.startTime.getTime(), true);
     }
 
-    // A court is a candidate if every 30-min cell in [start, end) is free
+    // A court is a candidate if every 30-min cell in [start, end) is free AND
+    // neither edge would strand a lone 30-min leftover: with durations starting
+    // at 1h, a single stranded half-hour could never be booked by anyone.
+    // The leftover run counts sessions/blocks and open/close edges alike,
+    // since both appear as absent cells.
     const candidates: string[] = [];
     for (const [courtLabel, starts] of courtMap) {
         let allFree = true;
         for (let i = 0; i < cellCount; i++) {
-            const cellStart = start.getTime() + i * 30 * 60_000;
+            const cellStart = start.getTime() + i * HALF_HOUR_MS;
             if (!starts.has(cellStart)) {
                 allFree = false;
                 break;
             }
         }
-        if (allFree) candidates.push(courtLabel);
+        if (!allFree) continue;
+
+        if (countFreeRun(starts, start.getTime() - HALF_HOUR_MS, -1) === 1) continue;
+        if (countFreeRun(starts, endMs, 1) === 1) continue;
+
+        candidates.push(courtLabel);
     }
 
     // Sort: preferred courts first (in order), then remaining

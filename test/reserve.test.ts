@@ -272,4 +272,92 @@ describe("findCandidateCourts", () => {
         expect(result).toContain("Mukilteo 1");
         expect(result).toContain("Mukilteo 2");
     });
+
+    describe("no stranded 30-min orphans (club policy)", () => {
+        it("rejects a booking that strands a lone cell before the window", () => {
+            // Free run 10:00–11:30; booking 10:30–11:30 strands only 10:00.
+            const cells = [
+                makeCell("Mukilteo 1", 10),
+                makeCell("Mukilteo 1", 10, 30),
+                makeCell("Mukilteo 1", 11),
+            ];
+            const start = new Date(2026, 8, 12, 10, 30);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual([]);
+        });
+
+        it("rejects a booking that strands a lone cell after the window", () => {
+            // Free run 10:00–11:30; booking 10:00–11:00 strands only 11:00–11:30.
+            const cells = [
+                makeCell("Mukilteo 1", 10),
+                makeCell("Mukilteo 1", 10, 30),
+                makeCell("Mukilteo 1", 11),
+            ];
+            const start = new Date(2026, 8, 12, 10, 0);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual([]);
+        });
+
+        it("accepts a booking that consumes an entire free run", () => {
+            const cells = [makeCell("Mukilteo 1", 10), makeCell("Mukilteo 1", 10, 30)];
+            const start = new Date(2026, 8, 12, 10, 0);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual(["Mukilteo 1"]);
+        });
+
+        it("accepts leftovers of two or more cells on either side", () => {
+            // Run 9:00–13:00; booking 11:00–12:00 leaves 4 cells before / 2 after.
+            const cells = [
+                makeCell("Mukilteo 1", 9),
+                makeCell("Mukilteo 1", 9, 30),
+                makeCell("Mukilteo 1", 10),
+                makeCell("Mukilteo 1", 10, 30),
+                makeCell("Mukilteo 1", 11),
+                makeCell("Mukilteo 1", 11, 30),
+                makeCell("Mukilteo 1", 12),
+                makeCell("Mukilteo 1", 12, 30),
+            ];
+            const start = new Date(2026, 8, 12, 11, 0);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual(["Mukilteo 1"]);
+        });
+
+        it("treats open time as an orphan boundary", () => {
+            // First free cells of the day are 9:00–10:30; booking 9:30–10:30
+            // would strand 9:00–9:30 against the venue's opening time.
+            const cells = [
+                makeCell("Mukilteo 1", 9),
+                makeCell("Mukilteo 1", 9, 30),
+                makeCell("Mukilteo 1", 10),
+            ];
+            const start = new Date(2026, 8, 12, 9, 30);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual([]);
+        });
+
+        it("treats close time as an orphan boundary", () => {
+            // Last free cells end at closing; booking 21:00–22:00 would strand
+            // 20:30–21:00 against the venue's closing time.
+            const cells = [
+                makeCell("Mukilteo 1", 20, 30),
+                makeCell("Mukilteo 1", 21),
+                makeCell("Mukilteo 1", 21, 30),
+            ];
+            const start = new Date(2026, 8, 12, 21, 0);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual([]);
+        });
+
+        it("excludes only the court that would be orphaned", () => {
+            // Mukilteo 1's run {10:00..11:00} orphans 10:00 for a 10:30 start,
+            // while Mukilteo 2 keeps two cells on both sides of the window.
+            const cells = [
+                makeCell("Mukilteo 1", 10),
+                makeCell("Mukilteo 1", 10, 30),
+                makeCell("Mukilteo 1", 11),
+                makeCell("Mukilteo 2", 9, 30),
+                makeCell("Mukilteo 2", 10),
+                makeCell("Mukilteo 2", 10, 30),
+                makeCell("Mukilteo 2", 11),
+                makeCell("Mukilteo 2", 11, 30),
+                makeCell("Mukilteo 2", 12),
+            ];
+            const start = new Date(2026, 8, 12, 10, 30);
+            expect(findCandidateCourts(cells, [], start, 60)).toEqual(["Mukilteo 2"]);
+        });
+    });
 });
