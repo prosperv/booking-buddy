@@ -7,6 +7,7 @@ import {
     findCandidateCourts,
     calendarDateTitle,
     assertFutureStart,
+    parseDate,
     FreeCell,
 } from "../src/reserve";
 
@@ -104,6 +105,34 @@ describe("parseCourtLabel", () => {
 
     it("throws when no number", () => {
         expect(() => parseCourtLabel("Mukilteo")).toThrow(/Could not parse court number/);
+    });
+});
+
+describe("parseDate", () => {
+    it("parses a yyyy-mm-dd string as local midnight", () => {
+        const result = parseDate("2026-09-06");
+        expect(result.getFullYear()).toBe(2026);
+        expect(result.getMonth()).toBe(8);
+        expect(result.getDate()).toBe(6);
+        expect(result.getHours()).toBe(0);
+    });
+
+    it("returns a Date object unchanged", () => {
+        const date = new Date(2026, 8, 6, 12, 30);
+        expect(parseDate(date)).toBe(date);
+    });
+
+    it("parses a full timestamp string as-is", () => {
+        const result = parseDate("2026-09-06T18:00:00");
+        expect(result.getDate()).toBe(6);
+    });
+
+    it("throws on an unparseable string", () => {
+        expect(() => parseDate("not-a-date")).toThrow(/Invalid date/);
+    });
+
+    it("throws on an invalid Date object", () => {
+        expect(() => parseDate(new Date("nonsense"))).toThrow(/Invalid date/);
     });
 });
 

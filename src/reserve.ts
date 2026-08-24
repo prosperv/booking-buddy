@@ -66,19 +66,36 @@ export function parseCourtLabel(label: string): { courtLocation: string; courtNu
     return { courtLocation: parts.join(" "), courtNumber: num };
 }
 
+/**
+ * Normalizes a date input into a local-time `Date`.
+ *
+ * A bare `yyyy-mm-dd` string is parsed as LOCAL midnight rather than letting
+ * `new Date()` treat it as UTC midnight, which would land on the previous day
+ * in any negative-offset timezone (the club is US Pacific) and silently shift
+ * the target day. A full timestamp string is parsed as-is, and a `Date` object
+ * is returned untouched. Throws on unparseable input.
+ */
+export function parseDate(date: string | Date): Date {
+    if (date instanceof Date) {
+        if (Number.isNaN(date.getTime())) {
+            throw new Error("Invalid date: received an invalid Date object.");
+        }
+        return date;
+    }
+
+    const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+    const parsed = isoDateOnly
+        ? new Date(Number(isoDateOnly[1]), Number(isoDateOnly[2]) - 1, Number(isoDateOnly[3]))
+        : new Date(date);
+
+    if (Number.isNaN(parsed.getTime())) {
+        throw new Error(`Invalid date: ${JSON.stringify(date)} could not be parsed.`);
+    }
+    return parsed;
+}
+
 export function combineDateTime(date: string | Date, time: string): Date {
-    let d: Date;
-    if (typeof date === "string") {
-        const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
-        d = isoDateOnly
-            ? new Date(Number(isoDateOnly[1]), Number(isoDateOnly[2]) - 1, Number(isoDateOnly[3]))
-            : new Date(date);
-    } else {
-        d = date;
-    }
-    if (Number.isNaN(d.getTime())) {
-        throw new Error(`Invalid date: ${JSON.stringify(date)}`);
-    }
+    const d = parseDate(date);
     const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
     if (!match) {
         throw new Error(`Invalid time format "${time}". Expected "HH:mm".`);
@@ -172,7 +189,7 @@ export function findCandidateCourts(
 export async function openSchedule(page: Page, location: CourtLocation, date: string | Date): Promise<void> {
     await navigateTo(page, scheduleUrl(location), `CourtReserve Schedule (${location})`);
     await page.locator('[data-role="scheduler"]').waitFor({ state: "visible" });
-    await navigateScheduleToDate(page, typeof date === "string" ? new Date(date) : date);
+    await navigateScheduleToDate(page, parseDate(date));
 }
 
 export async function navigateScheduleToDate(page: Page, date: Date): Promise<void> {
