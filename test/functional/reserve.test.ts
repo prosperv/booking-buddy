@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { BrowserContext, Page, chromium } from "playwright";
-import { readReservedSlots, readFreeCells, calendarDateTitle } from "../../src/reserve";
+import { readReservedSlots, readFreeCells, calendarDateTitle, readScheduleDate } from "../../src/reserve";
 import { loadFixture } from "./setup";
 
 describe("functional: reservation scraping", () => {
@@ -99,6 +99,18 @@ describe("functional: reservation scraping", () => {
                 expect(slot.courtNumber).toBeGreaterThan(0);
                 expect(slot.endTime.getTime()).toBeGreaterThan(slot.startTime.getTime());
             }
+        });
+    });
+
+    describe("readScheduleDate", () => {
+        it("reads the scheduler's current date from the toolbar", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            const date = await readScheduleDate(page);
+            expect(date).not.toBeNull();
+            expect(date!.year()).toBe(2026);
+            expect(date!.month()).toBe(8); // September
+            expect(date!.date()).toBe(12);
         });
     });
 

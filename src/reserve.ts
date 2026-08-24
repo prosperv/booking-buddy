@@ -128,6 +128,20 @@ export function calendarDateTitle(date: Date): string {
     return dayjs(date).format("dddd, MMMM D, YYYY");
 }
 
+/**
+ * Parses the scheduler toolbar's date text into a dayjs. The site renders
+ * "Saturday, September 12, 2026" (full) or "Sat, Sep 12" (short); dayjs's
+ * customParseFormat cannot parse the day-of-week tokens, so the leading
+ * weekday is stripped first. Returns null when the text is unparseable.
+ */
+export function parseScheduleDateText(text: string): dayjs.Dayjs | null {
+    const withoutDay = text.trim().replace(/^[A-Za-z]+,\s*/, "");
+    const withYear = dayjs(withoutDay, "MMMM D, YYYY");
+    if (withYear.isValid()) return withYear;
+    const short = dayjs(withoutDay, "MMM D");
+    return short.isValid() ? short : null;
+}
+
 export function findCandidateCourts(
     freeCells: FreeCell[],
     preferCourts: number[],
@@ -192,8 +206,33 @@ export async function openSchedule(page: Page, location: CourtLocation, date: st
     await navigateScheduleToDate(page, parseDate(date));
 }
 
+/**
+ * Reads the date the scheduler is currently displaying, from the toolbar's
+ * current-date link (`k-lg-date-format` text, e.g. "Saturday, September 12,
+ * 2026"), falling back to the short form (`k-sm-date-format`). Returns null
+ * when neither parses so callers can fall through to calendar navigation.
+ */
+export async function readScheduleDate(page: Page): Promise<dayjs.Dayjs | null> {
+    const link = page.locator('[data-testid="link-0"]');
+
+    const fullText = (await link.locator(".k-lg-date-format").textContent()) ?? "";
+    const fromFull = parseScheduleDateText(fullText);
+    if (fromFull) return fromFull;
+
+    const shortText = (await link.locator(".k-sm-date-format").textContent()) ?? "";
+    return parseScheduleDateText(shortText);
+}
+
 export async function navigateScheduleToDate(page: Page, date: Date): Promise<void> {
     const target = dayjs(date);
+
+    // If the scheduler is already showing the target day, don't open the
+    // calendar — clicking the already-selected date cell would not navigate
+    // and close the popup, stalling on the wait for it to hide.
+    const current = await readScheduleDate(page);
+    if (current && current.isSame(target, "day")) {
+        return;
+    }
 
     // Click the current-date link to open the Kendo calendar popup
     await humanClick(page.locator('[data-testid="link-0"]'));
@@ -264,12 +303,12 @@ export async function navigateCalendarToDate(page: Page, target: dayjs.Dayjs): P
 }
 
 export async function readReservedSlots(page: Page): Promise<ReservedSlot[]> {
-    // Try the toolbar date first (works on live site with Kendo JS).
-    // Fall back to the first reserveBtn's start attribute (works in test fixtures).
+    // Try the toolbar date first; fall back to the first reserveBtn's start
+    // attribute when the toolbar text is empty or unparseable.
     let dateStr: string;
     const dateText = (await page.locator(".k-lg-date-format").textContent()) ?? "";
-    const viewDate = dayjs(dateText.trim(), "dddd, MMMM D, YYYY");
-    if (viewDate.isValid()) {
+    const viewDate = parseScheduleDateText(dateText);
+    if (viewDate) {
         dateStr = viewDate.format("YYYY-MM-DD");
     } else {
         const firstBtn = page.locator('[data-testid="reserveBtn"]').first();

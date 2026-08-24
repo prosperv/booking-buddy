@@ -8,6 +8,7 @@ import {
     calendarDateTitle,
     assertFutureStart,
     parseDate,
+    parseScheduleDateText,
     FreeCell,
 } from "../src/reserve";
 
@@ -67,6 +68,28 @@ describe("assertFutureStart", () => {
 
     it("rejects an invalid date", () => {
         expect(() => assertFutureStart(new Date("nonsense"), now)).toThrow(/valid date/);
+    });
+});
+
+describe("parseScheduleDateText", () => {
+    it("parses the full toolbar date text", () => {
+        const d = parseScheduleDateText("Saturday, September 12, 2026");
+        expect(d).not.toBeNull();
+        expect(d!.year()).toBe(2026);
+        expect(d!.month()).toBe(8); // September
+        expect(d!.date()).toBe(12);
+    });
+
+    it("parses the short toolbar date text", () => {
+        const d = parseScheduleDateText("Sat, Sep 12");
+        expect(d).not.toBeNull();
+        expect(d!.month()).toBe(8);
+        expect(d!.date()).toBe(12);
+    });
+
+    it("returns null for unparseable text", () => {
+        expect(parseScheduleDateText("")).toBeNull();
+        expect(parseScheduleDateText("garbage")).toBeNull();
     });
 });
 
