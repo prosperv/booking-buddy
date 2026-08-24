@@ -346,7 +346,11 @@ export async function readReservedSlots(page: Page): Promise<ReservedSlot[]> {
 }
 
 export async function readFreeCells(page: Page): Promise<FreeCell[]> {
-    const buttons = page.locator('[data-testid="reserveBtn"]');
+    // The scheduler renders a reserve button for every 30-min cell, but cells
+    // that are not bookable carry an extra "hide" class (covered by a member
+    // reservation or a "Reserved" block). Only the buttons without "hide" are
+    // genuinely free to book.
+    const buttons = page.locator('button[data-testid="reserveBtn"]:not(.hide)');
     const count = await buttons.count();
     const cells: FreeCell[] = [];
 

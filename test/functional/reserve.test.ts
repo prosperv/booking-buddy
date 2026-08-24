@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { BrowserContext, Page, chromium } from "playwright";
-import { readReservedSlots, readFreeCells, calendarDateTitle, readScheduleDate } from "../../src/reserve";
+import { readReservedSlots, readFreeCells, calendarDateTitle, readScheduleDate, findCandidateCourts } from "../../src/reserve";
 import { loadFixture } from "./setup";
 
 describe("functional: reservation scraping", () => {
@@ -18,22 +18,38 @@ describe("functional: reservation scraping", () => {
     });
 
     describe("readFreeCells", () => {
-        it("reads one cell per reserve button on the schedule", async () => {
+        it("reads one cell per bookable reserve button", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
 
-            // Counted via an independent selector (the button class), not the
-            // code's testid, so a stale testid in the code surfaces as a mismatch.
-            const buttonCount = await page.locator("button.slot-btn").count();
+            // Counted via an independent selector (the button class without the
+            // "hide" class the site uses for non-bookable cells), so a stale
+            // selector in the code surfaces as a mismatch.
+            const buttonCount = await page.locator("button.slot-btn:not(.hide)").count();
             expect(buttonCount).toBeGreaterThan(0);
 
             const cells = await readFreeCells(page);
             expect(cells).toHaveLength(buttonCount);
         });
 
+        it("excludes non-bookable (hide) cells", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            // The fixture books Mukilteo 1 for 9:00–10:00, so that court must not
+            // surface as free at 9:00 even though a (hidden) button exists.
+            const allButtons = await page.locator("button.slot-btn").count();
+            const cells = await readFreeCells(page);
+            expect(cells.length).toBeLessThan(allButtons);
+
+            const muk1Nine = cells.some(
+                (c) => c.courtLabel === "Mukilteo 1" && c.startTime.getHours() === 9,
+            );
+            expect(muk1Nine).toBe(false);
+        });
+
         it("parses a button's start, end, and courtlabel attributes into a cell", async () => {
             await loadFixture(page, "reserving-courts/schedule.html");
 
-            const firstButton = page.locator("button.slot-btn").first();
+            const firstButton = page.locator("button.slot-btn:not(.hide)").first();
             const rawStart = await firstButton.getAttribute("start");
             const rawEnd = await firstButton.getAttribute("end");
             const rawCourt = await firstButton.getAttribute("courtlabel");
@@ -56,6 +72,44 @@ describe("functional: reservation scraping", () => {
                 expect(cell.courtNumber).toBeGreaterThan(0);
                 expect(cell.endTime.getTime()).toBeGreaterThan(cell.startTime.getTime());
             }
+        });
+    });
+
+    describe("findCandidateCourts", () => {
+        it("finds only the courts free for the whole window", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            const freeCells = await readFreeCells(page);
+            // At noon the fixture has Mukilteo 1 and Mukilteo 3 free for 12:00–13:00.
+            const start = new Date(2026, 8, 12, 12, 0);
+            const candidates = findCandidateCourts(freeCells, [], start, 60);
+
+            expect(candidates.sort()).toEqual(["Mukilteo 1", "Mukilteo 3"]);
+        });
+
+        it("returns no candidates when the window is fully booked", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            const freeCells = await readFreeCells(page);
+            // 9:00–10:00 is booked (or non-bookable) on every court in the fixture.
+            const start = new Date(2026, 8, 12, 9, 0);
+            const candidates = findCandidateCourts(freeCells, [], start, 60);
+
+            expect(candidates).toEqual([]);
+        });
+
+        it("puts preferred courts first, with remaining courts as fallback", async () => {
+            await loadFixture(page, "reserving-courts/schedule.html");
+
+            const freeCells = await readFreeCells(page);
+            // 18:30–19:30 is free across all courts, so the full list is returned
+            // with the preferred courts ordered first.
+            const start = new Date(2026, 8, 12, 18, 30);
+            const candidates = findCandidateCourts(freeCells, [3, 1], start, 60);
+
+            expect(candidates).toHaveLength(12);
+            expect(candidates[0]).toBe("Mukilteo 3");
+            expect(candidates[1]).toBe("Mukilteo 1");
         });
     });
 
