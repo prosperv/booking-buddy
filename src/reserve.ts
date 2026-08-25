@@ -407,9 +407,18 @@ export async function openCreateModal(page: Page, reserveBtn: Locator): Promise<
 
 export async function selectDuration(page: Page, minutes: number): Promise<void> {
     const label = durationLabel(minutes);
+    const durationPicker = page.locator('[data-testid="Duration"]').locator("xpath=ancestor::span[contains(@class, 'k-picker')]");
+
+    // The widget's current value renders in .k-input-value-text (e.g. "1
+    // hour", the modal default). When it already matches the target duration,
+    // skip opening the popup at all — one less JS-gated Kendo interaction,
+    // and less time spent against the modal's hold timer.
+    const currentValue = ((await durationPicker.locator(".k-input-value-text").textContent()) ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (currentValue === label) return;
 
     // Click the Duration DropDownList's arrow button to open it
-    const durationPicker = page.locator('[data-testid="Duration"]').locator("xpath=ancestor::span[contains(@class, 'k-picker')]");
     await humanClick(durationPicker);
 
     const listbox = page.locator("#Duration_listbox");
