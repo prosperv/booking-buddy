@@ -15,6 +15,7 @@ import {
     SwapPlayerResult,
 } from "./types";
 import { CourtLocation } from "./constants";
+import { humanClick } from "./interactions";
 import { launchPersistentContext, closeBrowserContext } from "./browser";
 import { manualLogin, restoreAuth } from "./auth";
 import { navigateTo } from "./navigation";
@@ -134,6 +135,20 @@ async function runAddLoop(
         } else {
             result.failed.push({ name, reason: "not-found", candidates: match.candidates });
         }
+    }
+}
+
+/**
+ * Dismisses the create-reservation modal if it is currently open. Best-effort:
+ * failures are swallowed so it can be called from error paths without
+ * masking the original failure.
+ */
+async function discardCreateModal(page: Page): Promise<void> {
+    const modal = page.locator('[data-testid="create-reservation"]');
+    if (!(await modal.isVisible().catch(() => false))) return;
+    const close = modal.locator('[data-testid="Close"]');
+    if ((await close.count()) > 0) {
+        await humanClick(close);
     }
 }
 
@@ -375,28 +390,37 @@ export class CourtReserveClient {
                 );
             }
 
-            // Try courts in order (preferred first, then fallback)
+            // Try courts in order (preferred first, then fallback). A court is
+            // skipped only when its modal cannot be opened — the genuinely
+            // court-specific failure (e.g. the slot was taken between the
+            // availability read and the click). Any failure after the modal
+            // opens is flow-level (duration dropdown, member search, save,
+            // payment) and aborts immediately rather than repeating the same
+            // doomed sequence for every remaining candidate.
             let lastError: Error | undefined;
             for (const courtLabel of candidates) {
-                try {
-                    const btn = page.locator('[data-testid="reserveBtn"]', {
-                        has: page.locator(`[data-courtlabel="${courtLabel}"]`),
-                    }).filter({ hasText: `Reserve ` }).first();
-
-                    // More precise: find the button with matching courtlabel and start time
-                    const allBtns = page.locator(`button[data-testid="reserveBtn"][courtlabel="${courtLabel}"]`);
-                    const btnCount = await allBtns.count();
-                    let targetBtn = allBtns.first();
-                    for (let i = 0; i < btnCount; i++) {
-                        const b = allBtns.nth(i);
-                        const startAttr = await b.getAttribute("start");
-                        if (startAttr && new Date(startAttr).getTime() === start.getTime()) {
-                            targetBtn = b;
-                            break;
-                        }
+                const allBtns = page.locator(`button[data-testid="reserveBtn"][courtlabel="${courtLabel}"]`);
+                const btnCount = await allBtns.count();
+                let targetBtn = allBtns.first();
+                for (let i = 0; i < btnCount; i++) {
+                    const b = allBtns.nth(i);
+                    const startAttr = await b.getAttribute("start");
+                    if (startAttr && new Date(startAttr).getTime() === start.getTime()) {
+                        targetBtn = b;
+                        break;
                     }
+                }
 
-                    const modal = await openCreateModal(page, targetBtn);
+                let modal: Locator;
+                try {
+                    modal = await openCreateModal(page, targetBtn);
+                } catch (err) {
+                    lastError = err instanceof Error ? err : new Error(String(err));
+                    await discardCreateModal(page);
+                    continue;
+                }
+
+                try {
                     await selectDuration(page, options.durationMinutes);
 
                     // Add players
@@ -465,9 +489,10 @@ export class CourtReserveClient {
                         failed: addResult.failed,
                     };
                 } catch (err) {
-                    lastError = err instanceof Error ? err : new Error(String(err));
-                    // Try next court
-                    continue;
+                    // Flow-level failure: dismiss whatever state we left behind
+                    // and surface the error instead of cycling courts.
+                    await discardCreateModal(page);
+                    throw err;
                 }
             }
 
