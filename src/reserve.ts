@@ -424,7 +424,8 @@ export async function selectDuration(page: Page, minutes: number): Promise<void>
     const listbox = page.locator("#Duration_listbox");
     await listbox.waitFor({ state: "visible" });
 
-    await humanClick(listbox.locator("li.k-list-item").filter({ hasText: label }));
+    const durationOption = listbox.locator("li.k-list-item").filter({ hasText: label });
+    await humanClick(durationOption);
     await pauseForAction();
 }
 
