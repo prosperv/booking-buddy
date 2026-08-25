@@ -14,10 +14,11 @@ import { pauseForAction } from "./utils";
 const TYPING_DELAY_MS = 80;
 
 /**
- * How long to wait for the "Reservation Confirmed" screen after a save. The
- * screen is only shown when the detail page was reached directly (empty
- * `document.referrer`); otherwise the site navigates away and no confirmation
- * appears. Kept short so the no-confirmation path doesn't stall.
+ * Bounded wait for optional popups: the "Reservation Confirmed" screen after
+ * a save (only shown when the detail page was reached directly) and the
+ * add-player "Are you sure?" dialog (not every flow prompts). Both silently
+ * skip their click when the popup never appears; kept short so those paths
+ * don't stall.
  */
 const CONFIRMATION_TIMEOUT_MS = 3000;
 
@@ -203,14 +204,19 @@ export async function selectPlayerOption(page: Page, index: number): Promise<voi
 }
 
 /**
- * Clicks "Yes" on the "Are you sure?" confirmation dialog. The player is not
- * persisted here — only added to the modal's pending roster. The caller is
- * responsible for verifying the roster changed; the dialog may close
- * asynchronously on the live site.
+ * Clicks "Yes" on the "Are you sure?" confirmation dialog when it appears.
+ * Some add-player flows go through without a prompt; when no dialog pops up
+ * within a short bounded wait this returns without clicking anything, so the
+ * caller's roster check decides whether the player actually landed. The
+ * player is not persisted here — only added to the modal's pending roster.
  */
 export async function confirmAddPlayer(page: Page): Promise<void> {
     const dialog = page.locator(".swal2-container");
-    await dialog.waitFor({ state: "visible" });
+    try {
+        await dialog.waitFor({ state: "visible", timeout: CONFIRMATION_TIMEOUT_MS });
+    } catch {
+        return;
+    }
     await humanClick(dialog.locator("button.swal2-confirm"));
 }
 
