@@ -1,0 +1,14 @@
+{
+    "jobs": [
+        {
+            "name": "tuesday-evening",
+            "enabled": true,
+            "match": { "weekday": "Tue", "startTime": "18:00", "location": "Bellevue" },
+            "session": {
+                "rosterFile": "bot/rosters/example.csv",
+                "courtCapacity": 6,
+                "organizer": "Kento Momota"
+            }
+        }
+    ]
+}

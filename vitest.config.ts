@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["test/**/*.test.ts"],
+    include: ["test/**/*.test.ts", "bot/test/**/*.test.ts"],
     // Pinned so local-time date assertions are reproducible everywhere.
     // The club is in US Pacific, and several date paths are offset-sensitive
     // (see filterBookings). A UTC runner would hide those bugs.

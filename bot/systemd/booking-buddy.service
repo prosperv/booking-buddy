@@ -1,0 +1,10 @@
+[Unit]
+Description=Booking Buddy ensure-roster job
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/booking-buddy
+Environment=TZ=America/Los_Angeles
+ExecStart=/home/pi/booking-buddy/node_modules/.bin/tsx /home/pi/booking-buddy/bot/index.ts ensure-roster
