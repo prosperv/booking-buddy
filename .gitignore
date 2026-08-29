@@ -44,3 +44,8 @@ credentials.json
 # Misc
 *.log
 .notes/
+
+# Bot local config and rosters (example files are committed)
+bot.config.json
+bot/rosters/*.csv
+!bot/rosters/example.csv
