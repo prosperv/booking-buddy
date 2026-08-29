@@ -187,6 +187,28 @@ or with a forced login:
 
 `npx tsx examples/swap-player.ts --remove "Kento Momota" --add "Chen Long" --force`
 
+## The bot (ensure-roster)
+
+`bot/` is a small scheduler-friendly CLI that reconciles a configured roster of
+players with your existing bookings — grouped into sessions of multiple courts
+at the same time and location (full docs in [`bot/README.md`](bot/README.md)).
+It adds players that are missing and removes players no longer in the roster
+(the organizer, named in config, is never removed). Copy
+`bot.config.example.json` to `bot.config.json`, point each job at a
+single-column CSV of member names (see `bot/rosters/example.csv`), then:
+
+```
+npx tsx bot/index.ts roster-test --config bot.config.json   # print parsed rosters
+npx tsx bot/index.ts ensure-roster --config bot.config.json --dry-run
+npx tsx bot/index.ts ensure-roster --config bot.config.json
+npx tsx bot/index.ts check-auth
+```
+
+`ensure-roster` treats the roster as the source of truth and reconciles both
+adds and removals, so a daily run is safe. See `bot/systemd/README.md` for
+installing the systemd timer on an always-on machine. Typecheck the bot with
+`npx tsc --noEmit -p tsconfig.bot.json`.
+
 ## Development and tests
 
 Run the test suite with:

@@ -16,14 +16,47 @@ no CI.
   browser/functional test run.
 - `npm start` / `npx tsx examples/{usage,add-player,remove-player}.ts` — launch
   a real Chromium against the live site; needs a saved session. Never run in CI.
+- `npx tsc --noEmit -p tsconfig.bot.json` — typecheck `bot/` (and `src/`);
+  the build above deliberately excludes them.
+- `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.
 
 ## Workflow
 - Commit incrementally as you go, especially when executing a multi-step plan.
 
+## The `bot/` (ensure-roster)
+- `bot/index.ts` dispatches three commands: `ensure-roster` (reconcile a job's
+  roster with its matching bookings), `roster-test` (print parsed roster
+  names, no browser), `check-auth` (validate the saved session). `--dry-run`
+  plans only and never opens the edit modal.
+- `bot.config.json` maps job name → `match` (weekday/date/startTime filters
+  passed straight to `getCurrentBookings`, plus an optional case-insensitive
+  `location` filter applied bot-side) → `session` (`rosterFile` + optional
+  `courtCapacity`, default 6, + optional `organizer` name). Rosters are loaded
+  from disk only — no Google Drive, no network.
+- The roster is authoritative: names on no court are added, names on a court
+  no longer in the roster are removed, and the organizer (from
+  `session.organizer`, or any name on every court in the session) is never
+  touched. A removal frees a slot, so a dropped player's court can absorb a
+  replacement in the same run. Unit tests cover `csv`/`config`/`session` only;
+  the rest is browser-dependent and validated by a live run.
+- A **session** is the set of bookings at the same date/time/location spread
+  across courts. `bot/session.ts` groups bookings into sessions and plans the
+  split: fill courts in court-number order preserving roster order, up to
+  `courtCapacity` (organizer occupies a slot on every court and is auto-skipped
+  as a name on every court). It reuses `normalizePlayerName`/`searchNameError`
+  so comparisons stay consistent with the add flow. `ensure-roster` applies
+  each court with `swapPlayersOnBooking` (one edit-modal save per court).
+- Runs via `tsx` (never compiled into `dist/`); systemd units live in
+  `bot/systemd/`. The bot uses the default headless client, so `auth.json` and
+  `my-profile/` must exist on the machine it runs on.
+
 ## Never read or commit these (gitignored local state)
 - `auth.json` — real logged-in Playwright storage state (live cookies).
 - `my-profile/` — persistent Chromium profile directory.
-- `package-lock.json` — gitignored but exists locally; deps can drift.
+- `bot.config.json` — real bot config (job + roster paths). Committed example:
+  `bot.config.example.json`.
+- `bot/rosters/*.csv` — real player rosters (except the committed
+  `example.csv`).
 - `test/data/**/*.mhtml` — raw full-page captures (~4.8MB each). Only the pruned
   `.html` fixtures derived from them are committed; re-capture live if markup changes.
 
