@@ -8,6 +8,8 @@
         "start": "npx tsx examples/usage.ts",
         "dev": "tsc -w",
         "test": "vitest run",
+        "test:unit": "vitest run --exclude \"**/functional/**\"",
+        "test:functional": "vitest run test/functional bot/test/functional",
         "test:watch": "vitest watch",
         "test:coverage": "vitest run --coverage",
         "playwright:install": "npx playwright install chromium"

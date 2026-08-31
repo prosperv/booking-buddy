@@ -214,3 +214,10 @@ installing the systemd timer on an always-on machine. Typecheck the bot with
 Run the test suite with:
 
 `npx vitest run`
+
+The suite is split into unit tests (no browser) and functional tests (real
+Chromium). Unit tests live at the top level of each test root
+(`test/*.test.ts`, `bot/test/*.test.ts`); functional tests live under
+`*/test/functional/`. Run them separately with:
+
+`npm run test:unit` / `npm run test:functional`

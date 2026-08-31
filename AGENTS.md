@@ -12,6 +12,8 @@ no CI.
   `rootDir: src`) — it does **not** typecheck `test/` or `examples/`.
 - `npx vitest run` — full suite. One file: `npx vitest run test/players.test.ts`
   (add `-t "<name>"` for a single test).
+- `npm run test:unit` — unit tests only (no browser). `npm run test:functional` —
+  functional tests only (needs Chromium).
 - `npm run playwright:install` — installs Chromium; required once before any
   browser/functional test run.
 - `npm start` / `npx tsx examples/{usage,add-player,remove-player}.ts` — launch
@@ -26,9 +28,9 @@ no CI.
 ## The `bot/` (ensure-roster)
 - `bot/index.ts` dispatches three commands: `ensure-roster` (reconcile a job's
   roster with its matching bookings), `roster-test` (print parsed roster
-  names, no browser), `check-auth` (validate the saved session). `--dry-run`
-  plans only and never opens the edit modal.
-- `bot.config.json` maps job name → `match` (weekday/date/startTime filters
+  names per date, no browser), `check-auth` (validate the saved session).
+  `--dry-run` plans only and never opens the edit modal.
+- `bot.config.json` maps job name → `match` (weekday/startTime filters
   passed straight to `getCurrentBookings`, plus an optional case-insensitive
   `location` filter applied bot-side) → `session` (`rosterFile` + optional
   `courtCapacity`, default 6, + optional `organizer` name). Rosters are loaded
@@ -39,6 +41,9 @@ no CI.
   touched. A removal frees a slot, so a dropped player's court can absorb a
   replacement in the same run. Unit tests cover `csv`/`config`/`session` only;
   the rest is browser-dependent and validated by a live run.
+- The roster CSV is date-columnar: the header row lists date labels (e.g.
+  `Aug 25th`), and each column holds that date's players. A session whose date
+  has no column is skipped; a column whose date has no booking is reported.
 - A **session** is the set of bookings at the same date/time/location spread
   across courts. `bot/session.ts` groups bookings into sessions and plans the
   split: fill courts in court-number order preserving roster order, up to
@@ -86,9 +91,12 @@ no CI.
   (`src/booking.ts`); if the site markup changes, parsing breaks.
 
 ## Testing
-- Unit tests (no browser): `test/*.test.ts`, import from `../src/index`.
-- Functional tests (real Chromium): `test/functional/*.test.ts` load HTML
-  fixtures from `test/data/` and exercise the Playwright-dependent functions.
+- Unit tests (no browser) live at the top level of each test root:
+  `test/*.test.ts` (import from `../src/index`) and `bot/test/*.test.ts`.
+- Functional tests (real Chromium) live under `*/test/functional/` — currently
+  `test/functional/*.test.ts`; they load HTML fixtures from `test/data/` and
+  exercise the Playwright-dependent functions. Any bot functional tests belong
+  in `bot/test/functional/`.
 - vitest config (`vitest.config.ts`) pins `TZ=America/Los_Angeles` — several date
   tests are offset-sensitive and would pass for the wrong reason on a UTC runner.
   Its `setupFiles: ./test/setup.ts` also `delete`s inherited env vars
