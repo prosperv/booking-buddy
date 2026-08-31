@@ -5,6 +5,6 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/pi/booking-buddy
+WorkingDirectory=@REPO_DIR@
 Environment=TZ=America/Los_Angeles
-ExecStart=/home/pi/booking-buddy/node_modules/.bin/tsx /home/pi/booking-buddy/bot/index.ts ensure-roster
+ExecStart=@REPO_DIR@/node_modules/.bin/tsx @REPO_DIR@/bot/index.ts ensure-roster

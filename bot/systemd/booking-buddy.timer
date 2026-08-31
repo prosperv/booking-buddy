@@ -2,7 +2,10 @@
 Description=Run booking-buddy ensure-roster daily
 
 [Timer]
-OnCalendar=*-*-* 09:00:00 America/Los_Angeles
+OnCalendar=Mon 14:00:00 America/Los_Angeles
+OnCalendar=Fri 21:00:00 America/Los_Angeles
+OnCalendar=Sat 21:00:00 America/Los_Angeles
+OnCalendar=Sun 21:00:00 America/Los_Angeles
 Persistent=true
 
 [Install]
