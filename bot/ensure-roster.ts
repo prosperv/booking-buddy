@@ -1,7 +1,7 @@
 import path from "node:path";
 import { CourtReserveClient } from "../src";
 import { loadConfig, enabledJobs, type JobConfig } from "./config";
-import { loadRosterFile } from "./csv";
+import { loadRosterFile, findRoster, type RosterColumn } from "./csv";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
 export type RunOptions = {
@@ -11,6 +11,17 @@ export type RunOptions = {
 
 function rosterPath(configPath: string, job: JobConfig): string {
     return path.resolve(path.dirname(configPath), job.session.rosterFile);
+}
+
+function sessionDate(session: SessionGroup): Date {
+    return session.courts[0].startTime;
+}
+
+function hasSessionFor(sessions: SessionGroup[], column: RosterColumn): boolean {
+    return sessions.some((session) => {
+        const date = sessionDate(session);
+        return date.getMonth() + 1 === column.month && date.getDate() === column.day;
+    });
 }
 
 function printSession(session: SessionGroup, plan: SessionPlan, dryRun: boolean): void {
@@ -44,14 +55,15 @@ function printSession(session: SessionGroup, plan: SessionPlan, dryRun: boolean)
 }
 
 /**
- * Ensures each enabled job's roster is reflected in its matching bookings: a
- * job's `match` identifies a session's bookings, which are then grouped by
- * date/time/location and reconciled court-by-court. Names in the roster but on
- * no court are added; names on a court but no longer in the roster are removed
- * (the organizer is never removed). Returns false if any job failed at the
- * config/data level (missing CSV); a false return is intended to become a
- * non-zero exit code so systemd surfaces it, while player-level outcomes
- * (not-found, ambiguous, overflow) never affect it.
+ * Ensures each enabled job's date-column roster is reflected in its matching
+ * bookings. A job's `match` identifies the recurring slot (weekday/startTime),
+ * and its roster CSV lists, per date, the players signed up for that session.
+ * Bookings are grouped by date/time/location and reconciled court-by-court for
+ * each date that has a roster column. A session whose date has no roster
+ * column (booked but no signups yet) is left untouched, and a roster date with
+ * no matching booking (signups but courts not booked yet) is reported. Returns
+ * false only for config/data problems (e.g. a missing or empty roster CSV), so
+ * systemd can flag them; player-level outcomes never affect it.
  */
 export async function runEnsureRoster(configPath: string, options: RunOptions): Promise<boolean> {
     const config = loadConfig(configPath);
@@ -66,16 +78,28 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
     try {
         for (const job of jobs) {
             try {
-                const roster = loadRosterFile(rosterPath(configPath, job));
+                const columns = loadRosterFile(rosterPath(configPath, job));
+                if (columns.length === 0) {
+                    throw new Error(`no date columns found in roster for job "${job.name}"`);
+                }
+
                 const { location, ...filters } = job.match ?? {};
                 const bookings = await client.getCurrentBookings(filters);
                 const sessions = groupBookingsIntoSessions(bookings, location);
 
                 console.log(
-                    `[job "${job.name}"] roster: ${roster.length} player(s), ${bookings.length} booking(s) in ${sessions.length} session(s)`,
+                    `[job "${job.name}"] ${columns.length} date column(s), ${bookings.length} booking(s) in ${sessions.length} session(s)`,
                 );
 
                 for (const session of sessions) {
+                    const roster = findRoster(columns, sessionDate(session));
+                    if (!roster) {
+                        console.log(
+                            `[session] ${session.date} ${session.startTime} @ ${session.location}: no roster for this date — skipping`,
+                        );
+                        continue;
+                    }
+
                     const plan = planSession(session, roster, job.session.courtCapacity, job.session.organizer);
                     printSession(session, plan, options.dryRun);
 
@@ -94,6 +118,14 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
                         for (const failed of result.failed) {
                             console.log(`    FAILED ${JSON.stringify(failed)}`);
                         }
+                    }
+                }
+
+                for (const column of columns) {
+                    if (!hasSessionFor(sessions, column)) {
+                        console.log(
+                            `[job "${job.name}"] ${column.label}: ${column.players.length} player(s) but no booking found — skipping`,
+                        );
                     }
                 }
             } catch (err) {

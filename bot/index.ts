@@ -50,10 +50,13 @@ async function runRosterTest(configPath: string, jobName?: string): Promise<void
     const config = loadConfig(configPath);
     const jobs = enabledJobs(config, jobName);
     for (const job of jobs) {
-        const roster = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
-        console.log(`[job "${job.name}"] ${roster.length} player(s):`);
-        for (const name of roster) {
-            console.log(`  - ${name}`);
+        const columns = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
+        console.log(`[job "${job.name}"] ${columns.length} date column(s):`);
+        for (const column of columns) {
+            console.log(`  ${column.label} (${column.players.length} player(s)):`);
+            for (const name of column.players) {
+                console.log(`    - ${name}`);
+            }
         }
     }
 }

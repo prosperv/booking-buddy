@@ -109,6 +109,7 @@ export function planSession(
             courtCount.set(name, (courtCount.get(name) ?? 0) + 1);
         }
     }
+    // Identify names that appear on every court aka the organizer.
     const onEveryCourt = new Set(
         [...courtCount].filter(([, count]) => count === courts.length).map(([name]) => name),
     );

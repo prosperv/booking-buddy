@@ -2,7 +2,6 @@ import fs from "node:fs";
 
 export type JobMatch = {
     weekday?: string;
-    date?: string;
     startTime?: string;
     location?: string;
 };
@@ -73,7 +72,7 @@ export function validateConfig(raw: unknown): BotConfig {
             }
             const m = j.match as Record<string, unknown>;
             const parsed: JobMatch = {};
-            for (const key of ["weekday", "date", "startTime", "location"] as const) {
+            for (const key of ["weekday", "startTime", "location"] as const) {
                 if (m[key] !== undefined) {
                     if (typeof m[key] !== "string" || (m[key] as string).trim() === "") {
                         throw new ConfigError(`config.jobs[${i}].match.${key} must be a non-empty string`);
