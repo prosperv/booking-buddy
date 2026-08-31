@@ -72,7 +72,8 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
 
     console.log(`ensure-roster [${mode}] ${jobs.length} job(s)`);
 
-    const client = new CourtReserveClient();
+    const client = new CourtReserveClient({
+        headless: false});
     await client.init();
     let ok = true;
     try {
