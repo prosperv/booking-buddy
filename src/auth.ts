@@ -13,5 +13,5 @@ export async function manualLogin(context: BrowserContext, authPathOverride?: st
 
 export async function restoreAuth(context: BrowserContext, authPathOverride?: string): Promise<void> {
     const path = authPathOverride ?? authPath;
-    context.setStorageState(path);
+    await context.setStorageState(path);
 }
