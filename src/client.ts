@@ -123,6 +123,10 @@ export class CourtReserveClient {
     private context?: BrowserContext;
     private page?: Page;
     private options: Required<ClientOptions>;
+    private closing = false;
+    private sigintHandler?: () => void;
+    private sigtermHandler?: () => void;
+    private beforeExitHandler?: () => void;
 
     constructor(options?: ClientOptions) {
         this.options = {
@@ -136,6 +140,7 @@ export class CourtReserveClient {
 
     async init(): Promise<void> {
         this.context = await launchPersistentContext(this.options.headless, this.options.profileDir);
+        this.registerShutdownHandlers();
 
         const hasSavedAuth = await fileExists(this.options.authPath);
         if (this.options.manualLogin || !hasSavedAuth) {
@@ -153,10 +158,67 @@ export class CourtReserveClient {
     }
 
     async close(): Promise<void> {
-        if (this.context) {
-            await closeBrowserContext(this.context);
+        if (this.closing) {
+            return;
+        }
+        this.closing = true;
+        this.removeShutdownHandlers();
+        try {
+            if (this.context) {
+                await closeBrowserContext(this.context);
+            }
+        } finally {
             this.context = undefined;
             this.page = undefined;
+            this.closing = false;
+        }
+    }
+
+    /**
+     * Attaches process-level shutdown handlers so a running browser is closed
+     * gracefully rather than orphaned. SIGINT/SIGTERM close the context and
+     * re-exit with the conventional 128+signal code; `beforeExit` closes the
+     * context when the event loop drains naturally.
+     */
+    private registerShutdownHandlers(): void {
+        if (this.sigintHandler || this.sigtermHandler || this.beforeExitHandler) {
+            return;
+        }
+
+        const gracefulExit = async (code: number) => {
+            await this.close();
+            process.exit(code);
+        };
+
+        this.sigintHandler = () => {
+            void gracefulExit(130);
+        };
+        this.sigtermHandler = () => {
+            void gracefulExit(143);
+        };
+        this.beforeExitHandler = () => {
+            if (this.context && !this.closing) {
+                void this.close();
+            }
+        };
+
+        process.once("SIGINT", this.sigintHandler);
+        process.once("SIGTERM", this.sigtermHandler);
+        process.on("beforeExit", this.beforeExitHandler);
+    }
+
+    private removeShutdownHandlers(): void {
+        if (this.sigintHandler) {
+            process.removeListener("SIGINT", this.sigintHandler);
+            this.sigintHandler = undefined;
+        }
+        if (this.sigtermHandler) {
+            process.removeListener("SIGTERM", this.sigtermHandler);
+            this.sigtermHandler = undefined;
+        }
+        if (this.beforeExitHandler) {
+            process.removeListener("beforeExit", this.beforeExitHandler);
+            this.beforeExitHandler = undefined;
         }
     }
 
