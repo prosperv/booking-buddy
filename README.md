@@ -134,6 +134,23 @@ const client = new CourtReserveClient({
 
 This opens the browser and waits for you to log in regardless of whether a saved session exists.
 
+### Detecting a stale session
+
+A restored session can be expired, leaving the client on the logged-out
+page. After `init()`, check with `isLoggedIn()` and re-authenticate:
+
+```typescript
+await client.init();
+if (!(await client.isLoggedIn())) {
+    await client.loginWithCredentials("you@example.com", "your-password");
+}
+```
+
+`loginWithCredentials` navigates to the CourtReserve login page, submits the
+email/password form, refreshes `auth.json`, and re-navigates to the bookings
+list. Handling credentials (where they come from, whether to fall back to a
+manual login) is left to the caller.
+
 ## Run the example
 
 ### Normal (uses saved session if available)

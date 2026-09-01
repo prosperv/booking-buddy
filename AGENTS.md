@@ -36,6 +36,14 @@ no CI.
 - `addPlayer*`/`removePlayer*` run on a throwaway `context.newPage()` and close
   it, so `this.page` stays on the bookings list and later `getCurrentBookings()`
   still works.
+- `restoreAuth` (`src/auth.ts`) must `await context.setStorageState(path)`; the
+  method returns a promise and dropping it races the cookie restore against the
+  first navigation, so the client intermittently starts logged out.
+- Login-state detection (`isLoggedIn` in `src/login.ts`) keys off the
+  `a[href*="/Online/Account/LogIn/"]` "LOG IN" button on the unauthenticated
+  portal and the current URL still being `/Online/Bookings/List/`. The login
+  form itself (`/Online/Account/LogIn/<org>`) uses `input[name="email"]`,
+  `input[name="password"]`, and `button[data-testid="Continue"]`.
 - Removing a player clicks that row's `remove-member-btn` in the modal's
   `member-table`. There is **no** confirmation dialog (unlike adding), but the
   change is only persisted by a later `saveReservation`. The reservation owner's
@@ -74,3 +82,7 @@ no CI.
 - After save the edit modal is swapped in place for a "Reservation Confirmed"
   screen; the site also fires an async `reloadReservationDetail()`, so
   `readDetailPlayers` immediately after close may still see the pre-save roster.
+- `loginWithCredentials` detects success purely by the page redirecting off
+  `/Online/Account/LogIn/` (the login form is an Ant Design JS/XHR submit with
+  no `action`), so the exact submit/redirect timing and any CSRF/token field are
+  only validated on a live run.
