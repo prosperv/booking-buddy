@@ -3,6 +3,8 @@ export const courtReserveUrl = "https://app.courtreserve.com/";
 export const courtReserveOrgId = process.env.COURTRESERVE_ORG_ID ?? "7031";
 export const courtReserveMyReservationsUrl =
     `${courtReserveUrl}Online/Bookings/List/${courtReserveOrgId}?type=1`;
+export const courtReserveLoginUrl =
+    `${courtReserveUrl}Online/Account/LogIn/${courtReserveOrgId}`;
 export const courtReserveUpdateMyReservationUrl =
     `${courtReserveUrl}Online/Reservations/UpdateMyReservation/${courtReserveOrgId}`;
 export const googleUrl = "https://www.google.com/";

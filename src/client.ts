@@ -17,6 +17,7 @@ import { navigateTo } from "./navigation";
 import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from "./constants";
 import { fileExists, pauseForAction } from "./utils";
 import { collectBookingSessions, filterBookings } from "./booking";
+import { isLoggedIn, loginWithCredentials } from "./login";
 import {
     closeModal,
     confirmAddPlayer,
@@ -233,6 +234,34 @@ export class CourtReserveClient {
             const { page: _, ...booking } = session;
             return booking;
         });
+    }
+
+    /**
+     * Whether the current page is on the authenticated bookings list. Callers
+     * (e.g. a bot) can use this after `init()` to detect a stale or failed
+     * session restore and decide to re-authenticate.
+     */
+    async isLoggedIn(): Promise<boolean> {
+        if (!this.page) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+        return isLoggedIn(this.page);
+    }
+
+    /**
+     * Logs in with email/password credentials, then refreshes the saved auth
+     * state and re-navigates to the bookings list so subsequent calls work.
+     * Credential handling is left to the caller; the client only performs the
+     * login.
+     */
+    async loginWithCredentials(username: string, password: string): Promise<void> {
+        if (!this.page || !this.context) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+
+        await loginWithCredentials(this.page, username, password);
+        await this.context.storageState({ path: this.options.authPath });
+        await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
     }
 
     getPlayersFromBooking(booking: Booking): string[] {
