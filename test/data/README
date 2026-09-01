@@ -38,6 +38,12 @@ CourtReserve "My Reservations" page (`app.courtreserve.com/Online/Bookings/List/
 - `booking-by-other-people.html` — three bookings: one added by someone else
   ("Details" button, not editable) and two owned by the current user
   ("Edit Reservation" button).
+- `not-logged-in.html` — the header nav from the unauthenticated portal home
+  (`/Online/Portal/Index/7031`), which renders the `LOG IN` link to
+  `/Online/Account/LogIn/7031`. Used to test login-state detection.
+- `login-page.html` — the login form from `/Online/Account/LogIn/7031`:
+  `input[name="email"]`, `input[name="password"]`, and the
+  `button[data-testid="Continue"]` submit. Used to test credential login.
 - `adding-player/` — raw MHTML captures of the edit-reservation flow, kept for
   reverse-engineering the (unimplemented) add/remove-player methods.
 

@@ -105,6 +105,22 @@ describe("CourtReserveClient before init", () => {
     });
 });
 
+describe("CourtReserveClient.isLoggedIn", () => {
+    it("rejects before init", async () => {
+        await expect(new CourtReserveClient().isLoggedIn()).rejects.toThrow(
+            "Client not initialized. Call init() first.",
+        );
+    });
+});
+
+describe("CourtReserveClient.loginWithCredentials", () => {
+    it("rejects before init", async () => {
+        await expect(
+            new CourtReserveClient().loginWithCredentials("user@example.com", "hunter2"),
+        ).rejects.toThrow("Client not initialized. Call init() first.");
+    });
+});
+
 describe("CourtReserveClient.getPlayersFromBooking", () => {
     it("returns the players on the booking", () => {
         const client = new CourtReserveClient();
