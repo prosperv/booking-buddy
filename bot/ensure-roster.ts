@@ -77,6 +77,11 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
     await client.init();
     let ok = true;
     try {
+        if (!(await client.isLoggedIn())) {
+            console.error("ensure-roster: not logged in — aborting.");
+            return false;
+        }
+
         for (const job of jobs) {
             try {
                 const columns = loadRosterFile(rosterPath(configPath, job));
