@@ -32,7 +32,7 @@ npx tsx bot/index.ts check-auth    [--config <path>]
 |---------|---------|
 | `ensure-roster` | Reconcile each job's roster with its matching sessions (add missing, remove dropped). |
 | `roster-test`   | Print the parsed roster for each enabled job (no browser). |
-| `check-auth`    | Verify the saved CourtReserve session still works. |
+| `check-auth`    | Verify the saved CourtReserve session still works (via `isLoggedIn()`). |
 
 Options:
 
@@ -44,6 +44,8 @@ Options:
 `ensure-roster` exits non-zero only for config/data problems (e.g. a missing
 roster CSV) so `systemd` can flag them. Player-level outcomes (`not-found`,
 `ambiguous`, `not-removable`, `no space`) are logged but never fail the run.
+Both `ensure-roster` and `check-auth` abort after `init()` if `isLoggedIn()`
+is false (a stale/expired session), so a failure can be flagged to `systemd`.
 
 ## Configuration
 
@@ -99,10 +101,11 @@ set `match.startTime` when a day could have more than one session.
 ## How a run works
 
 1. Load `bot.config.json` and select enabled jobs.
-2. For each job, read the roster CSV (date → players) and call
+2. Initialize the client and bail early if `isLoggedIn()` is false.
+3. For each job, read the roster CSV (date → players) and call
    `getCurrentBookings(match)`.
-3. Group the bookings into sessions by date/time/location (`bot/session.ts`).
-4. For each session, look up the roster column for its date. If there is no
+4. Group the bookings into sessions by date/time/location (`bot/session.ts`).
+5. For each session, look up the roster column for its date. If there is no
    column, leave the session untouched and report it. Otherwise plan the
    session: fill courts in court-number order, preserving roster order, up to
    `courtCapacity` (the organizer already occupies a slot on every court).
@@ -111,9 +114,9 @@ set `match.startTime` when a day could have more than one session.
    every court). A removal frees a slot, so a dropped player's court can absorb
    a replacement in the same run. Names too short to search and names that
    exceed the total free slots are reported.
-5. Report any roster date column with no matching booking (courts not booked
+6. Report any roster date column with no matching booking (courts not booked
    yet).
-6. In `--dry-run`, print the assignment. Otherwise `swapPlayersOnBooking()`
+7. In `--dry-run`, print the assignment. Otherwise `swapPlayersOnBooking()`
    removes and adds each court's players in a single edit-modal save and logs
    removed/added/skipped/failed.
 

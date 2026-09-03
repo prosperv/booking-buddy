@@ -4,7 +4,7 @@
 - **Commands**
   - `ensure-roster` — reconcile each job's roster with its matching bookings
   - `roster-test` — print parsed roster per date (no browser)
-  - `check-auth` — verify saved CourtReserve session still works
+  - `check-auth` — verify saved CourtReserve session still works (via `isLoggedIn()`)
 - **Options**
   - `--job <name>` — restrict to a single job
   - `--dry-run` — plan-only, print diff without editing
@@ -38,6 +38,7 @@
 - **Slot reuse** — removals free capacity, so a dropped player's court absorbs a replacement in the same run
 
 ## Execution (`bot/ensure-roster.ts`)
+- Bail after `init()` when `isLoggedIn()` is false (stale/expired session)
 - Per-job run with isolated error handling (one job's failure doesn't stop others)
 - Per-date reconciliation: sessions whose date has no roster column are skipped; roster dates with no booking are reported
 - Structured per-session/court logging (add/remove/already-placed/satisfied/overflow)
