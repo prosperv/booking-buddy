@@ -12,7 +12,7 @@ import {
     SwapPlayerResult,
 } from "./types";
 import { launchPersistentContext, closeBrowserContext } from "./browser";
-import { manualLogin, restoreAuth } from "./auth";
+import { manualLogin, restoreAuth, saveAuthIfLoggedIn } from "./auth";
 import { navigateTo } from "./navigation";
 import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from "./constants";
 import { fileExists, pauseForAction } from "./utils";
@@ -166,6 +166,9 @@ export class CourtReserveClient {
         this.removeShutdownHandlers();
         try {
             if (this.context) {
+                await saveAuthIfLoggedIn(this.context, this.page, this.options.authPath).catch(
+                    () => false,
+                );
                 await closeBrowserContext(this.context);
             }
         } finally {
