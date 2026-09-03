@@ -61,12 +61,16 @@ async function runRosterTest(configPath: string, jobName?: string): Promise<void
     }
 }
 
-async function runCheckAuth(): Promise<void> {
+async function runCheckAuth(): Promise<boolean> {
     const client = new CourtReserveClient();
     await client.init();
     try {
-        const bookings = await client.getCurrentBookings();
-        console.log(`check-auth OK: ${bookings.length} editable booking(s) found.`);
+        if (await client.isLoggedIn()) {
+            console.log("check-auth OK: logged in.");
+            return true;
+        }
+        console.error("check-auth FAILED: not logged in (session stale or expired).");
+        return false;
     } finally {
         await client.close();
     }
@@ -85,7 +89,7 @@ async function main(): Promise<void> {
             await runRosterTest(args.config, args.job);
             return;
         case "check-auth":
-            await runCheckAuth();
+            if (!(await runCheckAuth())) process.exitCode = 1;
             return;
         default:
             console.error(USAGE);
