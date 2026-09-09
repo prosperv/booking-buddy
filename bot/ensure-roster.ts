@@ -1,7 +1,7 @@
 import path from "node:path";
 import { CourtReserveClient } from "../src";
 import { loadConfig, enabledJobs, type JobConfig } from "./config";
-import { loadRosterFile, findRoster, type RosterColumn } from "./csv";
+import { loadRosterFile, formatDateKey, type Roster, type RosterSet } from "./csv";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
 export type RunOptions = {
@@ -17,10 +17,10 @@ function sessionDate(session: SessionGroup): Date {
     return session.courts[0].startTime;
 }
 
-function hasSessionFor(sessions: SessionGroup[], column: RosterColumn): boolean {
+function hasSessionFor(sessions: SessionGroup[], roster: Roster): boolean {
     return sessions.some((session) => {
         const date = sessionDate(session);
-        return date.getMonth() + 1 === column.month && date.getDate() === column.day;
+        return date.getMonth() + 1 === roster.date.getMonth() + 1 && date.getDate() === roster.date.getDate();
     });
 }
 
@@ -55,12 +55,12 @@ function printSession(session: SessionGroup, plan: SessionPlan, dryRun: boolean)
 }
 
 /**
- * Ensures each enabled job's date-column roster is reflected in its matching
- * bookings. A job's `match` identifies the recurring slot (weekday/startTime),
- * and its roster CSV lists, per date, the players signed up for that session.
- * Bookings are grouped by date/time/location and reconciled court-by-court for
- * each date that has a roster column. A session whose date has no roster
- * column (booked but no signups yet) is left untouched, and a roster date with
+ * Ensures each enabled job's roster is reflected in its matching bookings. A
+ * job's `match` identifies the recurring slot (weekday/startTime), and its
+ * roster CSV (auto-detected format) lists, per date, the players signed up for
+ * that session. Bookings are grouped by date/time/location and reconciled
+ * court-by-court for each date that has a roster. A session whose date has no
+ * roster (booked but no signups yet) is left untouched, and a roster date with
  * no matching booking (signups but courts not booked yet) is reported. Returns
  * false only for config/data problems (e.g. a missing or empty roster CSV), so
  * systemd can flag them; player-level outcomes never affect it.
@@ -84,9 +84,9 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
 
         for (const job of jobs) {
             try {
-                const columns = loadRosterFile(rosterPath(configPath, job));
-                if (columns.length === 0) {
-                    throw new Error(`no date columns found in roster for job "${job.name}"`);
+                const rosterSet = loadRosterFile(rosterPath(configPath, job));
+                if (rosterSet.rosters.length === 0) {
+                    throw new Error(`no rosters found in roster for job "${job.name}"`);
                 }
 
                 const { location, ...filters } = job.match ?? {};
@@ -94,11 +94,11 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
                 const sessions = groupBookingsIntoSessions(bookings, location);
 
                 console.log(
-                    `[job "${job.name}"] ${columns.length} date column(s), ${bookings.length} booking(s) in ${sessions.length} session(s)`,
+                    `[job "${job.name}"] ${rosterSet.rosters.length} roster(s), ${bookings.length} booking(s) in ${sessions.length} session(s)`,
                 );
 
                 for (const session of sessions) {
-                    const roster = findRoster(columns, sessionDate(session));
+                    const roster = rosterSet.find(sessionDate(session));
                     if (!roster) {
                         console.log(
                             `[session] ${session.date} ${session.startTime} @ ${session.location}: no roster for this date — skipping`,
@@ -106,7 +106,7 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
                         continue;
                     }
 
-                    const plan = planSession(session, roster, job.session.courtCapacity, job.session.organizer);
+                    const plan = planSession(session, roster.players, job.session.courtCapacity, job.session.organizer);
                     printSession(session, plan, options.dryRun);
 
                     if (options.dryRun) continue;
@@ -127,10 +127,10 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
                     }
                 }
 
-                for (const column of columns) {
-                    if (!hasSessionFor(sessions, column)) {
+                for (const roster of rosterSet.rosters) {
+                    if (!hasSessionFor(sessions, roster)) {
                         console.log(
-                            `[job "${job.name}"] ${column.label}: ${column.players.length} player(s) but no booking found — skipping`,
+                            `[job "${job.name}"] ${formatDateKey(roster.date)}: ${roster.players.length} player(s) but no booking found — skipping`,
                         );
                     }
                 }

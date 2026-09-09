@@ -1,6 +1,6 @@
 import { CourtReserveClient } from "../src";
 import { loadConfig, enabledJobs } from "./config";
-import { loadRosterFile } from "./csv";
+import { loadRosterFile, formatDateKey } from "./csv";
 import { runEnsureRoster } from "./ensure-roster";
 import path from "node:path";
 
@@ -50,11 +50,12 @@ async function runRosterTest(configPath: string, jobName?: string): Promise<void
     const config = loadConfig(configPath);
     const jobs = enabledJobs(config, jobName);
     for (const job of jobs) {
-        const columns = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
-        console.log(`[job "${job.name}"] ${columns.length} date column(s):`);
-        for (const column of columns) {
-            console.log(`  ${column.label} (${column.players.length} player(s)):`);
-            for (const name of column.players) {
+        const rosterSet = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
+        console.log(`[job "${job.name}"] ${rosterSet.rosters.length} roster(s):`);
+        for (const roster of rosterSet.rosters) {
+            const when = [formatDateKey(roster.date), roster.startTime].filter(Boolean).join(" ");
+            console.log(`  ${when} (${roster.players.length} player(s)):`);
+            for (const name of roster.players) {
                 console.log(`    - ${name}`);
             }
         }
