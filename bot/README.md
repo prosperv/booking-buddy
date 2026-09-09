@@ -2,7 +2,7 @@
 
 A small CLI that keeps your existing CourtReserve bookings stocked with the
 right players. For each configured job it reads a roster of signups from a CSV
-(one date column per session), finds the matching bookings, groups them into
+(one roster per dated session), finds the matching bookings, groups them into
 **sessions** (same date, time, and location across multiple courts), and
 reconciles each date's roster across those courts: it adds names that are
 missing and removes names that are no longer in the roster. The roster is the
@@ -70,20 +70,44 @@ session to fill:
 |-------|------|-------------|
 | `name`       | string            | Unique job identifier. |
 | `enabled`    | boolean           | Default `true`; disabled jobs are skipped. |
-| `match`      | object (optional) | `weekday`, `startTime`, and/or `location` (all optional). `weekday`/`startTime` are passed straight to `getCurrentBookings`; `location` is matched case-insensitively against the booking's location name (e.g. `"Bellevue"`). Omit to match all editable bookings. The specific weeks to fill come from the roster CSV's date columns, not from `match`. |
+| `match`      | object (optional) | `weekday`, `startTime`, and/or `location` (all optional). `weekday`/`startTime` are passed straight to `getCurrentBookings`; `location` is matched case-insensitively against the booking's location name (e.g. `"Bellevue"`). Omit to match all editable bookings. The specific weeks to fill come from the roster's dates, not from `match`. |
 | `session.rosterFile` | string     | Path (relative to the config file) to the roster CSV. |
 | `session.courtCapacity` | number | Optional, default `6`. Total players per court, **including** the organizer. |
 | `session.organizer` | string     | Optional. The organizer's name — never added or removed by the bot. Strongly recommended, especially for single-court sessions where the "on every court" heuristic can't tell the organizer apart from a dropped player. |
 
 ## Roster CSV format
 
+Two formats are supported, and the loader (`parseRoster` in `bot/csv.ts`)
+auto-detects which one a file is. Both normalize to the same stable shape — a
+list of dated rosters — so the format can change again without touching the
+consumers.
+
+### CourtReserve event export (current)
+
+A single event's signups as exported from CourtReserve: a `Date` and
+`Start Time` cell near the top, then a `#`/`Paid`/`Player Name` table. The
+columns are found by header keyword (`Date`, `Start Time`, `Player Name`), not
+position, so header reshuffles don't break parsing.
+
+```
+▶,Date,Start Time,
+,9/7/2026,6:30 PM,
+,,,
+#,Paid,Player Name,
+1,FALSE,Brandon Luu,
+2,FALSE,Alex Chu,
+...
+```
+
+The date may be `M/D/YYYY` or `MM/DD/YYYY`; the year is used when present. The
+start time (e.g. `6:30 PM` → `18:30`) is read from the file. One file = one
+event for now.
+
+### Legacy date-column
+
 The header row lists one date label per column (e.g. `Aug 25th`); each column's
-non-empty cells below the header are the player names signed up for that date.
-A name can appear under several dates. Columns whose header is not a date (e.g.
-a stray `name` label) are ignored, surrounding whitespace/quotes are trimmed,
-and duplicates within a column are dropped. Names must match the club's member
-directory exactly — the member search is exact-match-first and requires at
-least 3 letters.
+non-empty cells below the header are that date's players. Year-less, so dates
+are matched by month/day only.
 
 ```
 Aug 25th,Sep 1st,Sep 8th
@@ -92,21 +116,27 @@ Viktor Axelsen,Chen Long,Chen Long
 Chen Long,,
 ```
 
-Dates are matched to bookings by month and day (year is ignored). If a booking
-exists but has no date column in the CSV, the session is left untouched; if a
-date column exists but the courts for that date haven't been booked yet, it is
-reported and skipped. A date column applies to every session on that date, so
+In both formats: a name can appear under several dates, columns/rows that aren't
+a recognizable date or the player list are ignored, whitespace/quotes are
+trimmed, and duplicates are dropped. Names must match the club's member
+directory exactly — the member search is exact-match-first and requires at
+least 3 letters.
+
+Dates are matched to bookings by month and day; when a roster carries a year
+(some exports), the year must also match. If a booking exists but has no roster
+for that date, the session is left untouched; if a roster date has no booking,
+it is reported and skipped. A roster applies to every session on that date, so
 set `match.startTime` when a day could have more than one session.
 
 ## How a run works
 
 1. Load `bot.config.json` and select enabled jobs.
 2. Initialize the client and bail early if `isLoggedIn()` is false.
-3. For each job, read the roster CSV (date → players) and call
+3. For each job, read the roster CSV (auto-detecting its format) and call
    `getCurrentBookings(match)`.
 4. Group the bookings into sessions by date/time/location (`bot/session.ts`).
-5. For each session, look up the roster column for its date. If there is no
-   column, leave the session untouched and report it. Otherwise plan the
+5. For each session, look up the roster for its date. If there is no
+   roster, leave the session untouched and report it. Otherwise plan the
    session: fill courts in court-number order, preserving roster order, up to
    `courtCapacity` (the organizer already occupies a slot on every court).
    Names in the roster but on no court are added; names on a court but no
@@ -114,7 +144,7 @@ set `match.startTime` when a day could have more than one session.
    every court). A removal frees a slot, so a dropped player's court can absorb
    a replacement in the same run. Names too short to search and names that
    exceed the total free slots are reported.
-6. Report any roster date column with no matching booking (courts not booked
+6. Report any roster date with no matching booking (courts not booked
    yet).
 7. In `--dry-run`, print the assignment. Otherwise `swapPlayersOnBooking()`
    removes and adds each court's players in a single edit-modal save and logs
