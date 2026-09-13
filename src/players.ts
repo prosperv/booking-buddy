@@ -176,9 +176,10 @@ export async function readDetailPlayers(page: Page): Promise<string[]> {
 }
 
 export async function typePlayerSearch(modal: Locator, name: string): Promise<void> {
-    await modal
-        .locator('input[name="OwnersDropdown_input"]')
-        .pressSequentially(name, { delay: TYPING_DELAY_MS });
+    const input = modal.locator('input[name="OwnersDropdown_input"]');
+    await input.press("ControlOrMeta+A");
+    await input.press("Delete");
+    await input.pressSequentially(name, { delay: TYPING_DELAY_MS });
 }
 
 /**
@@ -187,8 +188,11 @@ export async function typePlayerSearch(modal: Locator, name: string): Promise<vo
  */
 export async function readPlayerOptions(page: Page): Promise<string[]> {
     await page.waitForFunction(() => {
+        const input = document.querySelector<HTMLInputElement>('input[name="OwnersDropdown_input"]');
+        const busy = input?.getAttribute("aria-busy") === "true";
         const items = document.querySelectorAll("#OwnersDropdown_listbox li.k-list-item");
         const noData = document.querySelector("#OwnersDropdown-list .k-no-data");
+        if (busy) return false;
         return items.length > 0 || (noData !== null && getComputedStyle(noData).display !== "none");
     });
 
