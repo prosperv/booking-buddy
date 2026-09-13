@@ -110,6 +110,9 @@ async function runAddLoop(
                 result.added.push(match.name);
                 roster.push(match.name);
             } else {
+                // Report the requested `name` (not the resolved `match.name`) so
+                // this failure lines up with the other add-failure outcomes
+                // below, which all key off the name the caller asked for.
                 result.failed.push({ name, reason: "not-added" });
             }
         } else if (match.status === "ambiguous") {

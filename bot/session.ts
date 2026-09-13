@@ -86,6 +86,13 @@ export function groupBookingsIntoSessions(bookings: Booking[], location?: string
  * A removal frees a slot: free capacity is computed from the player count
  * minus the names being removed, so a dropped player's court can absorb a
  * replacement in the same run.
+ *
+ * NOTE: the organizer is protected (never removed) but never *added*. It is
+ * assumed the organizer is already on every court (they booked them), which is
+ * why they are only skipped. If a session's courts ever exist without the
+ * organizer on them, the organizer falls into the ordinary "candidate" branch
+ * and would be placed on a single court, not every court — book the organizer
+ * onto each court first, or the split will be wrong.
  */
 export function planSession(
     group: SessionGroup,
@@ -96,6 +103,8 @@ export function planSession(
     const { courts } = group;
     const courtPlayers = courts.map((b) => b.players.map((p) => normalizePlayerName(p)));
     const rosterNorm = new Set(roster.map((n) => normalizePlayerName(n)));
+    // The organizer (or any name on every court) is protected from removal, but
+    // is not auto-added — see the NOTE in the planSession doc above.
     const organizerNorm = organizer ? normalizePlayerName(organizer) : null;
 
     // Names that appear on every court are the organizer (or equivalent) and
