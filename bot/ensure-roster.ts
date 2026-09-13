@@ -7,6 +7,12 @@ import { groupBookingsIntoSessions, planSession, type SessionGroup, type Session
 export type RunOptions = {
     dryRun: boolean;
     job?: string;
+    /**
+     * Whether to run a headed (visible) browser. Defaults to `true`
+     * (headless), which is what the systemd timer needs; interactive/local
+     * runs can pass `false` to watch the run.
+     */
+    headless?: boolean;
 };
 
 function rosterPath(configPath: string, job: JobConfig): string {
@@ -84,8 +90,7 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
 
     console.log(`ensure-roster [${mode}] ${jobs.length} job(s)`);
 
-    const client = new CourtReserveClient({
-        headless: false});
+    const client = new CourtReserveClient({ headless: options.headless ?? true });
     await client.init();
     let ok = true;
     try {

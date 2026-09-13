@@ -23,7 +23,7 @@ added or removed by the bot.
 ## Commands
 
 ```
-npx tsx bot/index.ts ensure-roster [--job <name>] [--dry-run] [--config <path>]
+npx tsx bot/index.ts ensure-roster [--job <name>] [--dry-run] [--headed] [--config <path>]
 npx tsx bot/index.ts roster-test   [--job <name>] [--config <path>]
 npx tsx bot/index.ts check-auth    [--config <path>]
 ```
@@ -39,6 +39,8 @@ Options:
 - `--job <name>` — run only the named job.
 - `--dry-run` — plan only: print the session/court assignment without opening
   the edit modal (recommended first live step).
+- `--headed` — run a visible browser instead of headless (for watching a local
+  run; the default is headless).
 - `--config <path>` — config file to use (default `./bot.config.json`).
 
 `ensure-roster` exits non-zero only for config/data problems (e.g. a missing
@@ -123,11 +125,12 @@ trimmed, and duplicates are dropped. Names must match the club's member
 directory exactly — the member search is exact-match-first and requires at
 least 3 letters.
 
-Dates are matched to bookings by month and day; when a roster carries a year
-(some exports), the year must also match. If a booking exists but has no roster
-for that date, the session is left untouched; if a roster date has no booking,
-it is reported and skipped. A roster applies to every session on that date, so
-set `match.startTime` when a day could have more than one session.
+Dates are matched to bookings by month and day; the year is ignored even when
+a roster carries one (some exports), so a signup exported in one year still
+matches the booking in the next. If a booking exists but has no roster for that
+date, the session is left untouched; if a roster date has no booking, it is
+reported and skipped. A roster applies to every session on that date, so set
+`match.startTime` when a day could have more than one session.
 
 ## How a run works
 

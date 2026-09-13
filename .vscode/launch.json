@@ -47,12 +47,29 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Manual login",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/examples/usage.ts",
+            "args": [
+                "--force"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Debug bot/index.ts ensure-roster (dry-run)",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
             "program": "${workspaceFolder}/bot/index.ts",
             "args": [
                 "ensure-roster",
-                "--dry-run"
+                "--config",
+                "/home/pvan/bot.test.config.json",
+                "--headed",
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",

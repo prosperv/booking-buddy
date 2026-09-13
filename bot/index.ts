@@ -14,6 +14,7 @@ Commands:
 Options:
   --job <name>    Restrict to a single job by name.
   --dry-run       Plan only; print the diff without editing (ensure-roster).
+  --headed        Run a visible browser (default is headless).
   --config <path> Path to bot.config.json (default: ./bot.config.json).
 `;
 
@@ -22,10 +23,11 @@ type Args = {
     config: string;
     job?: string;
     dryRun: boolean;
+    headless: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
-    const args: Args = { command: "", config: "bot.config.json", dryRun: false };
+    const args: Args = { command: "", config: "bot.config.json", dryRun: false, headless: true };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
         switch (arg) {
@@ -34,6 +36,9 @@ function parseArgs(argv: string[]): Args {
                 break;
             case "--dry-run":
                 args.dryRun = true;
+                break;
+            case "--headed":
+                args.headless = false;
                 break;
             case "--config":
                 args.config = argv[++i];
@@ -82,7 +87,11 @@ async function main(): Promise<void> {
 
     switch (args.command) {
         case "ensure-roster": {
-            const ok = await runEnsureRoster(args.config, { dryRun: args.dryRun, job: args.job });
+            const ok = await runEnsureRoster(args.config, {
+                dryRun: args.dryRun,
+                job: args.job,
+                headless: args.headless,
+            });
             if (!ok) process.exitCode = 1;
             return;
         }

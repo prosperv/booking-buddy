@@ -8,6 +8,7 @@
 - **Options**
   - `--job <name>` — restrict to a single job
   - `--dry-run` — plan-only, print diff without editing
+  - `--headed` — run a visible browser (default headless)
   - `--config <path>` — alternate `bot.config.json` (default `./bot.config.json`)
 - **Exit codes** — non-zero only for config/data errors (e.g. missing CSV); player-level outcomes never fail the run
 
