@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRoster, parseRosterCsv, parseEventExportCsv, parseDateLabel } from "../csv";
+import { parseRoster, parseRosterCsv, parseEventExportCsv, parseSignupsCsv, parseDateLabel } from "../csv";
 
 describe("parseDateLabel", () => {
     it("parses a 3-letter month with ordinal suffix", () => {
@@ -114,13 +114,94 @@ describe("parseEventExportCsv (new format)", () => {
     });
 });
 
+describe("parseSignupsCsv (fixed coordinates)", () => {
+    it("reads the date from (row2,col2) and players from col3 row5+", () => {
+        const set = parseSignupsCsv(
+            "▶,Date,Start Time,Hrs,Location,\n" +
+                ",9/7/2026,6:30 PM,2,BBC Mukilteo,\n" +
+                ",,,,,,\n" +
+                "#,Paid,Player Name,,Pos,\n" +
+                "1,FALSE,Brandon Luu,,P1,\n" +
+                "2,FALSE,Peter Nguyen,,P2,\n" +
+                "3,FALSE,Peter Nguyen,,P3,\n" +
+                "4,FALSE,,\n",
+        );
+        expect(set.rosters).toHaveLength(1);
+        const roster = set.rosters[0];
+        expect(roster.date.getFullYear()).toBe(2026);
+        expect(roster.date.getMonth() + 1).toBe(9);
+        expect(roster.date.getDate()).toBe(7);
+        expect(roster.startTime).toBe("18:30");
+        expect(roster.players).toEqual(["Brandon Luu", "Peter Nguyen"]);
+    });
+
+    it("ignores all other columns and rows", () => {
+        const set = parseSignupsCsv(
+            "▶,Date,Start Time,Hrs,Location,Host,Courts,\n" +
+                ",9/7/2026,6:30 PM,2,BBC Mukilteo,Bryan Cheong,\"1, 3, 4, 5\",\n" +
+                ",,,,,,,\n" +
+                "#,Paid,Player Name,,Pos,Ct 1,Ct 3,\n" +
+                "1,FALSE,Alice,,P1,Alice,X,\n" +
+                "2,FALSE,Bob,,P2,Bob,Y,\n",
+        );
+        expect(set.rosters[0].players).toEqual(["Alice", "Bob"]);
+    });
+
+    it("uses the year-less date as month/day only", () => {
+        const set = parseSignupsCsv(
+            "▶,Date,Start Time,\n" +
+                ",9/7,6:30 PM,\n" +
+                ",,\n" +
+                "#,Paid,Player Name,\n" +
+                "1,FALSE,Alice,\n",
+        );
+        const roster = set.rosters[0];
+        expect(roster.year).toBeUndefined();
+        expect(roster.date.getMonth() + 1).toBe(9);
+        expect(roster.date.getDate()).toBe(7);
+    });
+
+    it("returns no rosters when there is no Player Name at (row4,col3)", () => {
+        expect(parseSignupsCsv("a,b,c\n1,2,3\n").rosters).toEqual([]);
+    });
+
+    it("returns no rosters when the date at (row2,col2) is unparseable", () => {
+        const set = parseSignupsCsv(
+            "▶,Date,Start Time,\n" +
+                ",not-a-date,6:30 PM,\n" +
+                ",,,\n" +
+                "#,Paid,Player Name,\n" +
+                "1,FALSE,Alice,\n",
+        );
+        expect(set.rosters).toEqual([]);
+    });
+});
+
 describe("parseRoster (auto-detection)", () => {
-    it("detects the event-export format by Paid/Player Name headers", () => {
+    it("routes the signups layout (Player Name at row4,col3) to parseSignupsCsv", () => {
         const set = parseRoster(
-            "▶,Date,Start Time,\n,9/7/2026,6:30 PM,\n,,,\n#,Paid,Player Name,\n1,FALSE,Brandon Luu,\n",
+            "▶,Date,Start Time,Hrs,Location,\n" +
+                ",9/7/2026,6:30 PM,2,BBC Mukilteo,\n" +
+                ",,,,,,\n" +
+                "#,Paid,Player Name,,Pos,\n" +
+                "1,FALSE,Brandon Luu,,P1,\n",
         );
         expect(set.rosters).toHaveLength(1);
         expect(set.rosters[0].players).toEqual(["Brandon Luu"]);
+        expect(set.rosters[0].startTime).toBe("18:30");
+    });
+
+    it("falls back to the event-export parser when Paid/Player Name present but no signups header", () => {
+        const set = parseRoster(
+            "Date,Start Time,Paid,Player Name\n" +
+                "9/7/2026,6:30 PM,FALSE,Brandon Luu\n" +
+                ",,FALSE,Alex Chu\n",
+        );
+        // The Player Name header sits at (row1,col4), not (row4,col3), so
+        // parseSignupsCsv doesn't claim it; the keyword-based event-export
+        // parser handles it instead.
+        expect(set.rosters).toHaveLength(1);
+        expect(set.rosters[0].players).toEqual(["Brandon Luu", "Alex Chu"]);
     });
 
     it("falls back to the date-column format otherwise", () => {

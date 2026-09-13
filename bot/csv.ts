@@ -312,13 +312,74 @@ export function parseEventExportCsv(text: string): RosterSet {
 }
 
 /**
- * Detects which CSV format `text` is and parses it. The event export is
- * recognized by a header containing both `Paid` and `Player Name` (keyword
- * based, so reordering doesn't change detection); anything else is treated as
- * the legacy date-column layout.
+ * Fixed cell coordinates for the signups export:
+ *   - the date sits at (row 2, col 2)
+ *   - the `Player Name` header sits at (row 4, col 3), with player names in
+ *     col 3 from row 5 onward.
+ * All 1-based. Everything else in the file is ignored.
+ */
+const SIGNUPS_DATE_ROW = 2;
+const SIGNUPS_DATE_COL = 2;
+const SIGNUPS_TIME_COL = 3;
+const SIGNUPS_NAME_ROW = 4;
+const SIGNUPS_NAME_COL = 3;
+
+/**
+ * Parses the signups export via fixed cell coordinates rather than header
+ * keywords. The date is read from (row 2, col 2) and the players from col 3
+ * starting at row 5; every other column/row is ignored. Returns an empty set
+ * when the identified cells don't look like a date or an export at those
+ * coordinates.
+ */
+export function parseSignupsCsv(text: string): RosterSet {
+    const rows = nonEmptyLines(text).map(splitRow);
+
+    const dateValue = (rows[SIGNUPS_DATE_ROW - 1]?.[SIGNUPS_DATE_COL - 1] ?? "").trim();
+    const timeValue = (rows[SIGNUPS_DATE_ROW - 1]?.[SIGNUPS_TIME_COL - 1] ?? "").trim();
+    const headerCell = (rows[SIGNUPS_NAME_ROW - 1]?.[SIGNUPS_NAME_COL - 1] ?? "").trim();
+    if (!/^player\s*name$/i.test(headerCell)) return makeRosterSet([]);
+
+    const parsed = dateValue ? parseNumericDate(dateValue) : null;
+    if (!parsed) return makeRosterSet([]);
+
+    const roster: Roster = {
+        date: new Date(parsed.year ?? 1970, parsed.month - 1, parsed.day),
+        players: [],
+    };
+    if (parsed.year !== undefined) roster.year = parsed.year;
+
+    const time = timeValue ? parseStartTime(timeValue) : undefined;
+    if (time !== undefined) roster.startTime = time;
+
+    const players: string[] = [];
+    const seen = new Set<string>();
+    for (let r = SIGNUPS_NAME_ROW; r < rows.length; r++) {
+        const name = (rows[r]?.[SIGNUPS_NAME_COL - 1] ?? "").trim();
+        if (name === "") continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        players.push(name);
+    }
+    roster.players = players;
+
+    return makeRosterSet([roster]);
+}
+
+/**
+ * Detects which CSV format `text` is and parses it. The signups export is
+ * recognized by a `Player Name` header at (row 4, col 3); the event export by
+ * an `Paid` + `Player Name` header (keyword based); anything else is treated
+ * as the legacy date-column layout.
  */
 export function parseRoster(text: string): RosterSet {
-    const hasPaid = /(^|,)paid(,|$)/i.test(text.split(/\r?\n/)[0] ?? "") || /(^|,)paid(,|$)/i.test(text);
+    const rows = nonEmptyLines(text);
+    const signupsHeader = (rows[SIGNUPS_NAME_ROW - 1] ?? "")
+        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)[SIGNUPS_NAME_COL - 1]
+        ?.trim();
+    if (/^player\s*name$/i.test(signupsHeader ?? "")) return parseSignupsCsv(text);
+
+    const hasPaid = /(^|,)paid(,|$)/i.test(rows[0] ?? "") || /(^|,)paid(,|$)/i.test(text);
     const hasPlayerName = /player\s*name/i.test(text);
     if (hasPaid && hasPlayerName) return parseEventExportCsv(text);
     return parseRosterCsv(text);
