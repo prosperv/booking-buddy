@@ -89,11 +89,13 @@ describe("parseEventExportCsv (new format)", () => {
         expect(roster.players).toEqual(["Brandon Luu", "Alex Chu", "Davin Lee", "Celeste Zhao"]);
     });
 
-    it("finds the roster by month/day and year", () => {
+    it("matches by month/day regardless of year", () => {
         const set = parseEventExportCsv(sample);
         expect(set.find(new Date(2026, 8, 7))?.players).toHaveLength(4);
         expect(set.find(new Date(2026, 8, 8))).toBeUndefined();
-        expect(set.find(new Date(2027, 8, 7))).toBeUndefined();
+        // The year on a year-carrying export is ignored, so a booking in a
+        // later year on the same month/day still matches.
+        expect(set.find(new Date(2027, 8, 7))?.players).toHaveLength(4);
     });
 
     it("accepts zero-padded M/D/YYYY dates", () => {

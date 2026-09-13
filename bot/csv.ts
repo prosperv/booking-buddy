@@ -39,7 +39,11 @@ const MONTH_NAMES: Record<number, string> = {
 export type Roster = {
     /** Signup date. When the source omits the year, `date` carries month/day only (year 1970). */
     date: Date;
-    /** Signup year, when the source carries one; `undefined` for year-less sources. */
+    /**
+     * Signup year, when the source carries one; `undefined` for year-less
+     * sources. Retained for display/round-tripping only — matching deliberately
+     * ignores it (see `RosterSet.find`).
+     */
     year?: number;
     /** Signup start time, parsed to `"HH:MM"` (24h), or `undefined` when the source omits it. */
     startTime?: string;
@@ -55,7 +59,10 @@ export type Roster = {
  */
 export type RosterSet = {
     rosters: Roster[];
-    /** Returns the roster whose date matches `date`, or `undefined` when none does. */
+    /**
+     * Returns the roster whose month/day matches `date` (the year is ignored),
+     * or `undefined` when none does.
+     */
     find(date: Date): Roster | undefined;
 };
 
@@ -190,8 +197,8 @@ function nonEmptyLines(text: string): string[] {
  * the header are the player names signed up for that date. Columns whose
  * header is not a recognizable date are skipped. Player cells are trimmed,
  * quotes stripped, and per-column duplicates dropped (case-insensitively,
- * keeping the first occurrence). Year-less, so each roster's `date` uses the
- * current year and month/day only.
+ * keeping the first occurrence). Year-less, so each roster's `date` uses
+ * month/day only (year 1970).
  */
 export function parseRosterCsv(text: string): RosterSet {
     const lines = nonEmptyLines(text);
@@ -389,18 +396,13 @@ function makeRosterSet(rosters: Roster[]): RosterSet {
     return {
         rosters,
         find(date: Date): Roster | undefined {
-            const year = date.getFullYear();
             const month = date.getMonth() + 1;
             const day = date.getDate();
-            // A roster that carries a year must match it exactly; a year-less
-            // roster matches by month/day alone.
-            const withYear = rosters.find(
-                (r) => r.year === year && r.date.getMonth() + 1 === month && r.date.getDate() === day,
-            );
-            if (withYear) return withYear;
-            return rosters.find(
-                (r) => r.year === undefined && r.date.getMonth() + 1 === month && r.date.getDate() === day,
-            );
+            // Year is intentionally ignored: rosters are (re)exported fresh for
+            // the upcoming event, and matching by month/day means a year-carrying
+            // export (e.g. "9/7/2026") still matches a booking across a New Year
+            // boundary (a "Jan 5" signup is for the *next* Jan 5, not last year's).
+            return rosters.find((r) => r.date.getMonth() + 1 === month && r.date.getDate() === day);
         },
     };
 }
