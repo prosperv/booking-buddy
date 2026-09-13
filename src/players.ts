@@ -2,7 +2,7 @@ import { Locator, Page } from "playwright";
 import { courtReserveOrgId, courtReserveUrl, courtReserveUpdateMyReservationUrl } from "./constants";
 import { humanClick } from "./interactions";
 import { navigateTo } from "./navigation";
-import { pauseForAction } from "./utils";
+import { delay, pauseForAction } from "./utils";
 
 /**
  * Per-character delay used while typing into the Kendo ComboBox. The member
@@ -20,6 +20,13 @@ const TYPING_DELAY_MS = 80;
  * appears. Kept short so the no-confirmation path doesn't stall.
  */
 const CONFIRMATION_TIMEOUT_MS = 3000;
+
+/**
+ * How long to wait for a just-confirmed add to show up in the modal's pending
+ * roster before declaring the add unconfirmed. The member row is appended
+ * client-side by the site's confirm handler, which can be slightly async.
+ */
+const ADD_CONFIRM_TIMEOUT_MS = 5000;
 
 /**
  * Collapses whitespace, drops the trailing "?" characters the site appends to
@@ -204,6 +211,28 @@ export async function readPlayerOptions(page: Page): Promise<string[]> {
 export async function selectPlayerOption(page: Page, index: number): Promise<void> {
     const option = page.locator("#OwnersDropdown_listbox li.k-list-item").nth(index);
     await humanClick(option);
+}
+
+/**
+ * Polls the modal's pending roster until `name` appears (normalized exact
+ * match, so the site's trailing "?" and whitespace differences don't matter).
+ * The confirm handler appends the member client-side and can be slightly
+ * async, so a short bounded poll is more reliable than a one-shot read.
+ * Returns false when the name never shows up within `timeoutMs`.
+ */
+export async function verifyPlayerAdded(
+    modal: Locator,
+    name: string,
+    timeoutMs = ADD_CONFIRM_TIMEOUT_MS,
+): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (matchRosterPlayer(await readModalPlayers(modal), name).status === "exact") {
+            return true;
+        }
+        await delay(200);
+    }
+    return false;
 }
 
 /**

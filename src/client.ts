@@ -33,6 +33,7 @@ import {
     searchNameError,
     selectPlayerOption,
     typePlayerSearch,
+    verifyPlayerAdded,
 } from "./players";
 
 type RemoveLoopResult = {
@@ -104,14 +105,13 @@ async function runAddLoop(
             await selectPlayerOption(page, match.index);
             await pauseForAction();
             await confirmAddPlayer(page);
-            await modal
-                .locator('[data-testid="player-fullname"]')
-                .filter({ hasText: match.name })
-                .first()
-                .waitFor({ state: "attached" });
 
-            result.added.push(match.name);
-            roster.push(match.name);
+            if (await verifyPlayerAdded(modal, match.name)) {
+                result.added.push(match.name);
+                roster.push(match.name);
+            } else {
+                result.failed.push({ name, reason: "not-added" });
+            }
         } else if (match.status === "ambiguous") {
             result.failed.push({ name, reason: "ambiguous", candidates: match.candidates });
         } else {

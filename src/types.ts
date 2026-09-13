@@ -34,7 +34,8 @@ export type PlayerAddReason =
     | "already-added"
     | "not-found"
     | "ambiguous"
-    | "query-too-short";
+    | "query-too-short"
+    | "not-added";
 
 export type PlayerAddOutcome = {
     name: string;
