@@ -23,9 +23,10 @@
 - **Validation** — strict schema validation with descriptive `ConfigError`s (duplicate names, malformed fields, missing jobs)
 
 ## Roster CSV (`bot/csv.ts`)
-- **Format-agnostic API** — `parseRoster` auto-detects the format and returns a `RosterSet` of dated `Roster`s (`date`, optional `startTime`, `players`); `RosterSet.find(date)` is the single stable lookup
-- **Auto-detection** — event export recognized by `Paid` + `Player Name` headers (keyword-based, not position); anything else falls back to legacy date-column
-- **Event-export format** — reads `Date` (`M/D/YYYY` or zero-padded, year used when present), `Start Time` (→ `"HH:MM"`), and the `Player Name` column; one event per file
+- **Format-agnostic API** — `parseRoster` auto-detects the format and returns a `RosterSet` of dated `Roster`s (`date`, optional `year`/`startTime`, `players`); `RosterSet.find(date)` is the single stable lookup
+- **Auto-detection** — signups export recognized by `Player Name` at (row4,col3); event export by `Paid` + `Player Name` headers; otherwise legacy date-column
+- **Signups export (fixed coordinates)** — `Date` at (row2,col2), `Start Time` at (row2,col3), player names in col3 from row5 (`M/D/YYYY` or zero-padded, year used when present); every other column/row ignored
+- **Event-export fallback** — keyword-based `Date`/`Start Time`/`Player Name` (one event per file)
 - **Legacy date-column** — header row is date labels (`Aug 25th`), each column lists that date's players (year-less)
 - Date-label parsing (3-letter or full month, optional ordinal suffix); skips non-date columns/rows; trims whitespace/quotes, drops duplicates (case-insensitive, first wins)
 - `find` matches by month/day, requiring an exact year only when the roster carries one; descriptive read errors

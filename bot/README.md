@@ -82,26 +82,27 @@ auto-detects which one a file is. Both normalize to the same stable shape — a
 list of dated rosters — so the format can change again without touching the
 consumers.
 
-### CourtReserve event export (current)
+### CourtReserve signups export (current)
 
-A single event's signups as exported from CourtReserve: a `Date` and
-`Start Time` cell near the top, then a `#`/`Paid`/`Player Name` table. The
-columns are found by header keyword (`Date`, `Start Time`, `Player Name`), not
-position, so header reshuffles don't break parsing.
+A single event's signups as exported from CourtReserve: the `Date` cell at
+(row 2, col 2), the `Start Time` beside it (row 2, col 3), and a
+`#`/`Paid`/`Player Name` table whose names sit in col 3 from row 5 down.
+These coordinates are fixed, so every other column (`Hrs`, `Location`,
+`Host`, `Courts`, `Pos`, the per-court columns, …) is ignored.
 
 ```
-▶,Date,Start Time,
-,9/7/2026,6:30 PM,
-,,,
-#,Paid,Player Name,
-1,FALSE,Brandon Luu,
-2,FALSE,Alex Chu,
+▶,Date,Start Time,Hrs,Location,Host,Courts,Max Players,...
+,9/7/2026,6:30 PM,2,BBC Mukilteo,Bryan Cheong,"1, 3, 4, 5",24,....
+,,,,,,,,,
+#,Paid,Player Name,,Pos,Ct 1,Ct 3,Ct 4,Ct 5,
+1,FALSE,Brandon Luu,,P1,Brandon Luu,...
+2,FALSE,Peter Nguyen,,P2,Alex Chu,...
 ...
 ```
 
 The date may be `M/D/YYYY` or `MM/DD/YYYY`; the year is used when present. The
 start time (e.g. `6:30 PM` → `18:30`) is read from the file. One file = one
-event for now.
+event.
 
 ### Legacy date-column
 
