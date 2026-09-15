@@ -157,6 +157,25 @@ reported and skipped. A roster applies to every session on that date, so set
 The client uses the default headless browser, so `auth.json` and `my-profile/`
 must exist in the working directory.
 
+## Logging
+
+Every run writes two date-stamped JSON-lines files (one event per line with
+`time`, `level`, `msg`, and context fields):
+
+- `log/booking-buddy-<date>.log` — the library's own lifecycle and per-player
+  outcomes (init, login, modal open/save, add/remove/swap outcomes).
+- `log/bot-<date>.log` — the bot's orchestration (run/job/session plan, swap
+  summaries, per-player failures, errors with stack traces).
+
+The directory is resolved per layer: `--log-path` (bot) / `ClientOptions.logPath`
+(library) → `LOG_PATH` env var → `<cwd>/log`. File names are fixed. `LOG_LEVEL`
+(default `info`) controls verbosity (`debug` for extra detail). The `log/`
+directory is gitignored, and console output is unchanged — each event is also
+mirrored to stdout/stderr.
+
+To review a failed run: `jq . log/bot-<date>.log`, or
+`grep '"level":"error"' log/bot-<date>.log`.
+
 ## Scheduling on an always-on machine
 
 See [`bot/systemd/README.md`](systemd/README.md) for a daily `systemd` timer.

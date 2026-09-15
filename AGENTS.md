@@ -64,6 +64,8 @@ no CI.
   `example.csv`).
 - `test/data/**/*.mhtml` — raw full-page captures (~4.8MB each). Only the pruned
   `.html` fixtures derived from them are committed; re-capture live if markup changes.
+- `log/` — file logs (`booking-buddy-<date>.log`, `bot-<date>.log`); written by
+  `src/logger.ts` (`createLogger`), see "Logging" below.
 
 ## Gotchas
 - `headless` defaults to **true** (`process.env.HEADLESS !== "false"` in
@@ -90,6 +92,19 @@ no CI.
 - All scraping keys off CourtReserve `data-testid` attributes and dayjs parsing
   (`src/booking.ts`); if the site markup changes, parsing breaks.
 
+## Logging
+- `src/logger.ts` exports `createLogger({ filePath, level, console })` (pino,
+  JSON lines, synchronous writes, console mirror on by default) plus
+  `resolveLogDir` / `defaultLogFile`. The `CourtReserveClient` logs its own
+  lifecycle + per-player outcomes to `log/booking-buddy-<date>.log`; the bot
+  logs orchestration to `log/bot-<date>.log`.
+- Log dir resolution: `ClientOptions.logPath` (library) / `--log-path` (bot) →
+  `LOG_PATH` → `<cwd>/log`. File names are fixed. `LOG_LEVEL` (default `info`)
+  controls verbosity. `ClientOptions.logPath: false` disables the library file.
+- The destination is created lazily on first write, so constructing a client
+  (or `createLogger`) never creates files — unit tests don't need to set
+  `logPath: false`.
+
 ## Testing
 - Unit tests (no browser) live at the top level of each test root:
   `test/*.test.ts` (import from `../src/index`) and `bot/test/*.test.ts`.
@@ -101,8 +116,9 @@ no CI.
   tests are offset-sensitive and would pass for the wrong reason on a UTC runner.
   Its `setupFiles: ./test/setup.ts` also `delete`s inherited env vars
   (`HEADLESS`, `AUTH_PATH`, `PROFILE_DIR`, `MIN/MAX_ACTION_DELAY_MS`, `PORT`,
-  `COURTRESERVE_ORG_ID`) so default-option tests are deterministic — note they are
-  deleted (not set to `""`), because `src/constants.ts` uses `??`.
+  `COURTRESERVE_ORG_ID`, `LOG_PATH`, `LOG_LEVEL`) so default-option tests are
+  deterministic — note they are deleted (not set to `""`), because
+  `src/constants.ts` uses `??`.
 - `test/data/*.html` fixtures are pruned MHTML: no CSS, images, or scripts, so
   there is no realistic layout. Assertions on geometry (`boundingBox()`,
   scrolling, hover) won't match production — only DOM structure and text are

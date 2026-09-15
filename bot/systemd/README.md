@@ -32,6 +32,9 @@ to `/etc/systemd/system/`, then runs `systemctl daemon-reload` and
 - Inspect output: `journalctl -u booking-buddy.service -n 50 --no-pager`
 - Next scheduled run: `systemctl list-timers booking-buddy.timer`
 
+Each run also writes two JSON-lines logs under `<repo>/log/` (library +
+bot, date-stamped); see the parent `bot/README.md` "Logging" section.
+
 The service logs structured per-job output (roster count, booking count, per
 booking adds/skips/failures). Player-level failures (`not-found`, `ambiguous`)
 are reported but do not fail the unit; a non-zero exit means a config/data
