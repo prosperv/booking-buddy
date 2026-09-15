@@ -1,4 +1,4 @@
-import { CourtReserveClient } from "../src";
+import { CourtReserveClient, createLogger, defaultLogFile, resolveLogDir, type Logger } from "../src";
 import { loadConfig, enabledJobs } from "./config";
 import { loadRosterFile, formatDateKey } from "./csv";
 import { runEnsureRoster } from "./ensure-roster";
@@ -16,6 +16,7 @@ Options:
   --dry-run       Plan only; print the diff without editing (ensure-roster).
   --headed        Run a visible browser (default is headless).
   --config <path> Path to bot.config.json (default: ./bot.config.json).
+  --log-path <dir> Directory for the bot log file (default: LOG_PATH or ./log).
 `;
 
 type Args = {
@@ -24,6 +25,7 @@ type Args = {
     job?: string;
     dryRun: boolean;
     headless: boolean;
+    logPath?: string;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -42,6 +44,9 @@ function parseArgs(argv: string[]): Args {
                 break;
             case "--config":
                 args.config = argv[++i];
+                break;
+            case "--log-path":
+                args.logPath = argv[++i];
                 break;
             default:
                 if (!arg.startsWith("-")) args.command = arg;
@@ -67,15 +72,17 @@ async function runRosterTest(configPath: string, jobName?: string): Promise<void
     }
 }
 
-async function runCheckAuth(): Promise<boolean> {
+async function runCheckAuth(logger: Logger): Promise<boolean> {
     const client = new CourtReserveClient();
     await client.init();
     try {
         if (await client.isLoggedIn()) {
-            console.log("check-auth OK: logged in.");
+            logger.info("check-auth OK: logged in.", { event: "check-auth-ok" });
             return true;
         }
-        console.error("check-auth FAILED: not logged in (session stale or expired).");
+        logger.error("check-auth FAILED: not logged in (session stale or expired).", {
+            event: "check-auth-failed",
+        });
         return false;
     } finally {
         await client.close();
@@ -84,6 +91,9 @@ async function runCheckAuth(): Promise<boolean> {
 
 async function main(): Promise<void> {
     const args = parseArgs(process.argv.slice(2));
+    const logger = createLogger({
+        filePath: defaultLogFile(resolveLogDir(args.logPath), "bot"),
+    });
 
     switch (args.command) {
         case "ensure-roster": {
@@ -91,7 +101,7 @@ async function main(): Promise<void> {
                 dryRun: args.dryRun,
                 job: args.job,
                 headless: args.headless,
-            });
+            }, logger);
             if (!ok) process.exitCode = 1;
             return;
         }
@@ -99,15 +109,26 @@ async function main(): Promise<void> {
             await runRosterTest(args.config, args.job);
             return;
         case "check-auth":
-            if (!(await runCheckAuth())) process.exitCode = 1;
+            if (!(await runCheckAuth(logger))) process.exitCode = 1;
             return;
         default:
-            console.error(USAGE);
+            logger.error(USAGE, { event: "usage" });
             process.exit(1);
     }
 }
 
+function onFatal(error: unknown, kind: "uncaughtException" | "unhandledRejection"): void {
+    const err = error instanceof Error ? error : new Error(String(error));
+    // Last-resort structured line; the bot logger may not be wired yet.
+    console.error(`${kind}: ${err.stack ?? err.message}`);
+    process.exit(1);
+}
+
+process.on("uncaughtException", (error) => onFatal(error, "uncaughtException"));
+process.on("unhandledRejection", (error) => onFatal(error, "unhandledRejection"));
+
 main().catch((error) => {
-    console.error("Error:", error instanceof Error ? error.message : error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error("Error:", err.stack ?? err.message);
     process.exit(1);
 });

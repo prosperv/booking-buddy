@@ -1,5 +1,5 @@
 import path from "node:path";
-import { CourtReserveClient } from "../src";
+import { CourtReserveClient, type Logger } from "../src";
 import { loadConfig, enabledJobs, type JobConfig } from "./config";
 import { loadRosterFile, formatDateKey, type Roster } from "./csv";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
@@ -42,33 +42,47 @@ function findSessionFor(sessions: SessionGroup[], roster: Roster): SessionGroup 
     });
 }
 
-function printSession(session: SessionGroup, plan: SessionPlan, dryRun: boolean): void {
-    console.log(
+function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan): void {
+    logger.info(
         `[session] ${session.date} ${session.startTime} @ ${session.location} (${session.courts.length} court(s))`,
+        {
+            event: "session",
+            date: session.date,
+            startTime: session.startTime,
+            location: session.location,
+            courts: session.courts.length,
+        },
     );
 
     for (const court of plan.courts) {
         const b = court.booking;
-        console.log(`  Court ${b.courtNumber} (${b.bookingId}):`);
-        if (court.add.length > 0) {
-            console.log(`    ${dryRun ? "would add" : "add"}: ${court.add.map((n) => `"${n}"`).join(", ")}`);
-        }
-        if (court.remove.length > 0) {
-            console.log(`    ${dryRun ? "would remove" : "remove"}: ${court.remove.map((n) => `"${n}"`).join(", ")}`);
-        }
-        if (court.alreadyPlaced.length > 0) {
-            console.log(`    already on court: ${court.alreadyPlaced.map((n) => `"${n}"`).join(", ")}`);
-        }
+        logger.info(`  Court ${b.courtNumber} (${b.bookingId})`, {
+            event: "court",
+            bookingId: b.bookingId,
+            court: b.courtNumber,
+            add: court.add,
+            remove: court.remove,
+            alreadyPlaced: court.alreadyPlaced,
+        });
     }
 
     if (plan.satisfied.length > 0) {
-        console.log(`  satisfied (on every court): ${plan.satisfied.map((n) => `"${n}"`).join(", ")}`);
+        logger.info("  satisfied (on every court)", {
+            event: "satisfied",
+            names: plan.satisfied,
+        });
     }
     if (plan.tooShort.length > 0) {
-        console.log(`  too short to search: ${plan.tooShort.map((n) => `"${n}"`).join(", ")}`);
+        logger.warn("  too short to search", {
+            event: "too-short",
+            names: plan.tooShort,
+        });
     }
     if (plan.overflow.length > 0) {
-        console.log(`  no space (overflow): ${plan.overflow.map((n) => `"${n}"`).join(", ")}`);
+        logger.warn("  no space (overflow)", {
+            event: "overflow",
+            names: plan.overflow,
+        });
     }
 }
 
@@ -83,19 +97,27 @@ function printSession(session: SessionGroup, plan: SessionPlan, dryRun: boolean)
  * for config/data problems (e.g. a missing or empty roster CSV), so systemd
  * can flag them; player-level outcomes never affect it.
  */
-export async function runEnsureRoster(configPath: string, options: RunOptions): Promise<boolean> {
+export async function runEnsureRoster(
+    configPath: string,
+    options: RunOptions,
+    logger: Logger,
+): Promise<boolean> {
     const config = loadConfig(configPath);
     const jobs = enabledJobs(config, options.job);
     const mode = options.dryRun ? "DRY-RUN" : "RUN";
 
-    console.log(`ensure-roster [${mode}] ${jobs.length} job(s)`);
+    logger.info(`ensure-roster [${mode}] ${jobs.length} job(s)`, {
+        event: "run-start",
+        mode,
+        jobs: jobs.length,
+    });
 
     const client = new CourtReserveClient({ headless: options.headless ?? true });
     await client.init();
     let ok = true;
     try {
         if (!(await client.isLoggedIn())) {
-            console.error("ensure-roster: not logged in — aborting.");
+            logger.error("ensure-roster: not logged in — aborting.", { event: "not-logged-in" });
             return false;
         }
 
@@ -110,23 +132,36 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
                 const bookings = await client.getCurrentBookings(filters);
                 const sessions = groupBookingsIntoSessions(bookings, location);
 
-                console.log(
+                logger.info(
                     `[job "${job.name}"] ${rosterSet.rosters.length} roster(s), ${bookings.length} booking(s) in ${sessions.length} session(s)`,
+                    {
+                        event: "job-start",
+                        job: job.name,
+                        rosters: rosterSet.rosters.length,
+                        bookings: bookings.length,
+                        sessions: sessions.length,
+                    },
                 );
 
                 for (const roster of rosterSet.rosters) {
                     const session = findSessionFor(sessions, roster);
                     if (!session) {
-                        console.log(
+                        logger.warn(
                             `[job "${job.name}"] ${formatDateKey(roster.date)}${
                                 roster.startTime ? ` ${roster.startTime}` : ""
                             }: ${roster.players.length} player(s) but no booking found — skipping`,
+                            {
+                                event: "no-booking",
+                                job: job.name,
+                                date: formatDateKey(roster.date),
+                                players: roster.players.length,
+                            },
                         );
                         continue;
                     }
 
                     const plan = planSession(session, roster.players, job.session.courtCapacity, job.session.organizer);
-                    printSession(session, plan, options.dryRun);
+                    logSession(logger, session, plan);
 
                     if (options.dryRun) continue;
 
@@ -137,22 +172,45 @@ export async function runEnsureRoster(configPath: string, options: RunOptions): 
                             court.remove.map((name) => ({ name })),
                             court.add.map((name) => ({ name })),
                         );
-                        console.log(
+                        logger.info(
                             `    saved=${result.saved} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
+                            {
+                                event: "swap",
+                                job: job.name,
+                                bookingId: court.booking.bookingId,
+                                court: court.booking.courtNumber,
+                                saved: result.saved,
+                                removed: result.removed,
+                                added: result.added,
+                                skipped: result.skipped,
+                                failed: result.failed,
+                            },
                         );
                         for (const failed of result.failed) {
-                            console.log(`    FAILED ${JSON.stringify(failed)}`);
+                            logger.warn(`    FAILED ${JSON.stringify(failed)}`, {
+                                event: "player-failed",
+                                job: job.name,
+                                bookingId: court.booking.bookingId,
+                                court: court.booking.courtNumber,
+                                ...failed,
+                            });
                         }
                     }
                 }
             } catch (err) {
                 ok = false;
-                console.error(`[job "${job.name}"] error: ${err instanceof Error ? err.message : err}`);
+                logger.error(`[job "${job.name}"] error: ${err instanceof Error ? err.message : err}`, {
+                    event: "job-error",
+                    job: job.name,
+                    message: err instanceof Error ? err.message : String(err),
+                    stack: err instanceof Error ? err.stack : undefined,
+                });
             }
         }
     } finally {
         await client.close();
     }
 
+    logger.info(`ensure-roster done (ok=${ok})`, { event: "run-end", ok });
     return ok;
 }
