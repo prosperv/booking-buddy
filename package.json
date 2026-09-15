@@ -16,6 +16,7 @@
     },
     "dependencies": {
         "dayjs": "^1.11.21",
+        "pino": "^10.3.1",
         "playwright": "^1.62.1"
     },
     "devDependencies": {
