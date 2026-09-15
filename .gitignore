@@ -43,6 +43,7 @@ credentials.json
 
 # Misc
 *.log
+log/
 .notes/
 
 # Bot local config and rosters (example files are committed)

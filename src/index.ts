@@ -13,3 +13,5 @@ export type {
     SwapPlayerResult,
 } from "./types";
 export { delay, randomDelay, pauseForAction, fileExists, waitForEnter, retry } from "./utils";
+export { createLogger, defaultLogFile, resolveLogDir } from "./logger";
+export type { Logger, LoggerOptions, LogLevel } from "./logger";
