@@ -14,6 +14,8 @@ for (const key of [
     "MAX_ACTION_DELAY_MS",
     "PORT",
     "COURTRESERVE_ORG_ID",
+    "LOG_PATH",
+    "LOG_LEVEL",
 ]) {
     delete process.env[key];
 }
