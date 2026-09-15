@@ -6,6 +6,10 @@ export type ClientOptions = {
     profileDir?: string;
     manualLogin?: boolean;
     debugPause?: boolean;
+    /** Log directory for the library's own log file; `false` disables it. */
+    logPath?: string | false;
+    /** Minimum log level (default `info`, or `LOG_LEVEL`). */
+    logLevel?: string;
 };
 
 export type BookingFilters = {

@@ -18,6 +18,7 @@ import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from ".
 import { fileExists, pauseForAction } from "./utils";
 import { collectBookingSessions, filterBookings } from "./booking";
 import { isLoggedIn, loginWithCredentials } from "./login";
+import { createLogger, defaultLogFile, resolveLogDir, type Logger } from "./logger";
 import {
     closeModal,
     confirmAddPlayer,
@@ -48,17 +49,29 @@ type RemoveLoopResult = {
  * the same accumulator across a remove-then-add swap without tracking return
  * values per player.
  */
-async function runRemoveLoop(modal: Locator, players: PlayerInput[], result: RemoveLoopResult): Promise<void> {
+async function runRemoveLoop(
+    modal: Locator,
+    players: PlayerInput[],
+    result: RemoveLoopResult,
+    logger: Logger,
+): Promise<void> {
     for (const { name } of players) {
         const outcome = await removeMemberFromModal(modal, name);
         await pauseForAction();
 
         if (outcome.status === "removed") {
             result.removed.push(outcome.name);
+            logger.info("player removed", { event: "player-removed", name: outcome.name });
         } else if (outcome.status === "not-found") {
             result.skipped.push({ name, reason: "not-in-roster" });
+            logger.info("player not in roster", { event: "player-skip", name, reason: "not-in-roster" });
         } else {
             result.failed.push({ name: outcome.name, reason: "not-removable" });
+            logger.warn("player not removable", {
+                event: "player-failed",
+                name: outcome.name,
+                reason: "not-removable",
+            });
         }
     }
 }
@@ -82,16 +95,23 @@ async function runAddLoop(
     players: PlayerInput[],
     roster: string[],
     result: AddLoopResult,
+    logger: Logger,
 ): Promise<void> {
     for (const { name } of players) {
         if (roster.some((existing) => normalizePlayerName(existing) === normalizePlayerName(name))) {
             result.skipped.push({ name, reason: "already-added" });
+            logger.info("player already added", { event: "player-skip", name, reason: "already-added" });
             continue;
         }
 
         const tooShort = searchNameError(name);
         if (tooShort) {
             result.failed.push({ name, reason: "query-too-short" });
+            logger.warn("player query too short", {
+                event: "player-failed",
+                name,
+                reason: "query-too-short",
+            });
             continue;
         }
 
@@ -109,24 +129,48 @@ async function runAddLoop(
             if (await verifyPlayerAdded(modal, match.name)) {
                 result.added.push(match.name);
                 roster.push(match.name);
+                logger.info("player added", { event: "player-added", name: match.name });
             } else {
                 // Report the requested `name` (not the resolved `match.name`) so
                 // this failure lines up with the other add-failure outcomes
                 // below, which all key off the name the caller asked for.
                 result.failed.push({ name, reason: "not-added" });
+                logger.warn("player not added", { event: "player-failed", name, reason: "not-added" });
             }
         } else if (match.status === "ambiguous") {
             result.failed.push({ name, reason: "ambiguous", candidates: match.candidates });
+            logger.warn("player ambiguous", {
+                event: "player-failed",
+                name,
+                reason: "ambiguous",
+                candidates: match.candidates,
+            });
         } else {
             result.failed.push({ name, reason: "not-found", candidates: match.candidates });
+            logger.warn("player not found", {
+                event: "player-failed",
+                name,
+                reason: "not-found",
+                candidates: match.candidates,
+            });
         }
     }
 }
 
+type ResolvedClientOptions = {
+    headless: boolean;
+    authPath: string;
+    profileDir: string;
+    manualLogin: boolean;
+    debugPause: boolean;
+};
+
 export class CourtReserveClient {
     private context?: BrowserContext;
     private page?: Page;
-    private options: Required<ClientOptions>;
+    private options: ResolvedClientOptions;
+    private logger: Logger;
+    private initialized = false;
     private closing = false;
     private sigintHandler?: () => void;
     private sigtermHandler?: () => void;
@@ -140,21 +184,40 @@ export class CourtReserveClient {
             manualLogin: options?.manualLogin ?? false,
             debugPause: options?.debugPause ?? false,
         };
+        this.logger = this.buildLogger(options?.logPath, options?.logLevel);
+    }
+
+    private buildLogger(logPath: string | false | undefined, logLevel?: string): Logger {
+        if (logPath === false) {
+            return createLogger({ level: logLevel });
+        }
+        const dir = resolveLogDir(logPath);
+        return createLogger({ filePath: defaultLogFile(dir, "booking-buddy"), level: logLevel });
     }
 
     async init(): Promise<void> {
+        this.initialized = true;
+        this.logger.info("client init", {
+            event: "init",
+            headless: this.options.headless,
+            authPath: this.options.authPath,
+            profileDir: this.options.profileDir,
+        });
         this.context = await launchPersistentContext(this.options.headless, this.options.profileDir);
         this.registerShutdownHandlers();
 
         const hasSavedAuth = await fileExists(this.options.authPath);
         if (this.options.manualLogin || !hasSavedAuth) {
+            this.logger.info("manual login", { event: "manual-login" });
             await manualLogin(this.context, this.options.authPath);
         } else {
+            this.logger.info("restoring saved auth", { event: "restore-auth" });
             await restoreAuth(this.context, this.options.authPath);
         }
 
         this.page = await this.context.newPage();
         await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
+        this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl });
 
         if (this.options.debugPause) {
             await this.page.pause();
@@ -178,6 +241,10 @@ export class CourtReserveClient {
             this.context = undefined;
             this.page = undefined;
             this.closing = false;
+            if (this.initialized) {
+                this.logger.info("client closed", { event: "close" });
+                this.logger.flush();
+            }
         }
     }
 
@@ -268,6 +335,7 @@ export class CourtReserveClient {
         await loginWithCredentials(this.page, username, password);
         await this.context.storageState({ path: this.options.authPath });
         await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
+        this.logger.info("logged in with credentials", { event: "login-credentials" });
     }
 
     getPlayersFromBooking(booking: Booking): string[] {
@@ -298,16 +366,27 @@ export class CourtReserveClient {
             await openReservationDetail(page, booking.bookingId);
             const modal = await openEditReservationModal(page);
             await pauseForAction();
+            this.logger.info("edit modal opened", { event: "modal-opened", bookingId: booking.bookingId });
 
             const changed = await run(page, modal);
 
             if (changed) {
                 await saveReservation(page);
                 await openReservationDetail(page, booking.bookingId);
-                return { saved: true, players: await readDetailPlayers(page) };
+                const players = await readDetailPlayers(page);
+                this.logger.info("reservation saved", {
+                    event: "modal-saved",
+                    bookingId: booking.bookingId,
+                    players: players.length,
+                });
+                return { saved: true, players };
             }
 
             await closeModal(page);
+            this.logger.info("edit modal closed unsaved", {
+                event: "modal-closed",
+                bookingId: booking.bookingId,
+            });
             return { saved: false, players: booking.players };
         } finally {
             await page.close().catch(() => undefined);
@@ -337,7 +416,7 @@ export class CourtReserveClient {
 
         const { saved, players: finalPlayers } = await this.withEditModal(booking, async (page, modal) => {
             const roster = await readModalPlayers(modal);
-            await runAddLoop(page, modal, players, roster, result);
+            await runAddLoop(page, modal, players, roster, result, this.logger);
             return result.added.length > 0;
         });
 
@@ -368,7 +447,7 @@ export class CourtReserveClient {
         };
 
         const { saved, players: finalPlayers } = await this.withEditModal(booking, async (_page, modal) => {
-            await runRemoveLoop(modal, players, result);
+            await runRemoveLoop(modal, players, result, this.logger);
             return result.removed.length > 0;
         });
 
@@ -394,12 +473,12 @@ export class CourtReserveClient {
         const addLoop: AddLoopResult = { added: [], skipped: [], failed: [] };
 
         const { saved, players: finalPlayers } = await this.withEditModal(booking, async (page, modal) => {
-            await runRemoveLoop(modal, playersToRemove, removeLoop);
+            await runRemoveLoop(modal, playersToRemove, removeLoop, this.logger);
 
             // Seed the add loop from the post-removal roster. Using the opening
             // snapshot here would report a just-removed player as already-added.
             const roster = await readModalPlayers(modal);
-            await runAddLoop(page, modal, playersToAdd, roster, addLoop);
+            await runAddLoop(page, modal, playersToAdd, roster, addLoop, this.logger);
 
             return removeLoop.removed.length > 0 || addLoop.added.length > 0;
         });
