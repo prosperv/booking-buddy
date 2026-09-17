@@ -1,6 +1,7 @@
 import { Page } from "playwright";
 import { courtReserveLoginUrl } from "./constants";
 import { humanClick } from "./interactions";
+import { loggerFor } from "./log-context";
 import { navigateTo } from "./navigation";
 
 /**
@@ -20,10 +21,13 @@ const LOGIN_REDIRECT_TIMEOUT_MS = 10_000;
  */
 export async function isLoggedIn(page: Page): Promise<boolean> {
     if (!page.url().includes("/Online/Bookings/List/")) {
+        loggerFor(page).debug("login state", { event: "login-state", loggedIn: false, reason: "not-on-bookings-list" });
         return false;
     }
     const loginButton = page.locator('a[href*="/Online/Account/LogIn/"]');
-    return (await loginButton.count()) === 0;
+    const loggedIn = (await loginButton.count()) === 0;
+    loggerFor(page).debug("login state", { event: "login-state", loggedIn });
+    return loggedIn;
 }
 
 /**
@@ -39,9 +43,11 @@ export async function loginWithCredentials(
     password: string,
 ): Promise<void> {
     await navigateTo(page, courtReserveLoginUrl, "CourtReserve Login");
+    loggerFor(page).info("navigate to login", { event: "navigate", url: courtReserveLoginUrl });
 
     await page.locator('input[name="email"]').fill(username);
     await page.locator('input[name="password"]').fill(password);
+    loggerFor(page).info("click Continue (submit login)", { event: "click", target: "Continue", username });
     await humanClick(page.getByTestId("Continue"));
 
     try {
@@ -50,6 +56,8 @@ export async function loginWithCredentials(
             { timeout: LOGIN_REDIRECT_TIMEOUT_MS },
         );
     } catch {
+        loggerFor(page).error("login failed", { event: "login-failed", username });
         throw new Error("Login failed: the page did not leave the login screen (bad credentials?).");
     }
+    loggerFor(page).info("login submitted", { event: "login-submitted", username });
 }

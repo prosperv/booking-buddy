@@ -1,6 +1,6 @@
 import { CourtReserveClient, createLogger, defaultLogFile, resolveLogDir, type Logger } from "../src";
-import { loadConfig, enabledJobs } from "./config";
-import { loadRosterFile, formatDateKey } from "./csv";
+import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
+import { loadRosterFile, formatDateKey, type RosterSet } from "./csv";
 import { runEnsureRoster } from "./ensure-roster";
 import path from "node:path";
 
@@ -56,11 +56,33 @@ function parseArgs(argv: string[]): Args {
     return args;
 }
 
-async function runRosterTest(configPath: string, jobName?: string): Promise<void> {
-    const config = loadConfig(configPath);
-    const jobs = enabledJobs(config, jobName);
+async function runRosterTest(configPath: string, jobName: string | undefined, logger: Logger): Promise<void> {
+    let config: BotConfig;
+    let jobs: JobConfig[];
+    try {
+        config = loadConfig(configPath);
+        jobs = enabledJobs(config, jobName);
+    } catch (err) {
+        logger.error(`roster-test: config error: ${err instanceof Error ? err.message : err}`, {
+            event: "config-error",
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+        });
+        throw err;
+    }
     for (const job of jobs) {
-        const rosterSet = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
+        let rosterSet: RosterSet;
+        try {
+            rosterSet = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
+        } catch (err) {
+            logger.error(`roster-test: roster error: ${err instanceof Error ? err.message : err}`, {
+                event: "roster-error",
+                job: job.name,
+                message: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+            });
+            throw err;
+        }
         console.log(`[job "${job.name}"] ${rosterSet.rosters.length} roster(s):`);
         for (const roster of rosterSet.rosters) {
             const when = [formatDateKey(roster.date), roster.startTime].filter(Boolean).join(" ");
@@ -74,7 +96,16 @@ async function runRosterTest(configPath: string, jobName?: string): Promise<void
 
 async function runCheckAuth(logger: Logger): Promise<boolean> {
     const client = new CourtReserveClient();
-    await client.init();
+    try {
+        await client.init();
+    } catch (err) {
+        logger.error(`check-auth: client init failed: ${err instanceof Error ? err.message : err}`, {
+            event: "init-failed",
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+        });
+        return false;
+    }
     try {
         if (await client.isLoggedIn()) {
             logger.info("check-auth OK: logged in.", { event: "check-auth-ok" });
@@ -106,7 +137,7 @@ async function main(): Promise<void> {
             return;
         }
         case "roster-test":
-            await runRosterTest(args.config, args.job);
+            await runRosterTest(args.config, args.job, logger);
             return;
         case "check-auth":
             if (!(await runCheckAuth(logger))) process.exitCode = 1;

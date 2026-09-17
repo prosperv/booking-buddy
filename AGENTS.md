@@ -104,6 +104,30 @@ no CI.
 - The destination is created lazily on first write, so constructing a client
   (or `createLogger`) never creates files — unit tests don't need to set
   `logPath: false`.
+- `src/log-context.ts` attaches the client's logger to every `Page` in its
+  context (`attachLoggerToContext`, called from `init()`); the action and
+  feedback helpers resolve it via `loggerFor(page)` (falling back to a silent
+  no-op logger) so they can log without taking a logger parameter. User actions
+  are logged as `info` *at the call sites* of `humanClick`/`navigateTo` (not
+  inside them), phrased as instructions — `click Edit Reservation`, `navigate
+  to reservation detail`, `click remove member`, `click Save`, `typed search`,
+  `login submitted`, `bookings scraped` — so the log reads like the sequence of
+  steps performed. Webpage feedback is logged as `debug` at the read sites:
+  `member-search results`, `roster read`, `player verified`, `login state`.
+- Failure paths are logged (then rethrown/returned) rather than silently
+  dropped: `init-failed`, `save-auth-failed`, `session-not-saved` (warn),
+  `save-timeout`/`save-failed`, `detail-load-failed`, `modal-open-failed`,
+  `confirm-dialog-timeout`, `member-search-timeout`, `filter-failed`, and the
+  bot's `config-error`/`roster-error`/`init-failed`. Precondition guards
+  (`"Client not initialized"`, missing `bookingId`) deliberately stay unlogged —
+  logging them would create `log/` files during the no-browser unit tests.
+- On an `error`-level failure, the code also captures an HTML snapshot of the
+  page (`src/capture.ts` `captureFailure` → `page.content()`) into
+  `<logDir>/failures/failure-<timestamp>.html` and records its path in the log
+  line's `snapshot` field, so a failure is matched to its snapshot. Snapshotting
+  follows the same enable/disable switch as file logging (`logPath: false`
+  disables it) and is skipped when there is no page (bot config/roster errors)
+  or for `warn`-level paths. A failed snapshot never masks the original error.
 
 ## Testing
 - Unit tests (no browser) live at the top level of each test root:

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { CourtReserveClient, type Logger } from "../src";
-import { loadConfig, enabledJobs, type JobConfig } from "./config";
+import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
 import { loadRosterFile, formatDateKey, type Roster } from "./csv";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
@@ -102,8 +102,20 @@ export async function runEnsureRoster(
     options: RunOptions,
     logger: Logger,
 ): Promise<boolean> {
-    const config = loadConfig(configPath);
-    const jobs = enabledJobs(config, options.job);
+    let config: BotConfig;
+    let jobs: JobConfig[];
+    try {
+        config = loadConfig(configPath);
+        jobs = enabledJobs(config, options.job);
+    } catch (err) {
+        logger.error(`ensure-roster: config error: ${err instanceof Error ? err.message : err}`, {
+            event: "config-error",
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+        });
+        return false;
+    }
+
     const mode = options.dryRun ? "DRY-RUN" : "RUN";
 
     logger.info(`ensure-roster [${mode}] ${jobs.length} job(s)`, {
@@ -113,7 +125,16 @@ export async function runEnsureRoster(
     });
 
     const client = new CourtReserveClient({ headless: options.headless ?? true });
-    await client.init();
+    try {
+        await client.init();
+    } catch (err) {
+        logger.error(`ensure-roster: client init failed: ${err instanceof Error ? err.message : err}`, {
+            event: "init-failed",
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+        });
+        return false;
+    }
     let ok = true;
     try {
         if (!(await client.isLoggedIn())) {
@@ -123,6 +144,7 @@ export async function runEnsureRoster(
 
         for (const job of jobs) {
             try {
+                
                 const rosterSet = loadRosterFile(rosterPath(configPath, job));
                 if (rosterSet.rosters.length === 0) {
                     throw new Error(`no rosters found in roster for job "${job.name}"`);

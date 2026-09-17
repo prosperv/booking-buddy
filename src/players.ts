@@ -1,6 +1,8 @@
-import { Locator, Page } from "playwright";
+import { Locator, Page, type Response } from "playwright";
 import { courtReserveOrgId, courtReserveUrl, courtReserveUpdateMyReservationUrl } from "./constants";
+import { captureFailure } from "./capture";
 import { humanClick } from "./interactions";
+import { loggerFor } from "./log-context";
 import { navigateTo } from "./navigation";
 import { delay, pauseForAction } from "./utils";
 
@@ -114,7 +116,19 @@ export function reservationDetailUrl(bookingId: string): string {
 
 export async function openReservationDetail(page: Page, bookingId: string): Promise<void> {
     await navigateTo(page, reservationDetailUrl(bookingId), "CourtReserve Reservation Detail");
-    await page.getByTestId("btn-update-reservation").waitFor({ state: "visible" });
+    loggerFor(page).info("navigate to reservation detail", { event: "navigate", bookingId });
+    try {
+        await page.getByTestId("btn-update-reservation").waitFor({ state: "visible" });
+    } catch (err) {
+        const snapshot = await captureFailure(page);
+        loggerFor(page).error(`reservation detail did not load: ${err instanceof Error ? err.message : err}`, {
+            event: "detail-load-failed",
+            bookingId,
+            message: err instanceof Error ? err.message : String(err),
+            snapshot,
+        });
+        throw err;
+    }
 }
 
 /**
@@ -124,10 +138,21 @@ export async function openReservationDetail(page: Page, bookingId: string): Prom
  */
 export async function openEditReservationModal(page: Page): Promise<Locator> {
     const editReservationButton = page.getByTestId("btn-update-reservation");
+    loggerFor(page).info("click Edit Reservation", { event: "click", target: "Edit Reservation" });
     await humanClick(editReservationButton);
 
     const modal = page.getByTestId("update-reservation-modal");
-    await modal.waitFor({ state: "visible" });
+    try {
+        await modal.waitFor({ state: "visible" });
+    } catch (err) {
+        const snapshot = await captureFailure(page);
+        loggerFor(page).error(`edit modal did not open: ${err instanceof Error ? err.message : err}`, {
+            event: "modal-open-failed",
+            message: err instanceof Error ? err.message : String(err),
+            snapshot,
+        });
+        throw err;
+    }
     return modal;
 }
 
@@ -138,7 +163,16 @@ export async function readModalPlayers(modal: Locator): Promise<string[]> {
     return modal
         .locator('[data-testid="member-table"] [data-testid="player-fullname"]')
         .allTextContents()
-        .then((names) => names.map((n) => n.replace(/\s+/g, " ").trim()));
+        .then((names) => {
+            const players = names.map((n) => n.replace(/\s+/g, " ").trim());
+            loggerFor(modal.page()).debug("roster read", {
+                event: "roster-read",
+                source: "modal",
+                count: players.length,
+                players,
+            });
+            return players;
+        });
 }
 
 export type RemoveMemberOutcome =
@@ -167,6 +201,11 @@ export async function removeMemberFromModal(modal: Locator, name: string): Promi
         return { status: "not-removable", name: match.name };
     }
 
+    loggerFor(modal.page()).info("click remove member", {
+        event: "click",
+        target: "remove member",
+        name: match.name,
+    });
     await humanClick(removeButton);
     return { status: "removed", name: match.name };
 }
@@ -179,10 +218,20 @@ export async function readDetailPlayers(page: Page): Promise<string[]> {
     return page
         .locator('[data-testid="players-table"] [data-testid="player-name"]')
         .allTextContents()
-        .then((names) => names.map((n) => n.replace(/\s+/g, " ").trim()));
+        .then((names) => {
+            const players = names.map((n) => n.replace(/\s+/g, " ").trim());
+            loggerFor(page).debug("roster read", {
+                event: "roster-read",
+                source: "detail",
+                count: players.length,
+                players,
+            });
+            return players;
+        });
 }
 
 export async function typePlayerSearch(modal: Locator, name: string): Promise<void> {
+    loggerFor(modal.page()).info("typed search", { event: "typed-search", name });
     const input = modal.locator('input[name="OwnersDropdown_input"]');
     await input.press("ControlOrMeta+A");
     await input.press("Delete");
@@ -194,22 +243,46 @@ export async function typePlayerSearch(modal: Locator, name: string): Promise<vo
  * "no data" state, then returns the visible option names in order.
  */
 export async function readPlayerOptions(page: Page): Promise<string[]> {
-    await page.waitForFunction(() => {
-        const input = document.querySelector<HTMLInputElement>('input[name="OwnersDropdown_input"]');
-        const busy = input?.getAttribute("aria-busy") === "true";
-        const items = document.querySelectorAll("#OwnersDropdown_listbox li.k-list-item");
-        const noData = document.querySelector("#OwnersDropdown-list .k-no-data");
-        if (busy) return false;
-        return items.length > 0 || (noData !== null && getComputedStyle(noData).display !== "none");
-    });
+    try {
+        await page.waitForFunction(() => {
+            const input = document.querySelector<HTMLInputElement>('input[name="OwnersDropdown_input"]');
+            const busy = input?.getAttribute("aria-busy") === "true";
+            const items = document.querySelectorAll("#OwnersDropdown_listbox li.k-list-item");
+            const noData = document.querySelector("#OwnersDropdown-list .k-no-data");
+            if (busy) return false;
+            return items.length > 0 || (noData !== null && getComputedStyle(noData).display !== "none");
+        });
+    } catch (err) {
+        const snapshot = await captureFailure(page);
+        loggerFor(page).error(`member-search dropdown did not appear: ${err instanceof Error ? err.message : err}`, {
+            event: "member-search-timeout",
+            message: err instanceof Error ? err.message : String(err),
+            snapshot,
+        });
+        throw err;
+    }
 
     return page
         .locator("#OwnersDropdown_listbox li.k-list-item")
-        .evaluateAll((els) => els.map((el) => (el.textContent ?? "").replace(/\s+/g, " ").trim()));
+        .evaluateAll((els) => els.map((el) => (el.textContent ?? "").replace(/\s+/g, " ").trim()))
+        .then((options) => {
+            const logger = loggerFor(page);
+            if (options.length === 0) {
+                logger.debug("member-search results", { event: "member-search", count: 0, options: [] });
+            } else {
+                logger.debug("member-search results", {
+                    event: "member-search",
+                    count: options.length,
+                    options,
+                });
+            }
+            return options;
+        });
 }
 
 export async function selectPlayerOption(page: Page, index: number): Promise<void> {
     const option = page.locator("#OwnersDropdown_listbox li.k-list-item").nth(index);
+    loggerFor(page).info("click player option", { event: "click", target: "player option", index });
     await humanClick(option);
 }
 
@@ -228,10 +301,20 @@ export async function verifyPlayerAdded(
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         if (matchRosterPlayer(await readModalPlayers(modal), name).status === "exact") {
+            loggerFor(modal.page()).debug("player verified", {
+                event: "player-verified",
+                name,
+                added: true,
+            });
             return true;
         }
         await delay(200);
     }
+    loggerFor(modal.page()).debug("player verified", {
+        event: "player-verified",
+        name,
+        added: false,
+    });
     return false;
 }
 
@@ -243,7 +326,18 @@ export async function verifyPlayerAdded(
  */
 export async function confirmAddPlayer(page: Page): Promise<void> {
     const dialog = page.locator(".swal2-container");
-    await dialog.waitFor({ state: "visible" });
+    try {
+        await dialog.waitFor({ state: "visible" });
+    } catch (err) {
+        const snapshot = await captureFailure(page);
+        loggerFor(page).error(`confirmation dialog did not appear: ${err instanceof Error ? err.message : err}`, {
+            event: "confirm-dialog-timeout",
+            message: err instanceof Error ? err.message : String(err),
+            snapshot,
+        });
+        throw err;
+    }
+    loggerFor(page).info("click Yes on confirmation", { event: "click", target: "confirm add" });
     await humanClick(dialog.locator("button.swal2-confirm"));
 }
 
@@ -263,6 +357,7 @@ export async function closeReservationConfirmation(page: Page): Promise<void> {
     } catch {
         return;
     }
+    loggerFor(page).info("click Close on confirmation", { event: "click", target: "dismiss confirmation" });
     await humanClick(confirmation.getByTestId("Close"));
 }
 
@@ -280,17 +375,44 @@ export async function saveReservation(page: Page): Promise<void> {
             response.request().method() === "POST",
     );
 
+    loggerFor(page).info("click Save", { event: "click", target: "Save" });
     await humanClick(page.getByTestId("Save"));
 
-    const response = await responsePromise;
+    let response: Response;
+    try {
+        response = await responsePromise;
+    } catch (err) {
+        const snapshot = await captureFailure(page);
+        loggerFor(page).error(`save request never completed: ${err instanceof Error ? err.message : err}`, {
+            event: "save-timeout",
+            message: err instanceof Error ? err.message : String(err),
+            snapshot,
+        });
+        throw err;
+    }
     if (!response.ok()) {
+        const snapshot = await captureFailure(page);
+        loggerFor(page).error("save failed", {
+            event: "save-failed",
+            status: response.status(),
+            statusText: response.statusText(),
+            url: response.url(),
+            snapshot,
+        });
         throw new Error(`Saving the reservation failed: ${response.status()} ${response.statusText()}`);
     }
+
+    loggerFor(page).info("reservation saved", {
+        event: "save",
+        status: response.status(),
+        url: response.url(),
+    });
 
     await closeReservationConfirmation(page);
 }
 
 export async function closeModal(page: Page): Promise<void> {
+    loggerFor(page).info("click Close", { event: "click", target: "Close" });
     await humanClick(page.getByTestId("Close"));
     await pauseForAction();
 }

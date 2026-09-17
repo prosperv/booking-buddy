@@ -1,5 +1,6 @@
 import { Locator, Page } from "playwright";
 import { humanClick } from "./interactions";
+import { loggerFor } from "./log-context";
 import { parseDatetime, parseCourt, parsePlayers, parseBookingId } from "./parsers";
 import { Booking, BookingFilters, BookingSession } from "./types";
 
@@ -80,6 +81,12 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
         }
     }
 
+    loggerFor(page).info("bookings scraped", {
+        event: "bookings-scraped",
+        cards: count,
+        editable: bookingSessions.length,
+    });
+
     return bookingSessions;
 }
 
@@ -145,5 +152,6 @@ export function filterBookings<T extends Booking>(bookings: T[], filters?: Booki
 
 export async function editBooking(page: Page): Promise<void> {
     const editReservationButton = page.getByTestId("details-btn");
+    loggerFor(page).info("click Edit Reservation", { event: "click", target: "Edit Reservation" });
     await humanClick(editReservationButton);
 }

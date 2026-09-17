@@ -1,5 +1,6 @@
 import { BrowserContext, Page } from "playwright";
 import { authPath, googleUrl } from "./constants";
+import { loggerFor } from "./log-context";
 import { pauseForAction, waitForEnter } from "./utils";
 import { navigateTo } from "./navigation";
 import { isLoggedIn } from "./login";
@@ -7,6 +8,7 @@ import { isLoggedIn } from "./login";
 export async function manualLogin(context: BrowserContext, authPathOverride?: string): Promise<void> {
     const page = await context.newPage();
     await navigateTo(page, googleUrl, "Google page");
+    loggerFor(page).info("navigate to Google for manual login", { event: "navigate", url: googleUrl });
     await waitForEnter();
     const path = authPathOverride ?? authPath;
     await context.storageState({ path });
@@ -29,9 +31,19 @@ export async function saveAuthIfLoggedIn(
     authPathOverride?: string,
 ): Promise<boolean> {
     if (!page || page.isClosed()) {
+        if (page) {
+            loggerFor(page).warn("session not persisted", {
+                event: "session-not-saved",
+                reason: "page-closed",
+            });
+        }
         return false;
     }
     if (!(await isLoggedIn(page))) {
+        loggerFor(page).warn("session not persisted", {
+            event: "session-not-saved",
+            reason: "not-logged-in",
+        });
         return false;
     }
     await context.storageState({ path: authPathOverride ?? authPath });

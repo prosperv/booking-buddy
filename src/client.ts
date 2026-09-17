@@ -1,3 +1,4 @@
+import path from "node:path";
 import { BrowserContext, Locator, Page } from "playwright";
 import {
     AddPlayersResult,
@@ -19,6 +20,8 @@ import { fileExists, pauseForAction } from "./utils";
 import { collectBookingSessions, filterBookings } from "./booking";
 import { isLoggedIn, loginWithCredentials } from "./login";
 import { createLogger, defaultLogFile, resolveLogDir, type Logger } from "./logger";
+import { attachLoggerToContext } from "./log-context";
+import { captureFailure } from "./capture";
 import {
     closeModal,
     confirmAddPlayer,
@@ -170,6 +173,7 @@ export class CourtReserveClient {
     private page?: Page;
     private options: ResolvedClientOptions;
     private logger: Logger;
+    private captureDir?: string;
     private initialized = false;
     private closing = false;
     private sigintHandler?: () => void;
@@ -185,6 +189,10 @@ export class CourtReserveClient {
             debugPause: options?.debugPause ?? false,
         };
         this.logger = this.buildLogger(options?.logPath, options?.logLevel);
+        this.captureDir =
+            options?.logPath === false
+                ? undefined
+                : path.join(resolveLogDir(options?.logPath), "failures");
     }
 
     private buildLogger(logPath: string | false | undefined, logLevel?: string): Logger {
@@ -203,24 +211,37 @@ export class CourtReserveClient {
             authPath: this.options.authPath,
             profileDir: this.options.profileDir,
         });
-        this.context = await launchPersistentContext(this.options.headless, this.options.profileDir);
-        this.registerShutdownHandlers();
+        try {
+            this.context = await launchPersistentContext(this.options.headless, this.options.profileDir);
+            attachLoggerToContext(this.context, this.logger, this.captureDir);
+            this.registerShutdownHandlers();
 
-        const hasSavedAuth = await fileExists(this.options.authPath);
-        if (this.options.manualLogin || !hasSavedAuth) {
-            this.logger.info("manual login", { event: "manual-login" });
-            await manualLogin(this.context, this.options.authPath);
-        } else {
-            this.logger.info("restoring saved auth", { event: "restore-auth" });
-            await restoreAuth(this.context, this.options.authPath);
-        }
+            const hasSavedAuth = await fileExists(this.options.authPath);
+            if (this.options.manualLogin || !hasSavedAuth) {
+                this.logger.info("manual login", { event: "manual-login" });
+                await manualLogin(this.context, this.options.authPath);
+            } else {
+                this.logger.info("restoring saved auth", { event: "restore-auth" });
+                await restoreAuth(this.context, this.options.authPath);
+            }
 
-        this.page = await this.context.newPage();
-        await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
-        this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl });
+            this.page = await this.context.newPage();
+            this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
+            await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
+            this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl });
 
-        if (this.options.debugPause) {
-            await this.page.pause();
+            if (this.options.debugPause) {
+                await this.page.pause();
+            }
+        } catch (err) {
+            const snapshot = this.page ? await captureFailure(this.page) : undefined;
+            this.logger.error(`init failed: ${err instanceof Error ? err.message : err}`, {
+                event: "init-failed",
+                message: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+                snapshot,
+            });
+            throw err;
         }
     }
 
@@ -233,7 +254,13 @@ export class CourtReserveClient {
         try {
             if (this.context) {
                 await saveAuthIfLoggedIn(this.context, this.page, this.options.authPath).catch(
-                    () => false,
+                    (err) => {
+                        this.logger.warn(`save auth failed: ${err instanceof Error ? err.message : err}`, {
+                            event: "save-auth-failed",
+                            message: err instanceof Error ? err.message : String(err),
+                        });
+                        return false;
+                    },
                 );
                 await closeBrowserContext(this.context);
             }
@@ -302,7 +329,19 @@ export class CourtReserveClient {
         }
 
         const bookingSessions = await collectBookingSessions(this.page);
-        const filtered = filters ? filterBookings(bookingSessions, filters) : bookingSessions;
+        let filtered: BookingSession[];
+        try {
+            filtered = filters ? filterBookings(bookingSessions, filters) : bookingSessions;
+        } catch (err) {
+            const snapshot = await captureFailure(this.page);
+            this.logger.error(`filter bookings failed: ${err instanceof Error ? err.message : err}`, {
+                event: "filter-failed",
+                message: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+                snapshot,
+            });
+            throw err;
+        }
         return filtered.map((session) => {
             const { page: _, ...booking } = session;
             return booking;
@@ -334,6 +373,7 @@ export class CourtReserveClient {
 
         await loginWithCredentials(this.page, username, password);
         await this.context.storageState({ path: this.options.authPath });
+        this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
         await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
         this.logger.info("logged in with credentials", { event: "login-credentials" });
     }
