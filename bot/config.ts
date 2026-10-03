@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import { normalizePlayerName } from "../src/players";
+import type { NameMap } from "./name-map";
 
 export type JobMatch = {
     weekday?: string;
@@ -44,6 +46,11 @@ export type ServiceAccountKey = {
 
 export type BotConfig = {
     jobs: JobConfig[];
+    /**
+     * Roster name -> CourtReserve member name, for members who registered
+     * under a modified name because theirs was not unique. Global to every job.
+     */
+    nameMap?: NameMap;
     google?: { serviceAccount: ServiceAccountKey };
 };
 
@@ -62,7 +69,8 @@ export function spreadsheetIdFrom(sheet: string): string {
  * Validates an already-parsed config object, returning a normalized shape with
  * defaults applied (`enabled` true, `match` undefined when absent,
  * `courtCapacity` defaulting to `DEFAULT_COURT_CAPACITY`, `organizer` omitted
- * when absent). Throws `ConfigError`
+ * when absent, `nameMap` keys normalized and the whole block omitted when
+ * absent). Throws `ConfigError`
  * with a path-like message for anything malformed so mistakes in
  * `bot.config.json` fail loudly instead of silently skipping jobs.
  */
@@ -71,7 +79,7 @@ export function validateConfig(raw: unknown): BotConfig {
         throw new ConfigError("config must be a JSON object");
     }
 
-    const root = raw as { jobs?: unknown; google?: unknown };
+    const root = raw as { jobs?: unknown; google?: unknown; nameMap?: unknown };
     if (!Array.isArray(root.jobs) || root.jobs.length === 0) {
         throw new ConfigError("config.jobs must be a non-empty array");
     }
@@ -94,6 +102,38 @@ export function validateConfig(raw: unknown): BotConfig {
             throw new ConfigError("config.google.serviceAccount.private_key must be a non-empty string");
         }
         google = { serviceAccount: key as ServiceAccountKey };
+    }
+
+    // A roster name -> CourtReserve member name map. Keys are normalized,
+    // which is how they are looked up at plan time, so two entries that differ
+    // only in case or whitespace are rejected rather than one silently shadowing
+    // the other. Values keep the casing they are written in: the value is what
+    // gets typed into the member search and logged.
+    let nameMap: NameMap | undefined;
+    if (root.nameMap !== undefined) {
+        if (!root.nameMap || typeof root.nameMap !== "object" || Array.isArray(root.nameMap)) {
+            throw new ConfigError("config.nameMap must be an object mapping a roster name to a member name");
+        }
+        const entries: Record<string, string> = {};
+        for (const [from, to] of Object.entries(root.nameMap as Record<string, unknown>)) {
+            if (from.trim() === "") {
+                throw new ConfigError("config.nameMap has an entry with an empty key");
+            }
+            if (typeof to !== "string" || to.trim() === "") {
+                throw new ConfigError(`config.nameMap["${from}"] must be a non-empty string`);
+            }
+            const key = normalizePlayerName(from);
+            if (key === normalizePlayerName(to)) {
+                throw new ConfigError(`config.nameMap["${from}"] maps a name to itself`);
+            }
+            if (entries[key] !== undefined) {
+                throw new ConfigError(
+                    `config.nameMap has two entries for the same name once normalized: "${from}"`,
+                );
+            }
+            entries[key] = to.trim();
+        }
+        nameMap = entries;
     }
 
     const seenNames = new Set<string>();
@@ -202,7 +242,7 @@ export function validateConfig(raw: unknown): BotConfig {
         );
     }
 
-    return { jobs, ...(google ? { google } : {}) };
+    return { jobs, ...(google ? { google } : {}), ...(nameMap ? { nameMap } : {}) };
 }
 
 /** Reads, parses, and validates a config file, throwing `ConfigError` on any failure. */

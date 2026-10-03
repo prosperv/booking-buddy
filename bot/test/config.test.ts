@@ -200,6 +200,50 @@ describe("validateConfig", () => {
     });
 });
 
+describe("validateConfig nameMap", () => {
+    const config = (nameMap: unknown) =>
+        validateConfig({
+            nameMap,
+            jobs: [{ name: "t", session: { roster: "r.csv" } }],
+        });
+
+    it("normalizes the keys and keeps the member name as written", () => {
+        expect(config({ "  Riley   Poe ": " Lee Zii Jia " }).nameMap).toEqual({
+            "riley poe": "Lee Zii Jia",
+        });
+    });
+
+    it("omits the map entirely when it is absent", () => {
+        const bare = validateConfig({ jobs: [{ name: "t", session: { roster: "r.csv" } }] });
+        expect("nameMap" in bare).toBe(false);
+    });
+
+    it("rejects a non-object map", () => {
+        expect(() => config("Riley Poe")).toThrow(ConfigError);
+        expect(() => config(null)).toThrow(ConfigError);
+        expect(() => config([{ from: "Riley Poe" }])).toThrow(/nameMap/);
+    });
+
+    it("rejects a non-string or empty member name", () => {
+        expect(() => config({ "Riley Poe": 42 })).toThrow(/nameMap/);
+        expect(() => config({ "Riley Poe": "   " })).toThrow(/nameMap/);
+    });
+
+    it("rejects an empty roster name", () => {
+        expect(() => config({ "   ": "Lee Zii Jia" })).toThrow(/nameMap/);
+    });
+
+    it("rejects a name mapped to itself, which would silently do nothing", () => {
+        expect(() => config({ "Riley Poe": "riley  POE" })).toThrow(/itself/);
+    });
+
+    it("rejects two entries that normalize to the same name", () => {
+        expect(() => config({ "Riley Poe": "Lee Zii Jia", "RILEY  poe": "Lee Zii Jiaa" })).toThrow(
+            /normalized/,
+        );
+    });
+});
+
 describe("enabledJobs", () => {
     const config = validateConfig({
         jobs: [
