@@ -36,8 +36,9 @@ the two `tsc` commands below, so nothing else catches a mistake.
   never `npm ci`, and don't try to commit the lockfile.
 
 ## The `bot/` (ensure-roster)
-Full prose lives in `bot/README.md` and `bot/FEATURE-LIST.md` — read those
-before changing bot behavior. What's load-bearing here:
+Full prose lives in `bot/README.md`, with a feature tree in `bot/FEATURE.md`
+(the library has its own at `FEATURE.md`) — read those before changing bot
+behavior. What's load-bearing here:
 - `bot/index.ts` dispatches three commands: `ensure-roster`, `roster-test`
   (print parsed rosters, no browser), `check-auth`. Flags: `--dry-run` (plans
   only, never opens the edit modal), `--job <name>`, `--headed` (default is

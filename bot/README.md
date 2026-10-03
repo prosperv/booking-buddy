@@ -10,7 +10,8 @@ source of truth, and the organizer is never removed, so it is safe to run on a
 schedule.
 
 It runs on top of the [`CourtReserveClient`](../src/client.ts) library in this
-repo and is driven by [`bot.config.json`](#configuration).
+repo and is driven by [`bot.config.json`](#configuration). A feature tree of
+what the bot implements lives in [`FEATURE.md`](FEATURE.md).
 
 ## Sessions
 

@@ -2,6 +2,9 @@
 
 This project automates court sign-ups for the Bellevue Badminton Club.
 
+A feature tree of what is implemented lives in [`FEATURE.md`](FEATURE.md) for
+the library and [`bot/FEATURE.md`](bot/FEATURE.md) for the `ensure-roster` bot.
+
 ## Setup
 
 1. Make sure Node.js 20 or newer and npm are installed.
