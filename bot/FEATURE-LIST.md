@@ -3,7 +3,7 @@
 ## CLI
 - **Commands**
   - `ensure-roster` — reconcile each job's roster with its matching bookings
-  - `roster-test` — print parsed roster per date (no browser), marking the session the next run would edit
+  - `roster-test` — print parsed roster per date (no browser), marking the session the next run would edit, and showing each name's mapped CourtReserve name when `nameMap` applies
   - `check-auth` — verify saved CourtReserve session still works (via `isLoggedIn()`)
 - **Options**
   - `--job <name>` — restrict to a single job
@@ -21,8 +21,9 @@
   - `roster` — a local CSV path (relative to config) or a Google Sheet object `{ sheet: "<url|id>", range? }`
   - `courtCapacity` — default 6, includes organizer
   - `organizer` — name never added/removed
+- **Player name map** — global `nameMap` of roster name -> CourtReserve member name, for members who registered under a unique modified name (`bot/name-map.ts`)
 - **Google Sheets** — `google.serviceAccount` (inline key) is required when a job uses a sheet; `bot/sheets.ts` reads the roster spreadsheet's **month tabs** (this month + next, matched leniently by `parseMonthTitle`/`pickMonthTabs`, non-month tabs ignored) and re-serializes each via `matrixToCsv` into `parseRoster`; an explicit `range` bypasses tab selection
-- **Validation** — strict schema validation with descriptive `ConfigError`s (duplicate names, malformed fields, missing jobs, missing service account for sheet jobs)
+- **Validation** — strict schema validation with descriptive `ConfigError`s (duplicate names, malformed fields, missing jobs, missing service account for sheet jobs, `nameMap` self-mapping or colliding keys)
 
 ## Roster CSV (`bot/csv.ts`)
 - **Format-agnostic API** — `parseRoster` auto-detects the format and returns a `RosterSet` of dated `Roster`s (`date`, optional `year`/`startTime`/`tab`, `players`); `RosterSet.find(date)` (by month/day) and `RosterSet.next(from, {startTime?})` (closest upcoming session) are the stable lookups
@@ -42,13 +43,14 @@
   - Organizer (and "on every court" names) never removed
 - **Name classification** — satisfied (on every court), already-placed (on some courts, left alone to avoid churn), too-short (search-ineligible), overflow (exceeds free slots)
 - **Slot reuse** — removals free capacity, so a dropped player's court absorbs a replacement in the same run
+- **Name map** — with a `nameMap`, court/roster/organizer names are compared by `playerIdentity`, so either side of a mapping is the same player (no double-add, no spurious removal); only the searched name is mapped, and searchability is tested on the mapped name
 
 ## Execution (`bot/ensure-roster.ts`)
 - Bail after `init()` when `isLoggedIn()` is false (stale/expired session)
 - Per-job run with isolated error handling (one job's failure doesn't stop others)
 - One session per run: the job's closest upcoming roster is reconciled (a `match.startTime` narrows it to that slot), the rest logged as deferred; nothing upcoming is reported, and a selected roster with no booking is reported
 - An empty roster stays authoritative (courts are cleared) but is logged as `empty-roster` first, since a month tab's future blocks start out unfilled
-- Structured per-session/court logging (add/remove/already-placed/satisfied/overflow)
+- Structured per-session/court logging (add/remove/already-placed/satisfied/overflow), plus a `name-mapped` line tracing roster names to the CourtReserve names searched for them
 - Live apply via `swapPlayersOnBooking` (one edit-modal save per court), logging `removed/added/skipped/failed`
 
 ## Scheduling (systemd)

@@ -1,34 +1,39 @@
 # AGENTS.md
 
 ## What this is
-TypeScript library that automates badminton court sign-ups at Bellevue
-Badminton Club by driving app.courtreserve.com with Playwright. Public
-entrypoint is `src/index.ts` (re-exports `CourtReserveClient` from
-`src/client.ts`). `bot/` is a CLI that uses the library to reconcile rosters.
-Plain TypeScript, CommonJS build, **no lint, no CI**.
+TypeScript library that automates badminton court sign-ups at Bellevue Badminton
+Club by driving app.courtreserve.com with Playwright. Public entrypoint is
+`src/index.ts` (re-exports `CourtReserveClient` from `src/client.ts`). `bot/` is
+a CLI that uses the library to reconcile rosters. Plain TypeScript, CommonJS
+build, Node >= 20. **No lint, no formatter, no CI** — the only static checks are
+the two `tsc` commands below, so nothing else catches a mistake.
 
 ## Commands
-- `npm run build` — `tsc` → `dist/`. Only typechecks `src/**` (tsconfig
-  `rootDir: src`) — it does **not** typecheck `test/`, `examples/`, or `bot/`.
-- `npx tsc --noEmit -p tsconfig.bot.json` — typechecks `bot/` + `src/`. This
-  is the only static check that exists, so run it after any `bot/` edit.
-- `npx vitest run` — full suite (unit **and** functional; needs Chromium, so
-  run `npm run playwright:install` once first). Currently 18 files / 268 tests.
-  One file: `npx vitest run test/players.test.ts`, one test: add `-t "<name>"`.
-- `npm run test:unit` — unit only, no browser. `npm run test:functional` — needs
-  Chromium.
-- `npm start` / `npx tsx examples/{usage,add-player,remove-player,swap-player}.ts`
-  — launch a real Chromium against the live site; needs a saved session. Never
-  in CI. `--force` / `-f` forces a fresh login; the examples all pass
-  `headless: false`.
-- `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.
+- `npm run build` — `tsc` → `dist/`. Typechecks **only** `src/**` (`tsconfig.json`
+  sets `rootDir: src`), so it does not cover `test/`, `examples/`, or `bot/`.
+- `npx tsc --noEmit -p tsconfig.bot.json` — typechecks `src/` + `bot/` (which
+  includes `bot/test/`). The only static check over bot code, so run it after any
+  `bot/` edit.
+- `npx vitest run` — full suite: 14 unit files / 236 tests plus 4 functional
+  files / 32 tests. Functional tests need Chromium (`npm run playwright:install`
+  once). Narrow with `npx vitest run test/players.test.ts`, add `-t "<name>"` for
+  one test, or `npx vitest run bot/test` for the bot only (4 files / 102 tests).
+- `npm run test:unit` (no browser) / `npm run test:functional` (needs Chromium).
 - `npm run test:coverage` is configured (v8) but `@vitest/coverage-v8` is not
-  installed, so it errors. Don't use it to verify a change.
+  installed, so it fails with `MISSING DEPENDENCY`. Don't use it to verify a change.
 - Every `vitest` run prints a `configLoader: 'native'` warning about ESM syntax
   in a CJS-loaded `vitest.config.ts`. Harmless — ignore it.
+- `npm start` / `npx tsx examples/{usage,add-player,remove-player,swap-player}.ts`
+  — launch a real Chromium against the live site; needs a saved session, and every
+  example forces `headless: false`. `--force` / `-f` forces a fresh login. Never in CI.
+- `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.
 
 ## Workflow
-- Commit incrementally as you go, especially when executing a multi-step plan.
+- Commit incrementally as you go, with Conventional Commit subjects
+  (`feat(nav):`, `fix(bot):`, `test(bot):`, `docs(bot):`, `chore(data):`) — that
+  matches the existing history.
+- `package-lock.json` is gitignored, so installs are unpinned: use `npm install`,
+  never `npm ci`, and don't try to commit the lockfile.
 
 ## The `bot/` (ensure-roster)
 Full prose lives in `bot/README.md` and `bot/FEATURE-LIST.md` — read those
@@ -57,12 +62,15 @@ before changing bot behavior. What's load-bearing here:
   tabs ignored), and `loadGoogleSheets` fetches them in one `values.batchGet`.
   An explicit `range` bypasses tab selection. Each tab is re-serialized by
   `matrixToCsv` and merged by `parseRosterAll`, which stamps each `Roster` with
-  its `tab` for logging. (`bot/rosters/example.csv` is the canonical format.)
+  its `tab` for logging. `batchGet` answers are paired **by request order** with
+  the echoed range only cross-checked (`pairTabValues`); a mismatch throws,
+  because an empty tab is otherwise indistinguishable from a failed read.
+  (`bot/rosters/example.csv` is the canonical format.)
 - `parseRoster` auto-detects **three** roster layouts — stacked signups export
   (a `▶` marker row), single event export (`Paid` + `Player Name` headers), and
   the legacy date-column — so a file and a sheet tab of the same shape parse
-  identically. Layouts are documented in `bot/README.md`; don't add a fourth
-  without routing it through `parseRoster`.
+  identically. Layouts are documented in `bot/README.md`; route any new layout
+  through `parseRoster` rather than adding a parallel parser.
 - A run reconciles **one session per job**: `RosterSet.next(now, {startTime?})`
   returns the closest upcoming roster (a dated one compared at its full date +
   start time, a year-less one at its next occurrence), so a run walks forward
@@ -77,6 +85,19 @@ before changing bot behavior. What's load-bearing here:
   never auto-added — so the organizer must already be booked onto every court
   or the split is wrong. A removal frees a slot, so a dropped player's court can
   absorb a replacement in the same run.
+- A top-level `nameMap` in `bot.config.json` maps a roster name to the member's
+  CourtReserve name (some members register under a modified name because theirs
+  isn't unique). `bot/name-map.ts` holds the two pure helpers: `mappedName`
+  (what to type into the member search) and `playerIdentity` (what to compare
+  by — alias chains followed, cycle-safe). `planSession` compares court, roster,
+  and organizer names by identity, so **either** side of a mapping counts as the
+  same player — a roster `Riley Poe` is neither re-added against nor removed
+  from a court holding `Lee Zii Jia`. Only the mapped name is added, and
+  `searchNameError` is tested on the mapped name, not the roster name. With no
+  `nameMap` configured both helpers are the identity/`normalizePlayerName`
+  behaviour, so an unconfigured run is unchanged. `validateConfig` rejects a
+  self-mapping and two keys that normalize alike; it stores keys normalized but
+  values as written, since the value is what gets typed and logged.
 - A **session** is the set of bookings at the same date/time/location across
   courts. `bot/session.ts` groups them and plans the split: fill courts in
   court-number order preserving roster order, up to `courtCapacity`. It imports
@@ -84,8 +105,9 @@ before changing bot behavior. What's load-bearing here:
   `../src` barrel) so comparisons stay consistent with the add flow.
   `ensure-roster` applies each court with `swapPlayersOnBooking` — one
   edit-modal save per court, and courts with no add/remove are skipped.
-- Bot unit tests cover `csv` / `config` / `session` / `sheets` only
-  (`matrixToCsv`, month-tab picking, config validation, session selection).
+- One `now` is taken per run and threaded through, so month-tab selection and the
+  "next session" pick can never disagree across a midnight.
+- Bot unit tests cover `csv` / `config` / `name-map` / `session` / `sheets` only.
   Everything else is browser- or network-dependent and validated by a live run.
 - Runs via `tsx` (never compiled into `dist/`); systemd units live in
   `bot/systemd/`. The bot uses the default headless client, so `auth.json` and
@@ -103,12 +125,21 @@ before changing bot behavior. What's load-bearing here:
   markup changes.
 - `log/` — file logs (`booking-buddy-<date>.log`, `bot-<date>.log`); written by
   `src/logger.ts` (`createLogger`), see "Logging" below.
-- `.notes/`, `.temp-data/` — local scratch.
+- `.notes/`, `.temp-data/`, `opencode.json`, `.opencode/`.
+- Note: the bot entries in `.vscode/launch.json` point at
+  `/home/pvan/bot.test.config.json`, a machine-local config **outside** the repo.
 
 ## Gotchas
 - `headless` defaults to **true** (`process.env.HEADLESS !== "false"` in
   `src/constants.ts`); the `examples/*` force it false so a window shows for
   login.
+- The browser is a **persistent** Chromium context (`launchPersistentContext`
+  with `viewport: null`), so `my-profile/` is live login state layered under the
+  `auth.json` storage state — refreshing one does not replace the other.
+- `manualLogin` (`src/auth.ts`) navigates to **google.com**, not CourtReserve,
+  and waits for Enter; log into CourtReserve in that window yourself, then the
+  storage state is saved. The README's "navigate to app.courtreserve.com"
+  wording does not match the code.
 - `pauseForAction()` inserts a random anti-bot delay (default 1000–3000ms via
   `MIN_ACTION_DELAY_MS`/`MAX_ACTION_DELAY_MS`) before every navigation, click,
   and per-player step. Use fake timers in unit tests; never assert real timing.
@@ -127,11 +158,27 @@ before changing bot behavior. What's load-bearing here:
   probes `count()` and proceeds with a `warn` if the content is already on
   screen, so a late page is accepted rather than retried into the ground.
   Don't add a call site without a selector — that's the race `commit` opens up.
+- `src/pending-requests.ts` tracks in-flight requests per `Page` (attached to the
+  whole context, later pages included) and the URLs still outstanding are logged
+  as `pending` on `navigate-timeout` / `navigate-timeout-continue`. A `commit`
+  navigation can't fail on a subresource, so those URLs are the only explanation
+  of why the readiness wait timed out.
+- `getCurrentBookings` returns **one `Booking` per booking card, i.e. per
+  court** (the `BookingSession` name is legacy) and strips the internal `page`
+  field. Cards whose `details-btn` says "Details" instead of "Edit Reservation"
+  are skipped silently — bookings someone else added you to.
+- `filterBookings` parses a bare `yyyy-mm-dd` `date` filter as **local**
+  midnight, not UTC, so it doesn't silently shift a day in negative-offset
+  timezones. Keep it that way; the club is US Pacific.
 - `addPlayer*`/`removePlayer*`/`swap*` all run inside `withEditModal` on a
   throwaway `context.newPage()` that is closed in `finally`, so `this.page` stays
   on the bookings list and a later `getCurrentBookings()` still works. The modal
   is saved only if the pending roster actually changed, then re-navigated to the
-  detail page and re-read.
+  detail page and re-read. `swapPlayersOnBooking` seeds its add loop from the
+  **post-removal** roster, so a just-removed name isn't reported `already-added`.
+- Per-player problems (not found, ambiguous, too short, already added,
+  not-removable) are returned in the result; structural failures (no session,
+  missing `bookingId`, page/modal not loading, failed save) throw.
 - `restoreAuth` (`src/auth.ts`) must `await context.setStorageState(path)`; the
   method returns a promise and dropping it races the cookie restore against the
   first navigation, so the client intermittently starts logged out.
@@ -149,8 +196,10 @@ before changing bot behavior. What's load-bearing here:
   match, which would remove "Lee Zii Jia" when asked for "Lee Zii Jiaa").
 - All scraping keys off CourtReserve `data-testid` attributes and dayjs parsing
   (`src/booking.ts`, `src/parsers.ts`); if the site markup changes, parsing
-  breaks. The "Details"/"Edit Reservation" button text is what marks a booking
-  editable, so bookings someone else added you to are silently skipped.
+  breaks.
+- `init()` registers SIGINT/SIGTERM/`beforeExit` handlers (re-exiting 130/143
+  after `close()`) and `close()` removes them, so a long-lived host process can
+  run the client without leaking handlers or an orphaned browser.
 
 ## Logging
 - `src/logger.ts` exports `createLogger({ filePath, level, console })` (pino,
@@ -168,7 +217,7 @@ before changing bot behavior. What's load-bearing here:
   `init()`. The action and feedback helpers resolve it with `loggerFor(page)`
   (falling back to a silent no-op), so they log without taking a logger
   parameter. A `WeakMap`, not a module singleton — two clients can run in one
-  process.
+  process, and an unattached page (a functional test's page) just logs nothing.
 - Convention: user actions are logged as `info` **at the call sites** of
   `humanClick`/`navigateTo` (never inside them), phrased as instructions —
   `click Edit Reservation`, `navigate to reservation detail`, `click remove
@@ -181,9 +230,10 @@ before changing bot behavior. What's load-bearing here:
   `save-timeout`/`save-failed`, `detail-load-failed`, `modal-open-failed`,
   `confirm-dialog-timeout`, `member-search-timeout`, `filter-failed`,
   `navigate-timeout` (warn), `navigate-timeout-continue` (warn), and the
-  bot's `config-error`/`roster-error`/`init-failed`. Precondition guards
-  (`"Client not initialized"`, missing `bookingId`) deliberately stay unlogged —
-  logging them would create `log/` files during the no-browser unit tests.
+  bot's `config-error`/`roster-error`/`job-error`/`init-failed`. Precondition
+  guards (`"Client not initialized"`, missing `bookingId`) deliberately stay
+  unlogged — logging them would create `log/` files during the no-browser unit
+  tests.
 - On an `error`-level failure the code also snapshots the page HTML
   (`src/capture.ts` `captureFailure` → `page.content()`) into
   `<logDir>/failures/failure-<timestamp>.html` and records the path in the log
@@ -204,7 +254,13 @@ before changing bot behavior. What's load-bearing here:
 - Functional tests (real Chromium) live under `*/test/functional/` — currently
   `test/functional/*.test.ts`; they `chromium.launch()` themselves and use
   `test/functional/setup.ts` (`fixturePath`, `loadFixture`) to `setContent()` a
-  pruned HTML fixture. Bot functional tests belong in `bot/test/functional/`.
+  pruned HTML fixture. Bot functional tests belong in `bot/test/functional/`
+  (`npm run test:functional` already passes that path as a filter).
+- Fixtures are referenced by subpath from `test/data/` — flat files
+  (`one-booking-two-people.html`, `not-logged-in.html`, …) or per-flow
+  directories (`adding-player/edit-modal.html`, `removing-player/modal-player-list.html`).
+  `login.test.ts`/`auth.test.ts` instead `page.route()` + `fulfill()` the
+  bookings-list URL so `isLoggedIn`'s URL check is exercised.
 - Roster fixtures live in `bot/test/data/*.csv` — one file per sheet tab
   (`Sept-2026.csv` is a real CourtReserve export, `Oct-2026.csv` is hand-written
   to the same layout) so the month-tab merge and the closest-upcoming-session
@@ -216,16 +272,16 @@ before changing bot behavior. What's load-bearing here:
   runner. Its `setupFiles: ./test/setup.ts` also `delete`s inherited env vars
   (`HEADLESS`, `AUTH_PATH`, `PROFILE_DIR`, `MIN/MAX_ACTION_DELAY_MS`,
   `NAV_TIMEOUT_MS`, `NAV_RETRIES`, `PORT`, `COURTRESERVE_ORG_ID`, `LOG_PATH`,
-  `LOG_LEVEL`) so default-option tests are
-  deterministic — note they are deleted (not set to `""`), because
-  `src/constants.ts` uses `??`.
+  `LOG_LEVEL`) so default-option tests are deterministic — note they are deleted
+  (not set to `""`), because `src/constants.ts` uses `??`.
 - `test/data/*.html` fixtures are pruned MHTML: no CSS, images, or scripts, so
   there is no realistic layout. Assertions on geometry (`boundingBox()`,
   scrolling, hover) won't match production — only DOM structure and text are
   faithful. `humanClick` (`src/interactions.ts`) falls back to
   `locator.click()` when an element has no usable bounding box, which is what
   keeps those tests working. Provenance / re-capture steps are in
-  `test/data/README`.
+  `test/data/README` (note: its claim that the raw captures live in
+  `../test-data/` is stale — they sit beside the fixtures, gitignored).
 - The captures contain no JavaScript, so the interactive chain (Kendo ComboBox,
   sweetalert2 confirm, member-search XHR, save POST) is untestable offline and
   gated on a live run; `saveReservation` only asserts HTTP status.

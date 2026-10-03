@@ -67,6 +67,9 @@ session to fill:
       "client_id": "..."
     }
   },
+  "nameMap": {
+    "Riley Poe": "Lee Zii Jia"
+  },
   "jobs": [
     {
       "name": "tuesday-evening",
@@ -80,6 +83,7 @@ session to fill:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `nameMap`  | object (optional) | Roster name -> CourtReserve member name, for members who registered under a modified name because theirs was not unique. See [Player name map](#player-name-map). |
 | `name`       | string            | Unique job identifier. |
 | `enabled`    | boolean           | Default `true`; disabled jobs are skipped. |
 | `match`      | object (optional) | `weekday`, `startTime`, and/or `location` (all optional). `weekday`/`startTime` are passed straight to `getCurrentBookings`; `location` is matched case-insensitively against the booking's location name (e.g. `"Bellevue"`). Omit to match all editable bookings. The specific weeks to fill come from the roster's dates, not from `match`. |
@@ -87,6 +91,42 @@ session to fill:
 | `session.courtCapacity` | number | Optional, default `6`. Total players per court, **including** the organizer. |
 | `session.organizer` | string     | Optional. The organizer's name — never added or removed by the bot. Strongly recommended, especially for single-court sessions where the "on every court" heuristic can't tell the organizer apart from a dropped player. |
 | `google.serviceAccount` | object | Required when any job uses a Google Sheet. The full service-account key, inline (only `client_email` and `private_key` are used). |
+
+## Player name map
+
+Some members have names common enough that the club's booking system can't tell
+them apart in the member search, so they register under a modified name that is
+unique instead. The roster still carries the name people recognise, so `nameMap`
+translates one to the other before the bot searches:
+
+```json
+"nameMap": {
+  "Riley Poe":  "Lee Zii Jia",
+  "Riley Poo": "Lee Zii Jiaa"
+}
+```
+
+Each entry maps the **roster name** to the **CourtReserve member name**, and the
+map is global — one entry per person covers every job. Only the mapped name is
+typed into the member search, so `Riley Poe` is booked as `Lee Zii Jia`.
+
+Matching works on both sides, which matters when a member's name changed after
+some courts were already filled by hand. A roster's `Riley Poe` and a court's
+`Lee Zii Jia` are recognised as the same player, so neither is added twice nor
+removed as "no longer in the roster". Two roster names that map to different
+members stay distinct, so the `Riley Poe`/`Riley Poo` case above is not
+collapsed.
+
+Keys are matched case- and whitespace-insensitively (the same normalization the
+rest of the bot uses to compare names), and entries chain, so
+`{"A": "B", "B": "C"}` makes `A`, `B` and `C` one player. `validateConfig`
+rejects an entry mapping a name to itself, and two keys that normalize to the
+same name — both are always typos.
+
+To see what a run would search for, run `roster-test`: it prints each roster
+name with its mapped name (`- Riley Poe -> Lee Zii Jia`). An `ensure-roster`
+run logs the same mappings as a `name-mapped` event, so a court showing
+`Lee Zii Jia` can be traced back to the roster's `Riley Poe`.
 
 ## Google Sheets source
 
@@ -215,7 +255,8 @@ In both formats: a name can appear under several dates, columns/rows that aren't
 a recognizable date or the player list are ignored, whitespace/quotes are
 trimmed, and duplicates are dropped. Names must match the club's member
 directory exactly — the member search is exact-match-first and requires at
-least 3 letters.
+least 3 letters. A member who registered under a modified name needs a
+[`nameMap`](#player-name-map) entry.
 
 Dates are matched to bookings by month and day; the year is ignored even when
 a roster carries one (some exports), so a signup exported in one year still
@@ -261,7 +302,9 @@ Two consequences worth knowing:
    no longer in the roster are removed — except the organizer (and any name on
    every court). A removal frees a slot, so a dropped player's court can absorb
    a replacement in the same run. Names too short to search and names that
-   exceed the total free slots are reported.
+   exceed the total free slots are reported. When a
+   [`nameMap`](#player-name-map) is configured, names are compared by identity
+   and the mapped name is the one added.
 8. In `--dry-run`, print the assignment. Otherwise `swapPlayersOnBooking()`
    removes and adds each court's players in a single edit-modal save and logs
    removed/added/skipped/failed.
@@ -294,8 +337,8 @@ See [`bot/systemd/README.md`](systemd/README.md) for a daily `systemd` timer.
 
 ## Tests
 
-Unit tests (no browser) cover `bot/csv.ts`, `bot/config.ts`, and
-`bot/session.ts`:
+Unit tests (no browser) cover `bot/csv.ts`, `bot/config.ts`, `bot/name-map.ts`,
+and `bot/session.ts`:
 
 ```
 npx vitest run bot/test
