@@ -2,6 +2,7 @@ import { CourtReserveClient, type Logger } from "../src";
 import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
 import { formatDateKey, type Roster, type RosterSet } from "./csv";
 import { loadRoster, logRosterRead } from "./roster";
+import { mappedName, type NameMap } from "./name-map";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
 export type RunOptions = {
@@ -70,6 +71,32 @@ function selectNextRoster(
         );
     }
     return next;
+}
+
+/**
+ * Names the roster carries that the config maps to a different CourtReserve
+ * member name. Logged before planning so a run that adds "Lee Zii Jia" can be
+ * traced back to the roster's "Riley Poe" instead of looking like the wrong
+ * person was booked on.
+ */
+function logNameMappings(logger: Logger, job: JobConfig, nameMap: NameMap | undefined, roster: Roster): void {
+    const applied = roster.players
+        .map((name) => ({ from: name, to: mappedName(nameMap, name) }))
+        .filter(({ from, to }) => to !== from);
+    if (applied.length === 0) return;
+
+    logger.info(
+        `[job "${job.name}"] ${applied.length} roster name(s) mapped to a CourtReserve member name: ${applied
+            .map(({ from, to }) => `${from} -> ${to}`)
+            .join(", ")}`,
+        {
+            event: "name-mapped",
+            job: job.name,
+            date: formatDateKey(roster.date),
+            tab: roster.tab,
+            mappings: applied,
+        },
+    );
 }
 
 function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan): void {
@@ -276,7 +303,15 @@ export async function runEnsureRoster(
                     );
                 }
 
-                const plan = planSession(session, selected.players, job.session.courtCapacity, job.session.organizer);
+                logNameMappings(logger, job, config.nameMap, selected);
+
+                const plan = planSession(
+                    session,
+                    selected.players,
+                    job.session.courtCapacity,
+                    job.session.organizer,
+                    config.nameMap,
+                );
                 logSession(logger, session, plan);
 
                 if (options.dryRun) continue;

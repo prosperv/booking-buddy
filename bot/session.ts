@@ -1,5 +1,6 @@
 import type { Booking } from "../src";
-import { normalizePlayerName, searchNameError } from "../src/players";
+import { searchNameError } from "../src/players";
+import { playerIdentity, mappedName, type NameMap } from "./name-map";
 
 export type SessionGroup = {
     date: string;
@@ -93,19 +94,26 @@ export function groupBookingsIntoSessions(bookings: Booking[], location?: string
  * organizer on them, the organizer falls into the ordinary "candidate" branch
  * and would be placed on a single court, not every court — book the organizer
  * onto each court first, or the split will be wrong.
+ *
+ * When a `nameMap` is supplied, every name — on the courts, in the roster, and
+ * the organizer — is reduced to a `playerIdentity` before being compared, so a
+ * roster's `Riley Poe` and a court's `Lee Zii Jia` are recognised as the same
+ * player and neither is added twice or removed. Only the name that is actually
+ * searched is mapped, and that is the name reported in `add`/`overflow`.
  */
 export function planSession(
     group: SessionGroup,
     roster: string[],
     capacity: number,
     organizer?: string,
+    nameMap?: NameMap,
 ): SessionPlan {
     const { courts } = group;
-    const courtPlayers = courts.map((b) => b.players.map((p) => normalizePlayerName(p)));
-    const rosterNorm = new Set(roster.map((n) => normalizePlayerName(n)));
+    const courtPlayers = courts.map((b) => b.players.map((p) => playerIdentity(nameMap, p)));
+    const rosterIdentities = new Set(roster.map((n) => playerIdentity(nameMap, n)));
     // The organizer (or any name on every court) is protected from removal, but
     // is not auto-added — see the NOTE in the planSession doc above.
-    const organizerNorm = organizer ? normalizePlayerName(organizer) : null;
+    const organizerNorm = organizer ? playerIdentity(nameMap, organizer) : null;
 
     // Names that appear on every court are the organizer (or equivalent) and
     // must never be removed, even when they are absent from the roster. This
@@ -127,12 +135,12 @@ export function planSession(
         const remove: string[] = [];
         const seen = new Set<string>();
         for (const p of booking.players) {
-            const norm = normalizePlayerName(p);
-            if (seen.has(norm)) continue;
-            seen.add(norm);
-            if (rosterNorm.has(norm)) continue;
-            if (organizerNorm !== null && norm === organizerNorm) continue;
-            if (courts.length > 1 && onEveryCourt.has(norm)) continue;
+            const identity = playerIdentity(nameMap, p);
+            if (seen.has(identity)) continue;
+            seen.add(identity);
+            if (rosterIdentities.has(identity)) continue;
+            if (organizerNorm !== null && identity === organizerNorm) continue;
+            if (courts.length > 1 && onEveryCourt.has(identity)) continue;
             remove.push(p);
         }
         return remove;
@@ -144,20 +152,24 @@ export function planSession(
     const tooShort: string[] = [];
 
     for (const name of roster) {
-        const normalized = normalizePlayerName(name);
+        const identity = playerIdentity(nameMap, name);
+        // The mapped name is what actually gets typed into the member search,
+        // so it is what the plan carries and what the search has to be able to
+        // match — a short roster name mapping to a searchable one is addable.
+        const toAdd = mappedName(nameMap, name);
         const onCourts: number[] = [];
         courtPlayers.forEach((players, i) => {
-            if (players.includes(normalized)) onCourts.push(i);
+            if (players.includes(identity)) onCourts.push(i);
         });
 
         if (onCourts.length === courts.length) {
             satisfied.push(name);
         } else if (onCourts.length > 0) {
             for (const i of onCourts) alreadyPlacedByCourt[i].push(name);
-        } else if (searchNameError(name)) {
+        } else if (searchNameError(toAdd)) {
             tooShort.push(name);
         } else {
-            candidates.push(name);
+            candidates.push(toAdd);
         }
     }
 

@@ -2,6 +2,7 @@ import { CourtReserveClient, createLogger, defaultLogFile, resolveLogDir, type L
 import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
 import { formatDateKey, type RosterSet } from "./csv";
 import { loadRoster, logRosterRead } from "./roster";
+import { mappedName } from "./name-map";
 import { runEnsureRoster } from "./ensure-roster";
 
 const USAGE = `Usage: npx tsx bot/index.ts <command> [options]
@@ -106,7 +107,8 @@ async function runRosterTest(configPath: string, jobName: string | undefined, lo
                 .join(" ");
             logger.info(`  ${when} (${roster.players.length} player(s)):`);
             for (const name of roster.players) {
-                logger.info(`    - ${name}`);
+                const to = mappedName(config.nameMap, name);
+                logger.info(`    - ${name}${to === name ? "" : ` -> ${to}`}`);
             }
         }
     }

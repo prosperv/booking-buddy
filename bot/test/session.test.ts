@@ -215,3 +215,96 @@ describe("planSession", () => {
         expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
     });
 });
+
+describe("planSession with a name map", () => {
+    const organizer = "Kento Momota";
+    /** Keys normalized and values as written, as `validateConfig` stores them. */
+    const nameMap = { "riley poe": "Lee Zii Jia", "riley poo": "Lee Zii Jiaa" };
+
+    function group(courts: Booking[]) {
+        return { date: "2026-09-01", startTime: "18:00", location: "Bellevue", courts };
+    }
+
+    it("adds the mapped member name, since that is what the search matches", () => {
+        const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
+
+        const plan = planSession(session, ["Riley Poe", "Chen Long"], 6, organizer, nameMap);
+        expect(plan.courts[0].add).toEqual(["Lee Zii Jia", "Chen Long"]);
+    });
+
+    it("does not re-add a name the court already holds under its mapped name", () => {
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer, "Lee Zii Jia"] }),
+            booking({ id: "2", court: 2, start, players: [organizer] }),
+        ]);
+
+        const plan = planSession(session, ["Riley Poe", "Chen Long"], 6, organizer, nameMap);
+        expect(plan.courts[0].alreadyPlaced).toEqual(["Riley Poe"]);
+        expect(plan.courts.map((c) => c.add)).toEqual([["Chen Long"], []]);
+        expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
+    });
+
+    it("does not remove a court player still on the roster under their roster name", () => {
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer, "Riley Poe"] }),
+            booking({ id: "2", court: 2, start, players: [organizer] }),
+        ]);
+
+        const plan = planSession(session, ["Riley Poe"], 6, organizer, nameMap);
+        expect(plan.courts[0].alreadyPlaced).toEqual(["Riley Poe"]);
+        expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
+        expect(plan.courts.map((c) => c.add)).toEqual([[], []]);
+    });
+
+    it("keeps two roster names that map to different members apart", () => {
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer, "Lee Zii Jia"] }),
+            booking({ id: "2", court: 2, start, players: [organizer] }),
+        ]);
+
+        // "Riley Poo" is not the court's "Lee Zii Jia", so it is a candidate
+        // and goes in as its own member name.
+        const plan = planSession(session, ["Riley Poo"], 6, organizer, nameMap);
+        expect(plan.courts[0].alreadyPlaced).toEqual([]);
+        expect(plan.courts.map((c) => c.add)).toEqual([["Lee Zii Jiaa"], []]);
+    });
+
+    it("protects a mapped organizer who is not in the roster", () => {
+        const session = group([booking({ id: "1", court: 1, start, players: ["Lee Zii Jia"] })]);
+
+        const plan = planSession(session, ["Chen Long"], 6, "Riley Poe", nameMap);
+        expect(plan.courts[0].remove).toEqual([]);
+        expect(plan.courts[0].add).toEqual(["Chen Long"]);
+    });
+
+    it("tests searchability on the mapped name, not the roster name", () => {
+        const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
+
+        const plan = planSession(session, ["Al"], 6, organizer, { al: "Lee Zii Jia" });
+        expect(plan.tooShort).toEqual([]);
+        expect(plan.courts[0].add).toEqual(["Lee Zii Jia"]);
+    });
+
+    it("reports an unplaced name by its mapped name", () => {
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer] }),
+            booking({ id: "2", court: 2, start, players: [organizer] }),
+        ]);
+
+        const full = [
+            "Chen Long",
+            "Chou Tien-chen",
+            "Lee Zii Duong",
+            "Lee Zii Gunaman",
+            "Lee Zii Ho",
+            "Lee Zii Nakata",
+            "Lee Zii Phan",
+            "Lee Zii Wu",
+            "Lee Zii Yi",
+            "Viktor Axelsen",
+        ];
+        const plan = planSession(session, [...full, "Riley Poe"], 6, organizer, nameMap);
+        expect(plan.courts.map((c) => c.add)).toEqual([[full[0], full[1], full[2], full[3], full[4]], full.slice(5)]);
+        expect(plan.overflow).toEqual(["Lee Zii Jia"]);
+    });
+});
