@@ -18,7 +18,7 @@ import { navigateTo } from "./navigation";
 import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from "./constants";
 import { fileExists, pauseForAction } from "./utils";
 import { collectBookingSessions, filterBookings } from "./booking";
-import { isLoggedIn, loginWithCredentials } from "./login";
+import { isLoggedIn, loginWithCredentials, LOGIN_LINK_SELECTOR } from "./login";
 import { createLogger, defaultLogFile, resolveLogDir, type Logger } from "./logger";
 import { attachLoggerToContext } from "./log-context";
 import { captureFailure } from "./capture";
@@ -168,6 +168,15 @@ type ResolvedClientOptions = {
     debugPause: boolean;
 };
 
+/**
+ * Readiness targets for the bookings list, either of which is enough. The list
+ * shell renders for an authenticated session; the portal's "LOG IN" link means
+ * the request bounced to the portal because the saved session was stale — which
+ * is a usable page too (`isLoggedIn` then reports it) rather than a hang, so
+ * waiting on the list shell alone would stall `init()` for the full budget.
+ */
+const BOOKINGS_LIST_READY = ['[data-testid="booking-list-active"]', LOGIN_LINK_SELECTOR];
+
 export class CourtReserveClient {
     private context?: BrowserContext;
     private page?: Page;
@@ -227,7 +236,7 @@ export class CourtReserveClient {
 
             this.page = await this.context.newPage();
             this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
-            await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
+            await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);
             this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl });
 
             if (this.options.debugPause) {
@@ -374,7 +383,7 @@ export class CourtReserveClient {
         await loginWithCredentials(this.page, username, password);
         await this.context.storageState({ path: this.options.authPath });
         this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
-        await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations");
+        await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);
         this.logger.info("logged in with credentials", { event: "login-credentials" });
     }
 

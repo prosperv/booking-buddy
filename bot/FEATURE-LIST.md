@@ -3,7 +3,7 @@
 ## CLI
 - **Commands**
   - `ensure-roster` — reconcile each job's roster with its matching bookings
-  - `roster-test` — print parsed roster per date (no browser)
+  - `roster-test` — print parsed roster per date (no browser), marking the session the next run would edit
   - `check-auth` — verify saved CourtReserve session still works (via `isLoggedIn()`)
 - **Options**
   - `--job <name>` — restrict to a single job
@@ -18,19 +18,21 @@
   - `enabled` — boolean (default `true`)
   - `match` — `weekday` / `startTime` filters + case-insensitive `location` (specific weeks come from the CSV's date columns)
 - **Session definition**
-  - `rosterFile` — CSV path (relative to config)
+  - `roster` — a local CSV path (relative to config) or a Google Sheet object `{ sheet: "<url|id>", range? }`
   - `courtCapacity` — default 6, includes organizer
   - `organizer` — name never added/removed
-- **Validation** — strict schema validation with descriptive `ConfigError`s (duplicate names, malformed fields, missing jobs)
+- **Google Sheets** — `google.serviceAccount` (inline key) is required when a job uses a sheet; `bot/sheets.ts` reads the roster spreadsheet's **month tabs** (this month + next, matched leniently by `parseMonthTitle`/`pickMonthTabs`, non-month tabs ignored) and re-serializes each via `matrixToCsv` into `parseRoster`; an explicit `range` bypasses tab selection
+- **Validation** — strict schema validation with descriptive `ConfigError`s (duplicate names, malformed fields, missing jobs, missing service account for sheet jobs)
 
 ## Roster CSV (`bot/csv.ts`)
-- **Format-agnostic API** — `parseRoster` auto-detects the format and returns a `RosterSet` of dated `Roster`s (`date`, optional `year`/`startTime`, `players`); `RosterSet.find(date)` is the single stable lookup
-- **Auto-detection** — signups export recognized by `Player Name` at (row4,col3); event export by `Paid` + `Player Name` headers; otherwise legacy date-column
-- **Signups export (fixed coordinates)** — `Date` at (row2,col2), `Start Time` at (row2,col3), player names in col3 from row5 (`M/D/YYYY` or zero-padded, year used when present); every other column/row ignored
+- **Format-agnostic API** — `parseRoster` auto-detects the format and returns a `RosterSet` of dated `Roster`s (`date`, optional `year`/`startTime`/`tab`, `players`); `RosterSet.find(date)` (by month/day) and `RosterSet.next(from, {startTime?})` (closest upcoming session) are the stable lookups
+- **Multi-tab** — `parseRosterAll` merges several sources (one per sheet tab) into one `RosterSet`, tagging each roster with the tab it came from
+- **Auto-detection** — signups export recognized by a leading `▶` marker row (one block per event); event export by `Paid` + `Player Name` headers; otherwise legacy date-column
+- **Signups export (stacked)** — each `▶` block is one event: `Date`/`Start Time` located by header keyword within the block, `Player Name` table read from its column (`M/D/YYYY` or zero-padded, year used when present); multiple blocks → multiple rosters, blocks with unparseable dates are skipped
 - **Event-export fallback** — keyword-based `Date`/`Start Time`/`Player Name` (one event per file)
 - **Legacy date-column** — header row is date labels (`Aug 25th`), each column lists that date's players (year-less)
 - Date-label parsing (3-letter or full month, optional ordinal suffix); skips non-date columns/rows; trims whitespace/quotes, drops duplicates (case-insensitive, first wins)
-- `find` matches by month/day, requiring an exact year only when the roster carries one; descriptive read errors
+- `next()` compares a dated roster at its full date+start time and a year-less one at its next occurrence, so a run advances to the following session as the previous one passes; `find` matches by month/day only; descriptive read errors
 
 ## Session planning (`bot/session.ts`)
 - **Grouping** — bookings grouped by (date, startTime, location); courts sorted by number, sessions chronological
@@ -44,7 +46,8 @@
 ## Execution (`bot/ensure-roster.ts`)
 - Bail after `init()` when `isLoggedIn()` is false (stale/expired session)
 - Per-job run with isolated error handling (one job's failure doesn't stop others)
-- Per-date reconciliation: sessions whose date has no roster are skipped; rosters with no booking are reported
+- One session per run: the job's closest upcoming roster is reconciled (a `match.startTime` narrows it to that slot), the rest logged as deferred; nothing upcoming is reported, and a selected roster with no booking is reported
+- An empty roster stays authoritative (courts are cleared) but is logged as `empty-roster` first, since a month tab's future blocks start out unfilled
 - Structured per-session/court logging (add/remove/already-placed/satisfied/overflow)
 - Live apply via `swapPlayersOnBooking` (one edit-modal save per court), logging `removed/added/skipped/failed`
 

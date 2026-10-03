@@ -6,8 +6,24 @@ export type JobMatch = {
     location?: string;
 };
 
+/** A local CSV roster, resolved relative to the config file's directory. */
+export type FileRosterSource = {
+    kind: "file";
+    path: string;
+};
+
+/** A Google Sheet roster, addressed by spreadsheet id (parsed from a URL or a bare id). */
+export type GoogleSheetRosterSource = {
+    kind: "googleSheet";
+    spreadsheetId: string;
+    /** A1 range; defaults to the first tab's full used range. */
+    range?: string;
+};
+
+export type RosterSource = FileRosterSource | GoogleSheetRosterSource;
+
 export type SessionConfig = {
-    rosterFile: string;
+    roster: RosterSource;
     courtCapacity: number;
     organizer?: string;
 };
@@ -19,13 +35,28 @@ export type JobConfig = {
     session: SessionConfig;
 };
 
+/** A Google service-account key; only the two fields the Sheets client needs are required. */
+export type ServiceAccountKey = {
+    client_email: string;
+    private_key: string;
+    [key: string]: unknown;
+};
+
 export type BotConfig = {
     jobs: JobConfig[];
+    google?: { serviceAccount: ServiceAccountKey };
 };
 
 export const DEFAULT_COURT_CAPACITY = 6;
 
 export class ConfigError extends Error {}
+
+/** Extracts a spreadsheet id from a full Sheets URL, or returns the bare id unchanged. */
+export function spreadsheetIdFrom(sheet: string): string {
+    const trimmed = sheet.trim();
+    const match = /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/.exec(trimmed);
+    return match ? match[1] : trimmed;
+}
 
 /**
  * Validates an already-parsed config object, returning a normalized shape with
@@ -40,9 +71,29 @@ export function validateConfig(raw: unknown): BotConfig {
         throw new ConfigError("config must be a JSON object");
     }
 
-    const root = raw as { jobs?: unknown };
+    const root = raw as { jobs?: unknown; google?: unknown };
     if (!Array.isArray(root.jobs) || root.jobs.length === 0) {
         throw new ConfigError("config.jobs must be a non-empty array");
+    }
+
+    let google: BotConfig["google"];
+    if (root.google !== undefined) {
+        if (!root.google || typeof root.google !== "object") {
+            throw new ConfigError("config.google must be an object");
+        }
+        const g = root.google as Record<string, unknown>;
+        const sa = g.serviceAccount;
+        if (!sa || typeof sa !== "object") {
+            throw new ConfigError("config.google.serviceAccount must be an object");
+        }
+        const key = sa as Record<string, unknown>;
+        if (typeof key.client_email !== "string" || key.client_email.trim() === "") {
+            throw new ConfigError("config.google.serviceAccount.client_email must be a non-empty string");
+        }
+        if (typeof key.private_key !== "string" || key.private_key.trim() === "") {
+            throw new ConfigError("config.google.serviceAccount.private_key must be a non-empty string");
+        }
+        google = { serviceAccount: key as ServiceAccountKey };
     }
 
     const seenNames = new Set<string>();
@@ -87,9 +138,36 @@ export function validateConfig(raw: unknown): BotConfig {
             throw new ConfigError(`config.jobs[${i}].session must be an object`);
         }
         const s = j.session as Record<string, unknown>;
-        if (typeof s.rosterFile !== "string" || s.rosterFile.trim() === "") {
-            throw new ConfigError(`config.jobs[${i}].session.rosterFile must be a non-empty string`);
+
+        let roster: RosterSource;
+        if (typeof s.roster === "string") {
+            if (s.roster.trim() === "") {
+                throw new ConfigError(`config.jobs[${i}].session.roster must be a non-empty string`);
+            }
+            roster = { kind: "file", path: s.roster.trim() };
+        } else if (s.roster && typeof s.roster === "object") {
+            const r = s.roster as Record<string, unknown>;
+            if (typeof r.sheet !== "string" || r.sheet.trim() === "") {
+                throw new ConfigError(`config.jobs[${i}].session.roster.sheet must be a non-empty string`);
+            }
+            let range: string | undefined;
+            if (r.range !== undefined) {
+                if (typeof r.range !== "string" || r.range.trim() === "") {
+                    throw new ConfigError(`config.jobs[${i}].session.roster.range must be a non-empty string`);
+                }
+                range = r.range.trim();
+            }
+            roster = {
+                kind: "googleSheet",
+                spreadsheetId: spreadsheetIdFrom(r.sheet),
+                ...(range ? { range } : {}),
+            };
+        } else {
+            throw new ConfigError(
+                `config.jobs[${i}].session.roster must be a string (file path) or an object with "sheet"`,
+            );
         }
+
         let courtCapacity = DEFAULT_COURT_CAPACITY;
         if (s.courtCapacity !== undefined) {
             if (
@@ -114,11 +192,17 @@ export function validateConfig(raw: unknown): BotConfig {
             name,
             enabled: j.enabled ?? true,
             match,
-            session: { rosterFile: s.rosterFile.trim(), courtCapacity, ...(organizer ? { organizer } : {}) },
+            session: { roster, courtCapacity, ...(organizer ? { organizer } : {}) },
         };
     });
 
-    return { jobs };
+    if (jobs.some((job) => job.session.roster.kind === "googleSheet") && !google) {
+        throw new ConfigError(
+            "config.google.serviceAccount is required when a job uses a Google Sheet roster",
+        );
+    }
+
+    return { jobs, ...(google ? { google } : {}) };
 }
 
 /** Reads, parses, and validates a config file, throwing `ConfigError` on any failure. */

@@ -70,6 +70,24 @@
                 "--config",
                 "/home/pvan/bot.test.config.json",
                 "--headed",
+                "--dry-run"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug bot/index.ts roster-test",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/bot/index.ts",
+            "args": [
+                "roster-test",
+                "--config",
+                "/home/pvan/bot.test.config.json"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",

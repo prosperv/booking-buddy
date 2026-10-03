@@ -1,7 +1,7 @@
-import path from "node:path";
 import { CourtReserveClient, type Logger } from "../src";
 import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
-import { loadRosterFile, formatDateKey, type Roster } from "./csv";
+import { formatDateKey, type Roster, type RosterSet } from "./csv";
+import { loadRoster, logRosterRead } from "./roster";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
 export type RunOptions = {
@@ -14,10 +14,6 @@ export type RunOptions = {
      */
     headless?: boolean;
 };
-
-function rosterPath(configPath: string, job: JobConfig): string {
-    return path.resolve(path.dirname(configPath), job.session.rosterFile);
-}
 
 function sessionDate(session: SessionGroup): Date {
     return session.courts[0].startTime;
@@ -40,6 +36,40 @@ function findSessionFor(sessions: SessionGroup[], roster: Roster): SessionGroup 
         }
         return true;
     });
+}
+
+/**
+ * Picks the one session a run reconciles: the closest one still ahead of
+ * `now`, so each run advances to the next session once the previous one has
+ * passed instead of re-editing a month of already-finished courts. A job that
+ * pins `match.startTime` only considers rosters in that slot, so jobs sharing
+ * one sheet (a 6:30 PM and an 8:00 PM group, say) each pick their own session.
+ */
+function selectNextRoster(
+    rosterSet: RosterSet,
+    job: JobConfig,
+    now: Date,
+    logger: Logger,
+): Roster | undefined {
+    const startTime = job.match?.startTime;
+    const next = rosterSet.next(now, startTime !== undefined ? { startTime } : undefined);
+    if (next) {
+        logger.info(
+            `[job "${job.name}"] next session: ${formatDateKey(next.date)}${
+                next.startTime ? ` ${next.startTime}` : ""
+            }${next.tab ? ` (${next.tab})` : ""} — ${next.players.length} player(s)`,
+            {
+                event: "roster-selected",
+                job: job.name,
+                date: formatDateKey(next.date),
+                startTime: next.startTime,
+                tab: next.tab,
+                players: next.players.length,
+                of: rosterSet.rosters.length,
+            },
+        );
+    }
+    return next;
 }
 
 function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan): void {
@@ -89,13 +119,15 @@ function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan): v
 /**
  * Ensures each enabled job's player signups are reflected in its matching
  * bookings. A job's `match` identifies the recurring slot (weekday/startTime),
- * and its roster CSV (auto-detected format) lists player signups per dated
- * event. Bookings are grouped by date/time/location into sessions, and each
- * signup list is reconciled against the session whose date and — when the
- * signups file carries one — start time match. A signup list with no matching
- * booking (courts not booked yet) is reported and skipped. Returns false only
- * for config/data problems (e.g. a missing or empty roster CSV), so systemd
- * can flag them; player-level outcomes never affect it.
+ * and its roster (a CSV file or a Google Sheet, auto-detected format) lists player
+ * signups per dated event. Bookings are grouped by date/time/location into
+ * sessions, and the roster's **closest upcoming** session — the one after every
+ * earlier session has passed — is reconciled against the matching booking, so a
+ * run only ever edits the next game. Roster dates for a job's other sessions
+ * are logged as deferred. A selected session with no matching booking (courts
+ * not booked yet) is reported and skipped. Returns false only for
+ * config/data problems (e.g. a missing or empty roster), so systemd can flag
+ * them; player-level outcomes never affect it.
  */
 export async function runEnsureRoster(
     configPath: string,
@@ -124,6 +156,37 @@ export async function runEnsureRoster(
         jobs: jobs.length,
     });
 
+    // One instant for the whole run, so the month tabs that get read and the
+    // "next session" that gets picked can never disagree across a midnight.
+    const now = new Date();
+
+    // Load every job's roster up front so a missing file or a sheet auth/network
+    // failure fails fast without opening a browser. Failed jobs are skipped.
+    let ok = true;
+    const loaded: { job: JobConfig; rosterSet: RosterSet }[] = [];
+    for (const job of jobs) {
+        try {
+            const rosterSet = await loadRoster(config, job, configPath, now);
+            if (rosterSet.rosters.length === 0) {
+                throw new Error(`no rosters found in roster for job "${job.name}"`);
+            }
+            logRosterRead(logger, job, rosterSet);
+            loaded.push({ job, rosterSet });
+        } catch (err) {
+            ok = false;
+            logger.error(`[job "${job.name}"] roster error: ${err instanceof Error ? err.message : err}`, {
+                event: "roster-error",
+                job: job.name,
+                message: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+            });
+        }
+    }
+    if (loaded.length === 0) {
+        logger.error("ensure-roster: no rosters loaded — aborting.", { event: "no-rosters" });
+        return false;
+    }
+
     const client = new CourtReserveClient({ headless: options.headless ?? true });
     try {
         await client.init();
@@ -135,21 +198,14 @@ export async function runEnsureRoster(
         });
         return false;
     }
-    let ok = true;
     try {
         if (!(await client.isLoggedIn())) {
             logger.error("ensure-roster: not logged in — aborting.", { event: "not-logged-in" });
             return false;
         }
 
-        for (const job of jobs) {
+        for (const { job, rosterSet } of loaded) {
             try {
-                
-                const rosterSet = loadRosterFile(rosterPath(configPath, job));
-                if (rosterSet.rosters.length === 0) {
-                    throw new Error(`no rosters found in roster for job "${job.name}"`);
-                }
-
                 const { location, ...filters } = job.match ?? {};
                 const bookings = await client.getCurrentBookings(filters);
                 const sessions = groupBookingsIntoSessions(bookings, location);
@@ -165,58 +221,95 @@ export async function runEnsureRoster(
                     },
                 );
 
+                const selected = selectNextRoster(rosterSet, job, now, logger);
+
                 for (const roster of rosterSet.rosters) {
-                    const session = findSessionFor(sessions, roster);
-                    if (!session) {
-                        logger.warn(
-                            `[job "${job.name}"] ${formatDateKey(roster.date)}${
-                                roster.startTime ? ` ${roster.startTime}` : ""
-                            }: ${roster.players.length} player(s) but no booking found — skipping`,
-                            {
-                                event: "no-booking",
-                                job: job.name,
-                                date: formatDateKey(roster.date),
-                                players: roster.players.length,
-                            },
-                        );
-                        continue;
-                    }
+                    if (roster === selected) continue;
+                    logger.debug(
+                        `[job "${job.name}"] ${formatDateKey(roster.date)}${
+                            roster.startTime ? ` ${roster.startTime}` : ""
+                        }: deferred — not the next session`,
+                        {
+                            event: "roster-deferred",
+                            job: job.name,
+                            date: formatDateKey(roster.date),
+                            tab: roster.tab,
+                        },
+                    );
+                }
 
-                    const plan = planSession(session, roster.players, job.session.courtCapacity, job.session.organizer);
-                    logSession(logger, session, plan);
+                if (!selected) {
+                    logger.info(`[job "${job.name}"]: no upcoming roster session — nothing to do`, {
+                        event: "no-upcoming-roster",
+                        job: job.name,
+                        rosters: rosterSet.rosters.length,
+                    });
+                    continue;
+                }
 
-                    if (options.dryRun) continue;
+                const session = findSessionFor(sessions, selected);
+                if (!session) {
+                    logger.warn(
+                        `[job "${job.name}"] ${formatDateKey(selected.date)}${
+                            selected.startTime ? ` ${selected.startTime}` : ""
+                        }: ${selected.players.length} player(s) but no booking found — skipping`,
+                        {
+                            event: "no-booking",
+                            job: job.name,
+                            date: formatDateKey(selected.date),
+                            tab: selected.tab,
+                            players: selected.players.length,
+                        },
+                    );
+                    continue;
+                }
 
-                    for (const court of plan.courts) {
-                        if (court.add.length === 0 && court.remove.length === 0) continue;
-                        const result = await client.swapPlayersOnBooking(
-                            court.booking,
-                            court.remove.map((name) => ({ name })),
-                            court.add.map((name) => ({ name })),
-                        );
-                        logger.info(
-                            `    saved=${result.saved} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
-                            {
-                                event: "swap",
-                                job: job.name,
-                                bookingId: court.booking.bookingId,
-                                court: court.booking.courtNumber,
-                                saved: result.saved,
-                                removed: result.removed,
-                                added: result.added,
-                                skipped: result.skipped,
-                                failed: result.failed,
-                            },
-                        );
-                        for (const failed of result.failed) {
-                            logger.warn(`    FAILED ${JSON.stringify(failed)}`, {
-                                event: "player-failed",
-                                job: job.name,
-                                bookingId: court.booking.bookingId,
-                                court: court.booking.courtNumber,
-                                ...failed,
-                            });
-                        }
+                if (selected.players.length === 0) {
+                    logger.warn(
+                        `[job "${job.name}"] ${formatDateKey(selected.date)}: roster is empty — the sheet has no names yet, so the courts will be cleared`,
+                        {
+                            event: "empty-roster",
+                            job: job.name,
+                            date: formatDateKey(selected.date),
+                            tab: selected.tab,
+                        },
+                    );
+                }
+
+                const plan = planSession(session, selected.players, job.session.courtCapacity, job.session.organizer);
+                logSession(logger, session, plan);
+
+                if (options.dryRun) continue;
+
+                for (const court of plan.courts) {
+                    if (court.add.length === 0 && court.remove.length === 0) continue;
+                    const result = await client.swapPlayersOnBooking(
+                        court.booking,
+                        court.remove.map((name) => ({ name })),
+                        court.add.map((name) => ({ name })),
+                    );
+                    logger.info(
+                        `    saved=${result.saved} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
+                        {
+                            event: "swap",
+                            job: job.name,
+                            bookingId: court.booking.bookingId,
+                            court: court.booking.courtNumber,
+                            saved: result.saved,
+                            removed: result.removed,
+                            added: result.added,
+                            skipped: result.skipped,
+                            failed: result.failed,
+                        },
+                    );
+                    for (const failed of result.failed) {
+                        logger.warn(`    FAILED ${JSON.stringify(failed)}`, {
+                            event: "player-failed",
+                            job: job.name,
+                            bookingId: court.booking.bookingId,
+                            court: court.booking.courtNumber,
+                            ...failed,
+                        });
                     }
                 }
             } catch (err) {

@@ -1,8 +1,8 @@
 import { CourtReserveClient, createLogger, defaultLogFile, resolveLogDir, type Logger } from "../src";
 import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
-import { loadRosterFile, formatDateKey, type RosterSet } from "./csv";
+import { formatDateKey, type RosterSet } from "./csv";
+import { loadRoster, logRosterRead } from "./roster";
 import { runEnsureRoster } from "./ensure-roster";
-import path from "node:path";
 
 const USAGE = `Usage: npx tsx bot/index.ts <command> [options]
 
@@ -73,7 +73,7 @@ async function runRosterTest(configPath: string, jobName: string | undefined, lo
     for (const job of jobs) {
         let rosterSet: RosterSet;
         try {
-            rosterSet = loadRosterFile(path.resolve(path.dirname(configPath), job.session.rosterFile));
+            rosterSet = await loadRoster(config, job, configPath);
         } catch (err) {
             logger.error(`roster-test: roster error: ${err instanceof Error ? err.message : err}`, {
                 event: "roster-error",
@@ -83,12 +83,30 @@ async function runRosterTest(configPath: string, jobName: string | undefined, lo
             });
             throw err;
         }
-        console.log(`[job "${job.name}"] ${rosterSet.rosters.length} roster(s):`);
+        logger.info(`[SUCCESS] job "${job.name}" ${rosterSet.rosters.length} roster(s):`);
+        logRosterRead(logger, job, rosterSet);
+        const next = rosterSet.next(new Date(), job.match?.startTime ? { startTime: job.match.startTime } : undefined);
+        if (next) {
+            logger.info(
+                `  -> next session: ${formatDateKey(next.date)}${next.startTime ? ` ${next.startTime}` : ""}${
+                    next.tab ? ` (${next.tab})` : ""
+                }`,
+            );
+        } else {
+            logger.info("  -> no upcoming session (every roster date has passed)");
+        }
         for (const roster of rosterSet.rosters) {
-            const when = [formatDateKey(roster.date), roster.startTime].filter(Boolean).join(" ");
-            console.log(`  ${when} (${roster.players.length} player(s)):`);
+            const when = [
+                formatDateKey(roster.date),
+                roster.startTime,
+                roster === next ? "NEXT" : undefined,
+                roster.tab ? `[${roster.tab}]` : undefined,
+            ]
+                .filter(Boolean)
+                .join(" ");
+            logger.info(`  ${when} (${roster.players.length} player(s)):`);
             for (const name of roster.players) {
-                console.log(`    - ${name}`);
+                logger.info(`    - ${name}`);
             }
         }
     }
@@ -120,12 +138,7 @@ async function runCheckAuth(logger: Logger): Promise<boolean> {
     }
 }
 
-async function main(): Promise<void> {
-    const args = parseArgs(process.argv.slice(2));
-    const logger = createLogger({
-        filePath: defaultLogFile(resolveLogDir(args.logPath), "bot"),
-    });
-
+async function main(args: Args, logger: Logger): Promise<void> {
     switch (args.command) {
         case "ensure-roster": {
             const ok = await runEnsureRoster(args.config, {
@@ -148,18 +161,22 @@ async function main(): Promise<void> {
     }
 }
 
-function onFatal(error: unknown, kind: "uncaughtException" | "unhandledRejection"): void {
+function onFatal(logger: Logger, error: unknown, kind: "uncaughtException" | "unhandledRejection"): void {
     const err = error instanceof Error ? error : new Error(String(error));
-    // Last-resort structured line; the bot logger may not be wired yet.
-    console.error(`${kind}: ${err.stack ?? err.message}`);
+    logger.error(`${kind}: ${err.stack ?? err.message}`, { event: kind });
     process.exit(1);
 }
 
-process.on("uncaughtException", (error) => onFatal(error, "uncaughtException"));
-process.on("unhandledRejection", (error) => onFatal(error, "unhandledRejection"));
+const args = parseArgs(process.argv.slice(2));
+const logger = createLogger({
+    filePath: defaultLogFile(resolveLogDir(args.logPath), "bot"),
+});
 
-main().catch((error) => {
+process.on("uncaughtException", (error) => onFatal(logger, error, "uncaughtException"));
+process.on("unhandledRejection", (error) => onFatal(logger, error, "unhandledRejection"));
+
+main(args, logger).catch((error) => {
     const err = error instanceof Error ? error : new Error(String(error));
-    console.error("Error:", err.stack ?? err.message);
+    logger.error(`Error: ${err.stack ?? err.message}`, { event: "unhandled" });
     process.exit(1);
 });

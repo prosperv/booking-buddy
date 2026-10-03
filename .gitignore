@@ -45,8 +45,15 @@ credentials.json
 *.log
 log/
 .notes/
+.temp-data/
+
+# Local opencode config (MCP servers etc.) and installed plugin deps
+opencode.json
+.opencode/
 
 # Bot local config and rosters (example files are committed)
 bot.config.json
 bot/rosters/*.csv
 !bot/rosters/example.csv
+
+

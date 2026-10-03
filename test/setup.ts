@@ -12,6 +12,8 @@ for (const key of [
     "PROFILE_DIR",
     "MIN_ACTION_DELAY_MS",
     "MAX_ACTION_DELAY_MS",
+    "NAV_TIMEOUT_MS",
+    "NAV_RETRIES",
     "PORT",
     "COURTRESERVE_ORG_ID",
     "LOG_PATH",

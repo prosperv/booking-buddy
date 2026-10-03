@@ -13,6 +13,14 @@ import { navigateTo } from "./navigation";
 const LOGIN_REDIRECT_TIMEOUT_MS = 10_000;
 
 /**
+ * The portal's "LOG IN" link. Exported because it doubles as a navigation
+ * readiness signal: the bookings list redirects here when the session is
+ * stale, so its presence means "the portal rendered, login required" rather
+ * than "the page never arrived".
+ */
+export const LOGIN_LINK_SELECTOR = 'a[href*="/Online/Account/LogIn/"]';
+
+/**
  * True when the page is on the authenticated bookings list. CourtReserve
  * redirects unauthenticated visitors off the bookings list to the portal
  * home, which renders a "LOG IN" button linking to `/Online/Account/LogIn/`.
@@ -24,7 +32,7 @@ export async function isLoggedIn(page: Page): Promise<boolean> {
         loggerFor(page).debug("login state", { event: "login-state", loggedIn: false, reason: "not-on-bookings-list" });
         return false;
     }
-    const loginButton = page.locator('a[href*="/Online/Account/LogIn/"]');
+    const loginButton = page.locator(LOGIN_LINK_SELECTOR);
     const loggedIn = (await loginButton.count()) === 0;
     loggerFor(page).debug("login state", { event: "login-state", loggedIn });
     return loggedIn;
@@ -42,7 +50,7 @@ export async function loginWithCredentials(
     username: string,
     password: string,
 ): Promise<void> {
-    await navigateTo(page, courtReserveLoginUrl, "CourtReserve Login");
+    await navigateTo(page, courtReserveLoginUrl, "CourtReserve Login", 'input[name="email"]');
     loggerFor(page).info("navigate to login", { event: "navigate", url: courtReserveLoginUrl });
 
     await page.locator('input[name="email"]').fill(username);

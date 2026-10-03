@@ -115,7 +115,12 @@ export function reservationDetailUrl(bookingId: string): string {
 }
 
 export async function openReservationDetail(page: Page, bookingId: string): Promise<void> {
-    await navigateTo(page, reservationDetailUrl(bookingId), "CourtReserve Reservation Detail");
+    await navigateTo(
+        page,
+        reservationDetailUrl(bookingId),
+        "CourtReserve Reservation Detail",
+        '[data-testid="btn-update-reservation"]',
+    );
     loggerFor(page).info("navigate to reservation detail", { event: "navigate", bookingId });
     try {
         await page.getByTestId("btn-update-reservation").waitFor({ state: "visible" });

@@ -7,7 +7,7 @@ import { isLoggedIn } from "./login";
 
 export async function manualLogin(context: BrowserContext, authPathOverride?: string): Promise<void> {
     const page = await context.newPage();
-    await navigateTo(page, googleUrl, "Google page");
+    await navigateTo(page, googleUrl, "Google page", "body");
     loggerFor(page).info("navigate to Google for manual login", { event: "navigate", url: googleUrl });
     await waitForEnter();
     const path = authPathOverride ?? authPath;

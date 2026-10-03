@@ -49,6 +49,12 @@ export type Roster = {
     startTime?: string;
     /** Player names signed up, trimmed, deduped, in source order. */
     players: string[];
+    /**
+     * The sheet tab this roster came from, when the source was a multi-tab
+     * Google Sheet. Purely informational — it identifies the roster in logs and
+     * never affects matching.
+     */
+    tab?: string;
 };
 
 /**
@@ -64,7 +70,25 @@ export type RosterSet = {
      * or `undefined` when none does.
      */
     find(date: Date): Roster | undefined;
+    /**
+     * Returns the closest session on or after `from`, or `undefined` when every
+     * roster has passed. A roster that carries a year is compared at its full
+     * date (and start time, when it has one); a year-less roster is treated as
+     * its next occurrence on or after `from`, mirroring `find`'s year-ignoring
+     * rule. Pass `startTime` to restrict the choice to one session slot, so jobs
+     * sharing a sheet with different start times each pick their own session.
+     */
+    next(from: Date, options?: { startTime?: string }): Roster | undefined;
 };
+
+/**
+ * Resolves a month name or abbreviation to its number — `"sep"`, `"Sept"` and
+ * `"September"` all resolve to `9`. Returns `undefined` for anything that is
+ * not a month name, so callers can skip non-month cells/tokens.
+ */
+export function monthFromToken(token: string): number | undefined {
+    return MONTHS[token.trim().toLowerCase().slice(0, 3)];
+}
 
 /**
  * Parses a date label like "Aug 25th", "Sep 1", or "September 25th" into its
@@ -76,7 +100,7 @@ export function parseDateLabel(label: string): { month: number; day: number } | 
     const match = /^\s*([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\s*$/.exec(label);
     if (!match) return null;
 
-    const month = MONTHS[match[1].toLowerCase().slice(0, 3)];
+    const month = monthFromToken(match[1]);
     if (month === undefined) return null;
 
     const day = Number(match[2]);
@@ -319,35 +343,61 @@ export function parseEventExportCsv(text: string): RosterSet {
 }
 
 /**
- * Fixed cell coordinates for the signups export:
- *   - the date sits at (row 2, col 2)
- *   - the `Player Name` header sits at (row 4, col 3), with player names in
- *     col 3 from row 5 onward.
- * All 1-based. Everything else in the file is ignored.
+ * Parses the CourtReserve signups export, which stacks one block per event.
+ * Each block begins with a row whose first cell is the "▶" marker, followed by
+ * a `Date` / `Start Time` header and value row, an optional blank row, then a
+ * `#`/`Paid`/`Player Name` table. Columns are located by header keyword within
+ * each block (not fixed position), so blocks with different widths are all
+ * read. Every block becomes one dated `Roster`; blocks whose date is missing
+ * or unparseable are skipped.
  */
-const SIGNUPS_DATE_ROW = 2;
-const SIGNUPS_DATE_COL = 2;
-const SIGNUPS_TIME_COL = 3;
-const SIGNUPS_NAME_ROW = 4;
-const SIGNUPS_NAME_COL = 3;
-
-/**
- * Parses the signups export via fixed cell coordinates rather than header
- * keywords. The date is read from (row 2, col 2) and the players from col 3
- * starting at row 5; every other column/row is ignored. Returns an empty set
- * when the identified cells don't look like a date or an export at those
- * coordinates.
- */
-export function parseSignupsCsv(text: string): RosterSet {
+export function parseSignupsExportCsv(text: string): RosterSet {
     const rows = nonEmptyLines(text).map(splitRow);
 
-    const dateValue = (rows[SIGNUPS_DATE_ROW - 1]?.[SIGNUPS_DATE_COL - 1] ?? "").trim();
-    const timeValue = (rows[SIGNUPS_DATE_ROW - 1]?.[SIGNUPS_TIME_COL - 1] ?? "").trim();
-    const headerCell = (rows[SIGNUPS_NAME_ROW - 1]?.[SIGNUPS_NAME_COL - 1] ?? "").trim();
-    if (!/^player\s*name$/i.test(headerCell)) return makeRosterSet([]);
+    const rosters: Roster[] = [];
+    let blockStart = -1;
+    for (let i = 0; i < rows.length; i++) {
+        if ((rows[i][0] ?? "").trim() !== "▶") continue;
+        if (blockStart !== -1) parseSignupsBlock(rows.slice(blockStart, i), rosters);
+        blockStart = i;
+    }
+    if (blockStart !== -1) parseSignupsBlock(rows.slice(blockStart), rosters);
 
+    return makeRosterSet(rosters);
+}
+
+/** Reads one "▶"-headed signups block into a `Roster`, pushing it onto `rosters`. */
+function parseSignupsBlock(rows: string[][], rosters: Roster[]): void {
+    const header = rows[0];
+    const dateCol = header.findIndex((c) => /^date$/i.test(c.trim()));
+    const timeCol = header.findIndex((c) => /^start\s*time$/i.test(c.trim()));
+
+    let dateValue: string | undefined;
+    let timeValue: string | undefined;
+    let nameCol = -1;
+    let playerHeaderRow = -1;
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (nameCol === -1) {
+            const idx = row.findIndex((c) => /^player\s*name$/i.test(c.trim()));
+            if (idx !== -1) {
+                nameCol = idx;
+                playerHeaderRow = i;
+            }
+        }
+        if (dateCol >= 0 && dateValue === undefined) {
+            const cell = (row[dateCol] ?? "").trim();
+            if (cell !== "" && !/^date$/i.test(cell)) dateValue = cell;
+        }
+        if (timeCol >= 0 && timeValue === undefined) {
+            const cell = (row[timeCol] ?? "").trim();
+            if (cell !== "" && !/^start\s*time$/i.test(cell)) timeValue = cell;
+        }
+    }
+
+    if (nameCol === -1) return;
     const parsed = dateValue ? parseNumericDate(dateValue) : null;
-    if (!parsed) return makeRosterSet([]);
+    if (!parsed) return;
 
     const roster: Roster = {
         date: new Date(parsed.year ?? 1970, parsed.month - 1, parsed.day),
@@ -360,8 +410,8 @@ export function parseSignupsCsv(text: string): RosterSet {
 
     const players: string[] = [];
     const seen = new Set<string>();
-    for (let r = SIGNUPS_NAME_ROW; r < rows.length; r++) {
-        const name = (rows[r]?.[SIGNUPS_NAME_COL - 1] ?? "").trim();
+    for (let i = playerHeaderRow + 1; i < rows.length; i++) {
+        const name = (rows[i][nameCol] ?? "").trim();
         if (name === "") continue;
         const key = name.toLowerCase();
         if (seen.has(key)) continue;
@@ -370,26 +420,49 @@ export function parseSignupsCsv(text: string): RosterSet {
     }
     roster.players = players;
 
-    return makeRosterSet([roster]);
+    rosters.push(roster);
 }
 
 /**
  * Detects which CSV format `text` is and parses it. The signups export is
- * recognized by a `Player Name` header at (row 4, col 3); the event export by
- * an `Paid` + `Player Name` header (keyword based); anything else is treated
- * as the legacy date-column layout.
+ * recognized by a leading "▶" marker row (one block per event); the event
+ * export by a `Paid` + `Player Name` header (keyword based); anything else is
+ * treated as the legacy date-column layout.
  */
 export function parseRoster(text: string): RosterSet {
-    const rows = nonEmptyLines(text);
-    const signupsHeader = (rows[SIGNUPS_NAME_ROW - 1] ?? "")
-        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)[SIGNUPS_NAME_COL - 1]
-        ?.trim();
-    if (/^player\s*name$/i.test(signupsHeader ?? "")) return parseSignupsCsv(text);
+    const lines = nonEmptyLines(text);
+    if (lines.some((line) => (splitRow(line)[0] ?? "").trim() === "▶")) {
+        return parseSignupsExportCsv(text);
+    }
 
-    const hasPaid = /(^|,)paid(,|$)/i.test(rows[0] ?? "") || /(^|,)paid(,|$)/i.test(text);
+    const hasPaid = /(^|,)paid(,|$)/i.test(lines[0] ?? "") || /(^|,)paid(,|$)/i.test(text);
     const hasPlayerName = /player\s*name/i.test(text);
     if (hasPaid && hasPlayerName) return parseEventExportCsv(text);
     return parseRosterCsv(text);
+}
+
+/**
+ * One roster source: raw CSV text, optionally labelled with the sheet tab it
+ * came from (which is then recorded on every roster parsed out of it).
+ */
+export type RosterSourceText = string | { text: string; tab?: string };
+
+/**
+ * Parses several roster sources into one `RosterSet` — the shape a
+ * month-per-tab Google Sheet produces, where each tab is a separate CSV text
+ * and each carries a month of sessions. Every source is auto-detected
+ * independently and the rosters are concatenated in the order given, so
+ * calling {@link next} walks straight from one month into the next.
+ */
+export function parseRosterAll(sources: RosterSourceText[]): RosterSet {
+    const rosters: Roster[] = [];
+    for (const source of sources) {
+        const { text, tab } = typeof source === "string" ? { text: source, tab: undefined } : source;
+        for (const roster of parseRoster(text).rosters) {
+            rosters.push(tab === undefined ? roster : { ...roster, tab });
+        }
+    }
+    return makeRosterSet(rosters);
 }
 
 function makeRosterSet(rosters: Roster[]): RosterSet {
@@ -404,7 +477,49 @@ function makeRosterSet(rosters: Roster[]): RosterSet {
             // boundary (a "Jan 5" signup is for the *next* Jan 5, not last year's).
             return rosters.find((r) => r.date.getMonth() + 1 === month && r.date.getDate() === day);
         },
+        next(from: Date, options?: { startTime?: string }): Roster | undefined {
+            const wanted = options?.startTime;
+            let best: Roster | undefined;
+            let bestAt = Number.POSITIVE_INFINITY;
+            for (const roster of rosters) {
+                if (wanted !== undefined && roster.startTime !== undefined && roster.startTime !== wanted) {
+                    continue;
+                }
+                const at = occurrenceOf(roster, from);
+                if (at === undefined) continue;
+                const time = at.getTime();
+                if (time < from.getTime()) continue;
+                if (time < bestAt) {
+                    best = roster;
+                    bestAt = time;
+                }
+            }
+            return best;
+        },
     };
+}
+
+/**
+ * Resolves a roster to the concrete instant it next falls on, relative to
+ * `from`: its own date (plus start time) when the source carried a year, or
+ * its next month/day occurrence when the source is year-less — the same
+ * year-ignoring rule `find` uses, so a legacy date-column CSV keeps working
+ * (`Roster.date` there is a 1970 placeholder).
+ */
+function occurrenceOf(roster: Roster, from: Date): Date | undefined {
+    const month = roster.date.getMonth();
+    const day = roster.date.getDate();
+    const [hours, minutes] = roster.startTime ? roster.startTime.split(":").map(Number) : [0, 0];
+
+    if (roster.year !== undefined) {
+        return new Date(roster.year, month, day, hours, minutes);
+    }
+
+    let next = new Date(from.getFullYear(), month, day, hours, minutes);
+    if (next.getTime() < from.getTime()) {
+        next = new Date(from.getFullYear() + 1, month, day, hours, minutes);
+    }
+    return next;
 }
 
 /** Reads a roster CSV from disk, auto-detecting its format; throws a descriptive error when missing/unreadable. */
