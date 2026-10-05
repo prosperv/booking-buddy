@@ -99,7 +99,7 @@ function logNameMappings(logger: Logger, job: JobConfig, nameMap: NameMap | unde
     );
 }
 
-function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan): void {
+function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan, capacity: number): void {
     logger.info(
         `[session] ${session.date} ${session.startTime} @ ${session.location} (${session.courts.length} court(s))`,
         {
@@ -136,9 +136,25 @@ function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan): v
         });
     }
     if (plan.overflow.length > 0) {
-        logger.warn("  no space (overflow)", {
-            event: "overflow",
-            names: plan.overflow,
+        logger.warn(
+            `  no space: ${plan.overflow
+                .map((p) => `${p.name} (court ${p.court}, ${p.seated}/${capacity})`)
+                .join(", ")}`,
+            {
+                event: "overflow",
+                capacity,
+                players: plan.overflow,
+            },
+        );
+    }
+    if (plan.waitlisted.length > 0) {
+        // A court that is not booked yet holds one fewer player than `capacity`:
+        // its own organizer occupies a seat without playing.
+        const courtsNeeded = Math.ceil(plan.waitlisted.length / Math.max(1, capacity - 1));
+        logger.warn(`  waitlisted: ${plan.waitlisted.join(", ")} — book ${courtsNeeded} more court(s)`, {
+            event: "waitlist",
+            names: plan.waitlisted,
+            courts: courtsNeeded,
         });
     }
 }
@@ -312,7 +328,7 @@ export async function runEnsureRoster(
                     job.session.organizer,
                     config.nameMap,
                 );
-                logSession(logger, session, plan);
+                logSession(logger, session, plan, job.session.courtCapacity);
 
                 if (options.dryRun) continue;
 

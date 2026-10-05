@@ -16,11 +16,29 @@ export type CourtAssignment = {
     alreadyPlaced: string[];
 };
 
+/**
+ * A roster name that should have been added to a court but could not be, because
+ * every court in the session is at capacity. The court is the one the name is
+ * attributed to for reporting only — no court actually had room, which is why
+ * the name was left off.
+ */
+export type OverflowPlayer = {
+    /** The member name that would have been searched (mapped, when a nameMap is supplied). */
+    name: string;
+    /** Court number the name is attributed to: the fullest court, at most one name per court. */
+    court: number;
+    bookingId: string;
+    /** Player count on that court once the plan is applied — why it had no room. */
+    seated: number;
+};
+
 export type SessionPlan = {
     courts: CourtAssignment[];
     satisfied: string[];
     tooShort: string[];
-    overflow: string[];
+    overflow: OverflowPlayer[];
+    /** Names with no court to be attributed to: overflow beyond one per court. */
+    waitlisted: string[];
 };
 
 function dateKey(date: Date): string {
@@ -81,8 +99,11 @@ export function groupBookingsIntoSessions(bookings: Booking[], location?: string
  * reported as satisfied; on some-but-not-all courts it is left in place so a
  * re-run never churns an earlier assignment; on none it becomes a candidate for
  * a free slot. Names too short for the member search are flagged rather than
- * assigned, and candidates that exceed the session's total free slots land in
- * `overflow`.
+ * assigned, and candidates that exceed the session's total free slots are split
+ * two ways: `overflow` carries the first court's worth of them — at most one
+ * name per court, attributed to the fullest court first — and `waitlisted`
+ * carries the rest, which have no court to be attributed to. Both are
+ * hypothetical: no court had room, so none of these names were added.
  *
  * A removal frees a slot: free capacity is computed from the player count
  * minus the names being removed, so a dropped player's court can absorb a
@@ -186,6 +207,26 @@ export function planSession(
         }
     }
 
+    // Names the session has no room for, attributed to the courts for reporting:
+    // at most one per court, fullest court first, so the report reads as "each
+    // court is one player short" and an over-capacity court leads (it is the one
+    // actually blocking). Everything past one per court is `waitlisted` — it
+    // needs a court that is not booked yet.
+    const postPlayers = courts.map((b, i) => b.players.length - removeByCourt[i].length + addByCourt[i].length);
+    const byFullness = courts
+        .map((_, i) => i)
+        .sort((a, b) => postPlayers[b] - postPlayers[a] || courts[a].courtNumber - courts[b].courtNumber);
+    const leftover = candidates.slice(cursor);
+    const overflow: OverflowPlayer[] = leftover.slice(0, byFullness.length).map((name, j) => {
+        const i = byFullness[j];
+        return {
+            name,
+            court: courts[i].courtNumber,
+            bookingId: courts[i].bookingId,
+            seated: postPlayers[i],
+        };
+    });
+
     return {
         courts: courts.map((booking, i) => ({
             booking,
@@ -195,6 +236,7 @@ export function planSession(
         })),
         satisfied,
         tooShort,
-        overflow: candidates.slice(cursor),
+        overflow,
+        waitlisted: leftover.slice(byFullness.length),
     };
 }
