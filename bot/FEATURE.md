@@ -82,7 +82,12 @@ What the `bot/` CLI does on top of the library (see
   - On every court: satisfied.
   - On some courts: left alone, so re-running never churns an assignment.
   - On no court and too short to search: flagged rather than assigned.
-  - On no court and beyond the free slots: reported as overflow.
+  - On no court and beyond the free slots: reported, split two ways.
+    - Overflow: at most one name per court, attributed to the fullest court
+      first, since that court is the one actually blocking.
+    - Waitlisted: everything past one per court, which needs a court that is not
+      booked yet.
+    - Both are hypothetical — no court had room, so neither was added.
 - Slot filling respects court capacity.
   - Roster order preserved, courts filled in court-number order.
   - Removals free capacity, so a dropped player's court absorbs a replacement in
@@ -115,8 +120,9 @@ What the `bot/` CLI does on top of the library (see
   - Courts with nothing to add or remove are skipped entirely.
 - Each job is isolated, so one job's failure doesn't stop the others.
 - Structured logging per run: roster reads, the selected and deferred sessions,
-  the name mappings applied, per-court adds and removes, satisfied/too-short/
-  overflow names, and per-swap saved/removed/added/skipped/failed counts.
+  the name mappings applied, per-court adds and removes, satisfied/too-short
+  names, per-court overflow and waitlisted names, and per-swap
+  saved/removed/added/skipped/failed counts.
   - The run's outcome decides the exit code, so a data problem is visible to
     the scheduler.
 

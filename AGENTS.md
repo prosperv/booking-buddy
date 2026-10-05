@@ -106,6 +106,15 @@ behavior. What's load-bearing here:
   `../src` barrel) so comparisons stay consistent with the add flow.
   `ensure-roster` applies each court with `swapPlayersOnBooking` — one
   edit-modal save per court, and courts with no add/remove are skipped.
+- Names the session has no room for are reported, never added, split two ways in
+  `SessionPlan`: `overflow` is at most **one name per court**, each attributed to
+  the fullest court first (`postPlayers` descending, court number as tie-break),
+  since that court is the one blocking; `waitlisted` is everything past that,
+  which needs a court that isn't booked yet. Both are hypothetical attributions —
+  the greedy fill exhausts every free slot before anything lands there, so
+  `overflow`/`waitlisted` together are just the tail of the candidate list. They
+  are `warn`-level and never affect `ok`; the `waitlist` event adds how many more
+  courts are needed (`capacity - 1`, since a new court has its own organizer).
 - One `now` is taken per run and threaded through, so month-tab selection and the
   "next session" pick can never disagree across a midnight.
 - Bot unit tests cover `csv` / `config` / `name-map` / `session` / `sheets` only.

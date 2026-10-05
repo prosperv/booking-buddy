@@ -302,8 +302,11 @@ Two consequences worth knowing:
    court). Names in the roster but on no court are added; names on a court but
    no longer in the roster are removed — except the organizer (and any name on
    every court). A removal frees a slot, so a dropped player's court can absorb
-   a replacement in the same run. Names too short to search and names that
-   exceed the total free slots are reported. When a
+   a replacement in the same run. Names too short to search are reported, and so
+   are the names the session has no room for: those that would fill a court that
+   is at capacity are reported as `overflow` — with the court each one would have
+   gone to, fullest court first and at most one name per court — and the rest are
+   `waitlisted`, since they need a court that is not booked yet. When a
    [`nameMap`](#player-name-map) is configured, names are compared by identity
    and the mapped name is the one added.
 8. In `--dry-run`, print the assignment. Otherwise `swapPlayersOnBooking()`
@@ -330,7 +333,10 @@ directory is gitignored, and console output is unchanged — each event is also
 mirrored to stdout/stderr.
 
 To review a failed run: `jq . log/bot-<date>.log`, or
-`grep '"level":"error"' log/bot-<date>.log`.
+`grep '"level":"error"' log/bot-<date>.log`. To see who a session had no room
+for: `grep -E '"event":"(overflow|waitlist)"' log/bot-<date>.log` — an `overflow`
+event names the court each player would have gone to, and a `waitlist` event
+lists the players who need another court booked.
 
 ## Scheduling on an always-on machine
 
