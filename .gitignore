@@ -47,9 +47,12 @@ log/
 .notes/
 .temp-data/
 
-# Local opencode config (MCP servers etc.) and installed plugin deps
-opencode.json
-.opencode/
+# Installed opencode plugin deps (opencode.json and .opencode/ content are committed)
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/.gitignore
 
 # Bot local config and rosters (example files are committed)
 bot.config.json
