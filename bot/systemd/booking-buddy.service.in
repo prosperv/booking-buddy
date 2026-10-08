@@ -14,9 +14,15 @@ Group=@GROUP@
 WorkingDirectory=@REPO_DIR@
 Environment=HOME=@HOME@
 Environment=TZ=America/Los_Angeles
-# A run with no saved auth.json falls through to the manual-login prompt, which
-# blocks forever here (a oneshot unit has no TTY). Without a ceiling that would
-# leave the unit activating indefinitely and every later timer fire piling up
-# behind it.
+# Unattended re-login when the saved session has gone stale. Read by systemd as
+# root before the privileges above are dropped, so a root-owned 600 file is not
+# exposed by `systemctl show` the way an inline Environment= line would be.
+# The leading `-` keeps a missing file non-fatal: a checkout without credentials
+# still runs, it just falls back to the interactive manual-login prompt.
+EnvironmentFile=-/etc/booking-buddy/credentials.env
+# With no credentials and no saved auth.json, init() falls through to that
+# prompt, which blocks forever here (a oneshot unit has no TTY). Without a
+# ceiling that would leave the unit activating indefinitely and every later
+# timer fire piling up behind it.
 TimeoutStartSec=3600
 ExecStart=@REPO_DIR@/node_modules/.bin/tsx @REPO_DIR@/bot/index.ts ensure-roster

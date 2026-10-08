@@ -38,7 +38,6 @@ test/data/**/*.mhtml
 # Local profile and auth state
 my-profile/
 auth.json
-credentials.json
 *.bak
 
 # Misc

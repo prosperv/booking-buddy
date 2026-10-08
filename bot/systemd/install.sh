@@ -125,6 +125,30 @@ else
     warn "runuser not found (util-linux) — skipping the permission checks a run needs"
 fi
 
+# Two files hold secrets of the same practical exposure — the saved session
+# cookies and the account password — so both are checked here as root rather
+# than as the run user, which is not the one that can read them. A
+# world-readable one is readable by every local account.
+CREDENTIALS_FILE=/etc/booking-buddy/credentials.env
+
+check_secret_file() {
+    local target="$1" remedy="$2" owner mode
+    if [ ! -e "$target" ]; then
+        return
+    fi
+    owner="$(stat -c %U "$target")"
+    mode="$(stat -c %a "$target")"
+    if [ "$owner" != "root" ] || [ "$mode" != "600" ]; then
+        warn "$target is $owner mode $mode — $remedy"
+    fi
+}
+
+check_secret_file "$CREDENTIALS_FILE" "chown root:root $CREDENTIALS_FILE && chmod 600 $CREDENTIALS_FILE"
+check_secret_file "$REPO_DIR/auth.json" "chmod 600 $REPO_DIR/auth.json, keeping it owned by $RUN_USER, which rewrites it on every run"
+if [ ! -e "$CREDENTIALS_FILE" ]; then
+    echo "creds: none at $CREDENTIALS_FILE — a run whose auth.json has gone stale blocks on the manual-login prompt"
+fi
+
 # The timer's OnCalendar and the bot's "next upcoming session" pick are both
 # clock-sensitive, and an unsynced clock produces plausible-looking wrong dates
 # rather than an error. Try once, then warn and carry on.
