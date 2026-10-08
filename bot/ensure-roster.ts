@@ -5,6 +5,80 @@ import { loadRoster, logRosterRead } from "./roster";
 import { mappedName, type NameMap } from "./name-map";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
+/**
+ * Counters for everything a run touched or decided not to touch. The run's exit
+ * code is reserved for config/data problems, so a run that added nobody — because
+ * the session had no booking, or every player failed to search — still exits 0.
+ * These are what make that visible: `run-end` emits them as one summary line.
+ */
+type RunTally = {
+    /** Sessions a roster was matched to and planned. */
+    sessions: number;
+    /** Courts actually saved (never incremented in a dry run). */
+    courtsEdited: number;
+    added: number;
+    removed: number;
+    /**
+     * Players the swap step skipped, in either direction: an add target that was
+     * already seated, or a removal target that wasn't there. Both are no-ops.
+     */
+    skipped: number;
+    /** Players the add/remove step could not resolve. */
+    failed: number;
+    /** A selected roster whose session has no booking yet. */
+    noBooking: number;
+    /** Jobs whose every roster date has passed. */
+    noUpcoming: number;
+    /** Empty rosters, which are authoritative and clear the courts. */
+    emptyRoster: number;
+    /** Rosters left for a later run because they aren't the next session. */
+    deferred: number;
+};
+
+function emptyTally(): RunTally {
+    return {
+        sessions: 0,
+        courtsEdited: 0,
+        added: 0,
+        removed: 0,
+        skipped: 0,
+        failed: 0,
+        noBooking: 0,
+        noUpcoming: 0,
+        emptyRoster: 0,
+        deferred: 0,
+    };
+}
+
+/**
+ * Whether a tally describes a run that needs a human. A deferred roster is
+ * deliberately not one of these — it is the normal steady state of walking
+ * forward through a month.
+ */
+function tallyNeedsAttention(tally: RunTally): boolean {
+    return tally.failed > 0 || tally.noBooking > 0 || tally.noUpcoming > 0 || tally.emptyRoster > 0;
+}
+
+/**
+ * Renders the tally as one human-readable clause list for the `run-end` line.
+ * The attention-worthy counts are appended only when non-zero, so a clean run
+ * stays a single short sentence.
+ */
+function tallySummary(tally: RunTally): string {
+    const parts = [
+        `${tally.sessions} session(s)`,
+        `${tally.courtsEdited} court(s) edited`,
+        `${tally.added} added`,
+        `${tally.removed} removed`,
+        `${tally.skipped} skipped`,
+        `${tally.failed} failed`,
+    ];
+    if (tally.noBooking > 0) parts.push(`${tally.noBooking} session(s) with no booking`);
+    if (tally.noUpcoming > 0) parts.push(`${tally.noUpcoming} job(s) with no upcoming session`);
+    if (tally.emptyRoster > 0) parts.push(`${tally.emptyRoster} empty roster(s), courts cleared`);
+    return parts.join(", ");
+}
+
 export type RunOptions = {
     dryRun: boolean;
     job?: string;
@@ -170,7 +244,9 @@ function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan, ca
  * are logged as deferred. A selected session with no matching booking (courts
  * not booked yet) is reported and skipped. Returns false only for
  * config/data problems (e.g. a missing or empty roster), so systemd can flag
- * them; player-level outcomes never affect it.
+ * them; player-level outcomes never affect it. Because those outcomes can't
+ * fail the run, `run-end` also logs a tally of everything the run did and
+ * declined to do (see `RunTally`), at `warn` when any of it needs a human.
  */
 export async function runEnsureRoster(
     configPath: string,
@@ -202,6 +278,10 @@ export async function runEnsureRoster(
     // One instant for the whole run, so the month tabs that get read and the
     // "next session" that gets picked can never disagree across a midnight.
     const now = new Date();
+
+    // The exit code only reports config/data problems, so this tally is how a
+    // run that did nothing (or could not add a player) still says so out loud.
+    const tally = emptyTally();
 
     // Load every job's roster up front so a missing file or a sheet auth/network
     // failure fails fast without opening a browser. Failed jobs are skipped.
@@ -268,6 +348,7 @@ export async function runEnsureRoster(
 
                 for (const roster of rosterSet.rosters) {
                     if (roster === selected) continue;
+                    tally.deferred += 1;
                     logger.debug(
                         `[job "${job.name}"] ${formatDateKey(roster.date)}${
                             roster.startTime ? ` ${roster.startTime}` : ""
@@ -282,6 +363,7 @@ export async function runEnsureRoster(
                 }
 
                 if (!selected) {
+                    tally.noUpcoming += 1;
                     logger.info(`[job "${job.name}"]: no upcoming roster session — nothing to do`, {
                         event: "no-upcoming-roster",
                         job: job.name,
@@ -292,6 +374,7 @@ export async function runEnsureRoster(
 
                 const session = findSessionFor(sessions, selected);
                 if (!session) {
+                    tally.noBooking += 1;
                     logger.warn(
                         `[job "${job.name}"] ${formatDateKey(selected.date)}${
                             selected.startTime ? ` ${selected.startTime}` : ""
@@ -308,6 +391,7 @@ export async function runEnsureRoster(
                 }
 
                 if (selected.players.length === 0) {
+                    tally.emptyRoster += 1;
                     logger.warn(
                         `[job "${job.name}"] ${formatDateKey(selected.date)}: roster is empty — the sheet has no names yet, so the courts will be cleared`,
                         {
@@ -329,6 +413,7 @@ export async function runEnsureRoster(
                     config.nameMap,
                 );
                 logSession(logger, session, plan, job.session.courtCapacity);
+                tally.sessions += 1;
 
                 if (options.dryRun) continue;
 
@@ -339,6 +424,11 @@ export async function runEnsureRoster(
                         court.remove.map((name) => ({ name })),
                         court.add.map((name) => ({ name })),
                     );
+                    tally.courtsEdited += 1;
+                    tally.removed += result.removed.length;
+                    tally.added += result.added.length;
+                    tally.skipped += result.skipped.length;
+                    tally.failed += result.failed.length;
                     logger.info(
                         `    saved=${result.saved} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
                         {
@@ -377,6 +467,11 @@ export async function runEnsureRoster(
         await client.close();
     }
 
-    logger.info(`ensure-roster done (ok=${ok})`, { event: "run-end", ok });
+    const level = tallyNeedsAttention(tally) ? "warn" : "info";
+    logger[level](`ensure-roster done (ok=${ok}) — ${tallySummary(tally)}`, {
+        event: "run-end",
+        ok,
+        ...tally,
+    });
     return ok;
 }

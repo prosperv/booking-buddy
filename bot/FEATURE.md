@@ -125,14 +125,27 @@ What the `bot/` CLI does on top of the library (see
   saved/removed/added/skipped/failed counts.
   - The run's outcome decides the exit code, so a data problem is visible to
     the scheduler.
+  - One `run-end` tally per run (sessions, courts edited, added/removed/skipped/
+    failed, no-booking, no-upcoming, empty-roster, deferred), logged at `warn`
+    when any of it needs a human — the only way to see a run that added nobody
+    but still exited 0.
 
 ## Scheduling
-- Templated systemd service unit, with the repo path substituted at install
-  time.
+- Templated systemd service unit, with the repo path and the account it runs as
+  substituted at install time.
+- Runs as an unprivileged account, never root: it drives a browser holding live
+  session state, and `HOME` is set because Chromium needs it.
+- A run is capped by `TimeoutStartSec`, so a missing `auth.json` (which would
+  otherwise block on the interactive manual-login prompt forever, with no TTY to
+  press Enter on) fails visibly instead of wedging the timer.
 - Daily, persistent timer — safe because the job is idempotent and skips players
   who are already on a court.
-- A path-agnostic installer that detects or accepts the repo path, installs both
-  units, and enables the timer.
+- A path-agnostic installer that detects or accepts the repo path, resolves the
+  run account (`--user`, else `$SUDO_USER`, else the checkout's owner), installs
+  both units, and enables the timer.
+  - Warns — never fails — about the write permissions a run needs (`log/` and
+    `my-profile/` are created on the first run) and about a clock that isn't
+    NTP-synced.
 - Two date-stamped JSON-lines logs per run (library and bot), so
   `journalctl` and the log files tell the same story.
 

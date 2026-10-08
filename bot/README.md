@@ -46,9 +46,11 @@ Options:
 
 `ensure-roster` exits non-zero only for config/data problems (e.g. a missing
 roster CSV) so `systemd` can flag them. Player-level outcomes (`not-found`,
-`ambiguous`, `not-removable`, `no space`) are logged but never fail the run.
-Both `ensure-roster` and `check-auth` abort after `init()` if `isLoggedIn()`
-is false (a stale/expired session), so a failure can be flagged to `systemd`.
+`ambiguous`, `not-removable`, `no space`) are logged but never fail the run — so
+every run also logs a `run-end` tally of what it did and declined to do, at
+`warn` level when any of it needs a human. Both `ensure-roster` and
+`check-auth` abort after `init()` if `isLoggedIn()` is false (a stale/expired
+session), so a failure can be flagged to `systemd`.
 
 ## Configuration
 
@@ -338,9 +340,20 @@ for: `grep -E '"event":"(overflow|waitlist)"' log/bot-<date>.log` — an `overfl
 event names the court each player would have gone to, and a `waitlist` event
 lists the players who need another court booked.
 
+Every run ends with one `run-end` line summarising it — sessions planned, courts
+edited, players added/removed/already placed/failed, plus any session with no
+booking, no upcoming session, or empty roster. Since player-level problems
+never change the exit code, that line is how you tell a real run from one that
+quietly did nothing:
+
+```
+grep '"event":"run-end"' log/bot-*.log | tail -1
+```
+
 ## Scheduling on an always-on machine
 
-See [`bot/systemd/README.md`](systemd/README.md) for a daily `systemd` timer.
+See [`bot/systemd/README.md`](systemd/README.md) for a daily `systemd` timer,
+including the unprivileged account it runs as and the install-time checks.
 
 ## Tests
 
