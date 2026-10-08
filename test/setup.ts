@@ -16,6 +16,8 @@ for (const key of [
     "NAV_RETRIES",
     "PORT",
     "COURTRESERVE_ORG_ID",
+    "COURTRESERVE_USERNAME",
+    "COURTRESERVE_PASSWORD",
     "LOG_PATH",
     "LOG_LEVEL",
 ]) {

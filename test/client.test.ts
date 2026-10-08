@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CourtReserveClient } from "../src/index";
-import type { Booking, ClientOptions } from "../src/types";
+import type { Booking, ClientOptions, Credentials } from "../src/types";
 
 /**
  * Constructing a CourtReserveClient never touches Playwright, so option
@@ -9,8 +9,12 @@ import type { Booking, ClientOptions } from "../src/types";
 
 // The options field is private; these tests read it deliberately to pin the
 // normalization defaults, which are otherwise only observable via a real launch.
-function optionsOf(client: CourtReserveClient): Required<ClientOptions> {
-    return (client as unknown as { options: Required<ClientOptions> }).options;
+// `credentials` stays optional: it is resolved from the environment when the
+// caller omits it, so "absent" is a real value here rather than a missing one.
+type ResolvedOptions = Omit<Required<ClientOptions>, "credentials"> & { credentials?: Credentials };
+
+function optionsOf(client: CourtReserveClient): ResolvedOptions {
+    return (client as unknown as { options: ResolvedOptions }).options;
 }
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
@@ -37,6 +41,9 @@ describe("CourtReserveClient constructor", () => {
             profileDir: "./my-profile",
             manualLogin: false,
             debugPause: false,
+            // Unset unless COURTRESERVE_USERNAME/PASSWORD are both exported;
+            // test/setup.ts deletes them so a dev shell cannot change this.
+            credentials: undefined,
         });
     });
 
@@ -78,6 +85,19 @@ describe("CourtReserveClient constructor", () => {
         expect(options.profileDir).toBe("./my-profile");
         expect(options.manualLogin).toBe(false);
     });
+
+    it("keeps explicit credentials", () => {
+        const credentials = { username: "player@example.com", password: "hunter2" };
+
+        expect(optionsOf(new CourtReserveClient({ credentials })).credentials).toEqual(credentials);
+    });
+
+    it("has no credentials by default, so unattended login is opt-in", () => {
+        // The env fallback reads the constants captured at import, which
+        // test/setup.ts has cleared.
+        expect(optionsOf(new CourtReserveClient()).credentials).toBeUndefined();
+        expect(optionsOf(new CourtReserveClient({})).credentials).toBeUndefined();
+    });
 });
 
 describe("CourtReserveClient before init", () => {
@@ -110,6 +130,20 @@ describe("CourtReserveClient.isLoggedIn", () => {
         await expect(new CourtReserveClient().isLoggedIn()).rejects.toThrow(
             "Client not initialized. Call init() first.",
         );
+    });
+});
+
+describe("CourtReserveClient.ensureLoggedIn", () => {
+    it("rejects before init", async () => {
+        await expect(new CourtReserveClient().ensureLoggedIn()).rejects.toThrow(
+            "Client not initialized. Call init() first.",
+        );
+    });
+
+    it("rejects before init even when credentials are configured", async () => {
+        const client = new CourtReserveClient({ credentials: { username: "player@example.com", password: "x" } });
+
+        await expect(client.ensureLoggedIn()).rejects.toThrow("Client not initialized. Call init() first.");
     });
 });
 
