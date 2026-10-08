@@ -5,6 +5,18 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# This drives a browser holding live session state, so it runs as an
+# unprivileged account rather than root. install.sh resolves the account (--user,
+# else $SUDO_USER, else the owner of the checkout); HOME is set too, because
+# Chromium keeps its cache and crash dumps under it.
+User=@USER@
+Group=@GROUP@
 WorkingDirectory=@REPO_DIR@
+Environment=HOME=@HOME@
 Environment=TZ=America/Los_Angeles
+# A run with no saved auth.json falls through to the manual-login prompt, which
+# blocks forever here (a oneshot unit has no TTY). Without a ceiling that would
+# leave the unit activating indefinitely and every later timer fire piling up
+# behind it.
+TimeoutStartSec=3600
 ExecStart=@REPO_DIR@/node_modules/.bin/tsx @REPO_DIR@/bot/index.ts ensure-roster

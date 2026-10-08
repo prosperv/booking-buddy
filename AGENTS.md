@@ -120,8 +120,24 @@ behavior. What's load-bearing here:
 - Bot unit tests cover `csv` / `config` / `name-map` / `session` / `sheets` only.
   Everything else is browser- or network-dependent and validated by a live run.
 - Runs via `tsx` (never compiled into `dist/`); systemd units live in
-  `bot/systemd/`. The bot uses the default headless client, so `auth.json` and
-  `my-profile/` must exist on the machine it runs on.
+  `bot/systemd/`. The bot uses the default headless client, so `auth.json` must
+  exist on the machine it runs on; `my-profile/` is created by the first run if
+  it wasn't copied over. The service runs as an unprivileged account
+  (`@USER@`/`@GROUP@`/`@HOME@` in `booking-buddy.service.in`, resolved by
+  `install.sh` from `--user` → `$SUDO_USER` → the checkout's owner), capped by
+  `TimeoutStartSec` — a missing `auth.json` hangs on the interactive
+  manual-login prompt, which a `Type=oneshot` unit has no TTY for.
+- `ensure-roster` never exits non-zero for a player-level problem, so the
+  `run-end` line in `bot/ensure-roster.ts` carries a `RunTally` (sessions,
+  courts edited, added/removed/skipped/failed, no-booking, no-upcoming,
+  empty-roster, deferred) and logs at `warn` when any of it needs a human. That
+  single line is the only way to see a run that quietly did nothing; grep it
+  rather than trusting the exit code.
+- Deferred on purpose, tracked in the repo's untracked `TODO` under "Pi / ops":
+  logrotate for `log/` (needs `copytruncate` — pino holds an open fd), alerting
+  on failure (`OnFailure=`, a `check-auth` timer, or a `--strict` exit code),
+  and Chromium build drift (`package-lock.json` is gitignored, so `npm install`
+  can pull a playwright needing a newer browser build).
 
 ## Never read or commit these (gitignored local state)
 - `auth.json` — real logged-in Playwright storage state (live cookies).
@@ -150,6 +166,8 @@ behavior. What's load-bearing here:
   and waits for Enter; log into CourtReserve in that window yourself, then the
   storage state is saved. The README's "navigate to app.courtreserve.com"
   wording does not match the code.
+- Credential login uses the **email/password** form (`COURTRESERVE_*`), not
+  "Continue with Google" or "Request a Code", both of which the login page also
 - `pauseForAction()` inserts a random anti-bot delay (default 1000–3000ms via
   `MIN_ACTION_DELAY_MS`/`MAX_ACTION_DELAY_MS`) before every navigation, click,
   and per-player step. Use fake timers in unit tests; never assert real timing.
