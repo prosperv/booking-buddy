@@ -138,6 +138,15 @@ What the `bot/` CLI does on top of the library (see
 - A run is capped by `TimeoutStartSec`, so a missing `auth.json` (which would
   otherwise block on the interactive manual-login prompt forever, with no TTY to
   press Enter on) fails visibly instead of wedging the timer.
+- Credentials for unattended re-login come from a root-owned `EnvironmentFile=`
+  the systemd manager reads before dropping privileges, so they are not exposed
+  by `systemctl show` the way an inline `Environment=` line would be, and a
+  checkout without the file still installs.
+  - A stale session is re-logged-in by `init()` and again by the pre-work check,
+    so a session dropped mid-run recovers instead of aborting the run.
+  - `check-auth` re-checks after `init()` and logs a self-heal
+    (`check-auth-relogin`) separately from a healthy session; credentials that
+    stopped working fail the command instead.
 - Daily, persistent timer — safe because the job is idempotent and skips players
   who are already on a court.
 - A path-agnostic installer that detects or accepts the repo path, resolves the

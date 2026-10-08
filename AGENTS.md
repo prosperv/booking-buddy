@@ -126,7 +126,26 @@ behavior. What's load-bearing here:
   (`@USER@`/`@GROUP@`/`@HOME@` in `booking-buddy.service.in`, resolved by
   `install.sh` from `--user` → `$SUDO_USER` → the checkout's owner), capped by
   `TimeoutStartSec` — a missing `auth.json` hangs on the interactive
-  manual-login prompt, which a `Type=oneshot` unit has no TTY for.
+  manual-login prompt, which a `Type=oneshot` unit has no TTY for. Configuring
+  credentials removes the cause: `EnvironmentFile=-/etc/booking-buddy/credentials.env`
+  (leading `-` = optional) is read by systemd as root before privileges drop, and
+  `install.sh` only warns when it or `auth.json` is not root-owned/600.
+- **Unattended re-login is opt-in, in the library, not the bot.** `ClientOptions.credentials`
+  (or `COURTRESERVE_USERNAME` + `COURTRESERVE_PASSWORD`) resolves through
+  `src/credentials.ts`: `credentialsFromEnv()` needs **both** vars non-blank (no
+  `??` default — absence is the signal) and `shouldPromptManualLogin()` is the
+  only branch in `init()` choosing manual vs. credential. `init()` calls
+  `ensureLoggedIn()` after its first `navigateTo`, which is the only place that
+  knows the restored session was stale; `bot/ensure-roster.ts` calls it again
+  before doing work (a session can drop mid-run) and `check-auth` calls it after
+  `isLoggedIn()` so a self-heal logs `check-auth-relogin` at `warn` rather than
+  looking healthy. A failed credential login **throws** — no fallback to the
+  prompt, which could not work on the Pi anyway; `manualLogin: true` still wins
+  everywhere, so `--force` on a desktop is unchanged.
+- `restoreAuth` is guarded by `hasSavedAuth` inside `init()`'s non-manual branch:
+  with credentials configured, a checkout with no `auth.json` now reaches that
+  branch instead of the manual one, and `setStorageState` on a missing path is an
+  ENOENT.
 - `ensure-roster` never exits non-zero for a player-level problem, so the
   `run-end` line in `bot/ensure-roster.ts` carries a `RunTally` (sessions,
   courts edited, added/removed/skipped/failed, no-booking, no-upcoming,
@@ -141,6 +160,8 @@ behavior. What's load-bearing here:
 
 ## Never read or commit these (gitignored local state)
 - `auth.json` — real logged-in Playwright storage state (live cookies).
+- `/etc/booking-buddy/credentials.env` — the CourtReserve account password, read
+  by the systemd unit. Lives outside the repo, so nothing new to ignore.
 - `my-profile/` — persistent Chromium profile directory.
 - `bot.config.json` — real bot config (job + roster paths, and any inline
   Google service-account key). Committed example: `bot/bot.config.example.json`.
@@ -168,6 +189,9 @@ behavior. What's load-bearing here:
   wording does not match the code.
 - Credential login uses the **email/password** form (`COURTRESERVE_*`), not
   "Continue with Google" or "Request a Code", both of which the login page also
+  offers — the Google path needs a browser you log into yourself, and the code
+  path needs an inbox. So an account with no CourtReserve password cannot be
+  recovered unattended.
 - `pauseForAction()` inserts a random anti-bot delay (default 1000–3000ms via
   `MIN_ACTION_DELAY_MS`/`MAX_ACTION_DELAY_MS`) before every navigation, click,
   and per-player step. Use fake timers in unit tests; never assert real timing.
@@ -255,6 +279,7 @@ behavior. What's load-bearing here:
   `player verified`, `login state`.
 - Failure paths are logged (then rethrown/returned) rather than silently
   dropped: `init-failed`, `save-auth-failed`, `session-not-saved` (warn),
+  `credential-login-failed` (username only, never the password),
   `save-timeout`/`save-failed`, `detail-load-failed`, `modal-open-failed`,
   `confirm-dialog-timeout`, `member-search-timeout`, `filter-failed`,
   `navigate-timeout` (warn), `navigate-timeout-continue` (warn), and the
@@ -299,7 +324,8 @@ behavior. What's load-bearing here:
   date tests are offset-sensitive and would pass for the wrong reason on a UTC
   runner. Its `setupFiles: ./test/setup.ts` also `delete`s inherited env vars
   (`HEADLESS`, `AUTH_PATH`, `PROFILE_DIR`, `MIN/MAX_ACTION_DELAY_MS`,
-  `NAV_TIMEOUT_MS`, `NAV_RETRIES`, `PORT`, `COURTRESERVE_ORG_ID`, `LOG_PATH`,
+  `NAV_TIMEOUT_MS`, `NAV_RETRIES`, `PORT`, `COURTRESERVE_ORG_ID`,
+  `COURTRESERVE_USERNAME`, `COURTRESERVE_PASSWORD`, `LOG_PATH`,
   `LOG_LEVEL`) so default-option tests are deterministic — note they are deleted
   (not set to `""`), because `src/constants.ts` uses `??`.
 - `test/data/*.html` fixtures are pruned MHTML: no CSS, images, or scripts, so
@@ -313,6 +339,10 @@ behavior. What's load-bearing here:
 - The captures contain no JavaScript, so the interactive chain (Kendo ComboBox,
   sweetalert2 confirm, member-search XHR, save POST) is untestable offline and
   gated on a live run; `saveReservation` only asserts HTTP status.
+- `init()` / `ensureLoggedIn()` are likewise untestable offline — they launch a
+  persistent context against the live site — so `test/functional/login.test.ts`
+  covers the sequence they are built from (logged-out list → credential login →
+  logged in) instead, and `src/credentials.ts` is tested as pure functions.
 
 ## Residual risks (validated only by a live run)
 - `typePlayerSearch` uses `pressSequentially` with an 80ms per-char delay; a
@@ -329,4 +359,11 @@ behavior. What's load-bearing here:
 - `loginWithCredentials` detects success purely by the page redirecting off
   `/Online/Account/LogIn/` within 10s (the login form is an Ant Design JS/XHR
   submit with no `action`), so the exact submit/redirect timing and any
-  CSRF/token field are only validated on a live run.
+  CSRF/token field are only validated on a live run — as is the whole unattended
+  path, since a real run against the live site is the only place
+  `ensureLoggedIn()` actually executes.
+- The failed-login page snapshot is asserted not to contain the typed password
+  (`test/functional/login.test.ts`), which holds because `fill()` sets the input's
+  value *property* and `page.content()` serializes the `value` *attribute*. If a
+  future change fills differently, demote `login-failed` in `src/login.ts` from
+  `error` to `warn` so it stops triggering `captureFailure`.

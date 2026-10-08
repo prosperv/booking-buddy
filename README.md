@@ -104,6 +104,7 @@ Each `SwapPlayerResult` reports:
 | `manualLogin` | `boolean` | `false`           | Force manual login on init, even if saved auth exists.   |
 | `authPath`    | `string`  | `./auth.json`     | Path to save/load the Playwright storage state file.     |
 | `profileDir`  | `string`  | `./my-profile`    | Directory for the persistent Chromium browser profile.   |
+| `credentials` | `{ username, password }` | from env | Email/password for unattended re-login. Unset means no auto-login. Never logged. |
 | `debugPause`  | `boolean` | `false`           | Pause the Playwright page after init for debugging.      |
 
 These options also have corresponding environment variables:
@@ -113,6 +114,7 @@ These options also have corresponding environment variables:
 | `headless`    | `HEADLESS`      |
 | `authPath`    | `AUTH_PATH`     |
 | `profileDir`  | `PROFILE_DIR`   |
+| `credentials` | `COURTRESERVE_USERNAME` + `COURTRESERVE_PASSWORD` |
 
 ### First-time setup (authentication)
 
@@ -123,6 +125,24 @@ Press Enter after you have logged in successfully.
 ```
 
 Navigate to `https://app.courtreserve.com` in the opened browser, log in with your account, then press **Enter** in the terminal. The session is saved to `./auth.json` and reused on subsequent runs.
+
+### Unattended login (a stale session re-logs-in itself)
+
+CourtReserve drops a saved session every few weeks. With credentials configured,
+`init()` recovers from that on its own instead of falling back to the interactive
+prompt — which matters most on a headless host, where the prompt blocks forever
+with no TTY to press Enter on.
+
+```bash
+export COURTRESERVE_USERNAME="you@example.com"
+export COURTRESERVE_PASSWORD="your-password"
+```
+
+Both must be set; either one alone counts as no credentials. The password is
+never logged (only the username is), so keep it in the environment or a
+root-owned env file — see [`bot/systemd/README.md`](bot/systemd/README.md) for
+the systemd setup. With no credentials set, every path behaves exactly as before,
+and `manualLogin: true` still forces the interactive window.
 
 ### Forcing a fresh login
 
@@ -139,8 +159,9 @@ This opens the browser and waits for you to log in regardless of whether a saved
 
 ### Detecting a stale session
 
-A restored session can be expired, leaving the client on the logged-out
-page. After `init()`, check with `isLoggedIn()` and re-authenticate:
+A restored session can be expired, leaving the client on the logged-out page.
+`init()` already re-authenticates when credentials are configured; without them,
+check with `isLoggedIn()` and re-authenticate yourself:
 
 ```typescript
 await client.init();
@@ -151,8 +172,9 @@ if (!(await client.isLoggedIn())) {
 
 `loginWithCredentials` navigates to the CourtReserve login page, submits the
 email/password form, refreshes `auth.json`, and re-navigates to the bookings
-list. Handling credentials (where they come from, whether to fall back to a
-manual login) is left to the caller.
+list. `ensureLoggedIn()` is the same check plus the credential-aware recovery,
+and is what a long-running caller wants before it starts work: it returns `false`
+when nothing is configured, and throws when a credential login fails.
 
 ## Run the example
 

@@ -8,7 +8,8 @@ it. The bot that builds on it is documented separately in
 - One `CourtReserveClient` drives everything; `init()` prepares the browser and
   `close()` tears it down.
   - Configured with `headless`, `authPath`, `profileDir`, `manualLogin`,
-    `debugPause`, `logPath`, `logLevel` (most also read an env var).
+    `credentials`, `debugPause`, `logPath`, `logLevel` (most also read an env
+    var).
   - Every method is guarded against use before `init()`.
 - `getCurrentBookings(filters?)` reads the bookings list.
   - Filters by weekday, date, or start time; a bare `yyyy-mm-dd` date is read as
@@ -30,6 +31,8 @@ it. The bot that builds on it is documented separately in
     player is not reported as already added.
   - Merged `removed` / `added` / `skipped` / `failed` result.
 - `isLoggedIn()` and `loginWithCredentials(user, password)` for stale sessions.
+- `ensureLoggedIn()` re-authenticates a stale session with the configured
+  credentials, and is what `init()` and long-running callers use.
 - `getPlayersFromBooking(booking)` is a convenience accessor.
 - Problems are separated by severity.
   - Per-player problems come back in the result and never throw.
@@ -65,9 +68,22 @@ it. The bot that builds on it is documented separately in
   - Later runs restore the saved session.
   - The session is re-saved on close only while still logged in, so an expired
     session never overwrites a good one.
-- Credential login for when a restored session has gone stale.
-  - Submits the site's login form and treats leaving the login URL as success.
+- Unattended re-login when the restored session has gone stale.
+  - Opt-in credentials, from the constructor option or the environment.
+    Unset means today's behaviour throughout.
+  - `init()` checks the login state after its first navigation and logs back in
+    if needed, so a missing session no longer means an interactive prompt on a
+    headless host.
+  - `ensureLoggedIn()` exposes the same recovery to callers that outlive the
+    session they started with.
+  - An explicit `manualLogin` always wins, so a desktop run can still log in
+    interactively.
+  - A failed credential login throws rather than falling back to the prompt.
+- Credential login submits the site's login form and treats leaving the login
+  URL as success.
   - Refreshes the saved session and returns to the bookings list.
+  - The username may be logged; the password never is, and not in the
+    failed-login page snapshot either.
 - Shutdown is handled for the host process.
   - SIGINT and SIGTERM close the browser, then re-exit with the conventional
     code.

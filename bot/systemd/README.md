@@ -23,11 +23,49 @@ sudo ./bot/systemd/install.sh --user "$USER" /path/to/booking-buddy
    from a machine with a display to log in, then copy it to the Pi). A
    `my-profile/` copied over from that machine is optional — Chromium creates it
    on the first run if it isn't there.
-2. Run the installer.
+2. Optionally add credentials, so the run can recover by itself when that
+   session expires (see below).
+3. Run the installer.
 
 This substitutes the placeholders in `booking-buddy.service.in`, copies both
 units to `/etc/systemd/system/`, then runs `systemctl daemon-reload` and
 `systemctl enable --now booking-buddy.timer`.
+
+## Unattended login (optional)
+
+CourtReserve drops a saved session every few weeks. Without credentials the next
+run falls through to `init()`'s interactive manual-login prompt, which a
+`Type=oneshot` unit has no TTY for — so the run hangs until `TimeoutStartSec`
+kills it. With the account credentials in a root-owned env file, the run logs
+itself back in instead:
+
+```bash
+sudo install -d -m 700 -o root -g root /etc/booking-buddy
+sudoedit /etc/booking-buddy/credentials.env   # then: chmod 600 /etc/booking-buddy/credentials.env
+```
+
+```ini
+COURTRESERVE_USERNAME=you@example.com
+COURTRESERVE_PASSWORD=your-password
+```
+
+The unit references it as `EnvironmentFile=-/etc/booking-buddy/credentials.env`.
+The leading `-` is what keeps the file optional: a checkout without it installs
+and runs exactly as before. systemd reads that file as root before dropping
+privileges, so its contents are not exposed by `systemctl show` the way an inline
+`Environment=` line would be — but the password is in the service process's
+environment, so it is readable by anyone who can read that account's processes,
+same as any other env secret. Only the username is ever logged.
+
+Rotate the password by editing that file and restarting the service
+(`sudo systemctl restart booking-buddy.service`); the next run uses the new one.
+If the credentials stop working, the run fails with `credential-login-failed` —
+the log says so, and `check-auth` exits non-zero. It does *not* fall back to the
+interactive prompt, which could not help here anyway.
+
+`install.sh` warns (never fails) if that file exists but is not root-owned mode
+600, and if `auth.json` is world-readable — both hold secrets of the same
+practical exposure.
 
 ## The account it runs as
 
@@ -46,7 +84,9 @@ run time — an unexecutable `node_modules/.bin/tsx`, a read-only `auth.json`
 (the run re-writes it with refreshed cookies on close), and a `my-profile/`
 copied in root-owned — but only ever **warns**, printing the exact remedy. A
 root-run `npm install` is what usually causes them; install as the run user and
-then run the installer.
+then run the installer. It also warns about the two secret files' ownership and
+mode (see "Unattended login" above), and reports when there is no credentials
+file at all.
 
 It also checks the system clock is NTP-synced, enabling NTP once if it isn't,
 and warns (never fails) if it still isn't: the timer's `OnCalendar` and the
@@ -57,7 +97,8 @@ produces plausible wrong dates rather than an error. Fix it with
 `TimeoutStartSec=3600` bounds a single run. Without it, a missing `auth.json`
 would hang forever — `init()` falls through to the interactive manual-login
 prompt, and a `Type=oneshot` unit has no TTY to press Enter on — leaving the
-unit `activating` and piling up every later timer fire.
+unit `activating` and piling up every later timer fire. Configuring the
+credentials above removes the cause rather than just bounding it.
 
 ## Ops
 
@@ -84,3 +125,8 @@ That line is the quickest answer to "did anything happen last night":
 (`not-found`, `ambiguous`) are reported but do not fail the unit; a non-zero
 exit means a config/data problem (e.g. a missing roster CSV), which `journalctl`
 will show.
+
+If the credentials are configured, a run that had to re-login says so in the
+library log — `grep '"event":"credential-login"' log/booking-buddy-*.log`. The
+first one is expected (the session expired); a long run of them means the saved
+session is not being refreshed and something is off with `auth.json`.

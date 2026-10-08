@@ -316,7 +316,11 @@ Two consequences worth knowing:
    removed/added/skipped/failed.
 
 The client uses the default headless browser, so `auth.json` and `my-profile/`
-must exist in the working directory.
+must exist in the working directory. If `COURTRESERVE_USERNAME` and
+`COURTRESERVE_PASSWORD` are set in the environment (on the Pi, via
+`EnvironmentFile=` — see [`systemd/README.md`](systemd/README.md)), a run
+re-logs-in unattended when the saved session has gone stale, so a missing
+`auth.json` no longer blocks on the manual-login prompt.
 
 ## Logging
 
