@@ -10,6 +10,10 @@ export const courtReserveUpdateMyReservationUrl =
 export const googleUrl = "https://www.google.com/";
 export const authPath = process.env.AUTH_PATH ?? "./auth.json";
 export const profileDir = process.env.PROFILE_DIR ?? "./my-profile";
+// No `??` default here: absence is the signal that unattended login is not
+// configured, and `??` would turn a blank value into a real username/password.
+export const courtreserveUsername = process.env.COURTRESERVE_USERNAME;
+export const courtreservePassword = process.env.COURTRESERVE_PASSWORD;
 export const headless = process.env.HEADLESS !== "false";
 export const minActionDelay = Number(process.env.MIN_ACTION_DELAY_MS ?? 1000);
 export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 3000);

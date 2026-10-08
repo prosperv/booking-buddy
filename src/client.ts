@@ -6,6 +6,7 @@ import {
     BookingFilters,
     BookingSession,
     ClientOptions,
+    Credentials,
     PlayerAddOutcome,
     PlayerInput,
     PlayerRemoveOutcome,
@@ -14,6 +15,7 @@ import {
 } from "./types";
 import { launchPersistentContext, closeBrowserContext } from "./browser";
 import { manualLogin, restoreAuth, saveAuthIfLoggedIn } from "./auth";
+import { credentialsFromEnv, shouldPromptManualLogin } from "./credentials";
 import { navigateTo } from "./navigation";
 import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from "./constants";
 import { fileExists, pauseForAction } from "./utils";
@@ -166,6 +168,7 @@ type ResolvedClientOptions = {
     profileDir: string;
     manualLogin: boolean;
     debugPause: boolean;
+    credentials?: Credentials;
 };
 
 /**
@@ -196,6 +199,7 @@ export class CourtReserveClient {
             profileDir: options?.profileDir ?? profileDir,
             manualLogin: options?.manualLogin ?? false,
             debugPause: options?.debugPause ?? false,
+            credentials: options?.credentials ?? credentialsFromEnv(),
         };
         this.logger = this.buildLogger(options?.logPath, options?.logLevel);
         this.captureDir =
@@ -226,17 +230,33 @@ export class CourtReserveClient {
             this.registerShutdownHandlers();
 
             const hasSavedAuth = await fileExists(this.options.authPath);
-            if (this.options.manualLogin || !hasSavedAuth) {
+            if (
+                shouldPromptManualLogin({
+                    hasSavedAuth,
+                    manualLogin: this.options.manualLogin,
+                    hasCredentials: this.options.credentials !== undefined,
+                })
+            ) {
                 this.logger.info("manual login", { event: "manual-login" });
                 await manualLogin(this.context, this.options.authPath);
             } else {
+                // Only restore a file that exists: with credentials configured a
+                // checkout with no saved session reaches this branch rather than
+                // the manual-login one, and `restoreAuth` on a missing path is
+                // an ENOENT.
                 this.logger.info("restoring saved auth", { event: "restore-auth" });
-                await restoreAuth(this.context, this.options.authPath);
+                if (hasSavedAuth) {
+                    await restoreAuth(this.context, this.options.authPath);
+                }
             }
 
             this.page = await this.context.newPage();
             this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
             await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);
+            // A stale or missing session bounces to the portal, which
+            // `navigateTo` accepts as ready — so the login state is only known
+            // here, and this is the one place that can recover it unattended.
+            await this.ensureLoggedIn();
             this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl });
 
             if (this.options.debugPause) {
@@ -370,6 +390,48 @@ export class CourtReserveClient {
     }
 
     /**
+     * The login state, re-authenticating with the configured credentials when
+     * the session is not usable — a stale `auth.json`, a missing one, or a
+     * session dropped mid-run. Returns `false` when it is not logged in and no
+     * credentials are configured, which is the state every caller already
+     * treats as "abort and tell a human". `init()` calls this after its first
+     * navigation; the bot calls it again before doing work, since a run outlives
+     * the session it started with.
+     *
+     * A failed credential login throws rather than falling back to the manual
+     * prompt: the host that needs the fallback has no TTY to press Enter on, and
+     * one that does can pass `manualLogin: true` instead.
+     */
+    async ensureLoggedIn(): Promise<boolean> {
+        if (!this.page || !this.context) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+        if (await isLoggedIn(this.page)) {
+            return true;
+        }
+        const credentials = this.options.credentials;
+        if (!credentials) {
+            return false;
+        }
+        this.logger.info("logging in with credentials", {
+            event: "credential-login",
+            username: credentials.username,
+        });
+        try {
+            await this.performCredentialLogin(credentials);
+        } catch (err) {
+            // The password is deliberately absent: only the username is logged.
+            this.logger.error(`credential login failed: ${err instanceof Error ? err.message : err}`, {
+                event: "credential-login-failed",
+                username: credentials.username,
+                message: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+        }
+        return true;
+    }
+
+    /**
      * Logs in with email/password credentials, then refreshes the saved auth
      * state and re-navigates to the bookings list so subsequent calls work.
      * Credential handling is left to the caller; the client only performs the
@@ -380,7 +442,21 @@ export class CourtReserveClient {
             throw new Error("Client not initialized. Call init() first.");
         }
 
-        await loginWithCredentials(this.page, username, password);
+        await this.performCredentialLogin({ username, password });
+    }
+
+    /**
+     * The credential login itself: submit the form, persist the refreshed
+     * cookies over the saved state, and return to the bookings list. Shared by
+     * the explicit `loginWithCredentials` and the automatic recovery in
+     * `ensureLoggedIn`, so both leave the page where later calls expect it.
+     */
+    private async performCredentialLogin(credentials: Credentials): Promise<void> {
+        if (!this.page || !this.context) {
+            throw new Error("Client not initialized. Call init() first.");
+        }
+
+        await loginWithCredentials(this.page, credentials.username, credentials.password);
         await this.context.storageState({ path: this.options.authPath });
         this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
         await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);

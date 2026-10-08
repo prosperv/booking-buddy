@@ -4,6 +4,7 @@ export type {
     Booking,
     BookingFilters,
     ClientOptions,
+    Credentials,
     PlayerAddOutcome,
     PlayerAddReason,
     PlayerInput,
@@ -13,5 +14,6 @@ export type {
     SwapPlayerResult,
 } from "./types";
 export { delay, randomDelay, pauseForAction, fileExists, waitForEnter, retry } from "./utils";
+export { credentialsFromEnv, shouldPromptManualLogin } from "./credentials";
 export { createLogger, defaultLogFile, resolveLogDir } from "./logger";
 export type { Logger, LoggerOptions, LogLevel } from "./logger";

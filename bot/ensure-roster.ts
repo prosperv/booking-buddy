@@ -322,8 +322,21 @@ export async function runEnsureRoster(
         return false;
     }
     try {
-        if (!(await client.isLoggedIn())) {
-            logger.error("ensure-roster: not logged in — aborting.", { event: "not-logged-in" });
+        // A session can also drop mid-run, so this re-authenticates with the
+        // configured credentials rather than only reporting the stale state.
+        // A failed login throws; abort here so it is reported the same way as a
+        // missing one instead of escaping as an unhandled rejection.
+        try {
+            if (!(await client.ensureLoggedIn())) {
+                logger.error("ensure-roster: not logged in — aborting.", { event: "not-logged-in" });
+                return false;
+            }
+        } catch (err) {
+            logger.error(`ensure-roster: credential login failed: ${err instanceof Error ? err.message : err}`, {
+                event: "not-logged-in",
+                message: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+            });
             return false;
         }
 

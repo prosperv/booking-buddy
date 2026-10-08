@@ -127,12 +127,30 @@ async function runCheckAuth(logger: Logger): Promise<boolean> {
         return false;
     }
     try {
+        // `init()` has already recovered once if it could; this covers a session
+        // that dropped in between, and keeps `check-auth` self-healing on its
+        // own. A recovered check logs `check-auth-relogin` at warn so it is
+        // distinguishable from a session that was simply still good. Credentials
+        // that no longer work do not reach here — they throw out of `init()`.
         if (await client.isLoggedIn()) {
             logger.info("check-auth OK: logged in.", { event: "check-auth-ok" });
             return true;
         }
+        if (await client.ensureLoggedIn()) {
+            logger.warn("check-auth OK after re-login: the saved session was stale.", {
+                event: "check-auth-relogin",
+            });
+            return true;
+        }
         logger.error("check-auth FAILED: not logged in (session stale or expired).", {
             event: "check-auth-failed",
+        });
+        return false;
+    } catch (err) {
+        logger.error(`check-auth: credential login failed: ${err instanceof Error ? err.message : err}`, {
+            event: "check-auth-failed",
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
         });
         return false;
     } finally {

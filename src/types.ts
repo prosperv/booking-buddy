@@ -1,11 +1,23 @@
 import { Page } from "playwright";
 
+/** CourtReserve account credentials, used to re-login unattended. */
+export type Credentials = {
+    username: string;
+    password: string;
+};
+
 export type ClientOptions = {
     headless?: boolean;
     authPath?: string;
     profileDir?: string;
     manualLogin?: boolean;
     debugPause?: boolean;
+    /**
+     * Email/password for unattended re-login when the saved session is stale or
+     * missing. Defaults to `COURTRESERVE_USERNAME` / `COURTRESERVE_PASSWORD`
+     * when both are set. Never logged.
+     */
+    credentials?: Credentials;
     /** Log directory for the library's own log file; `false` disables it. */
     logPath?: string | false;
     /** Minimum log level (default `info`, or `LOG_LEVEL`). */
