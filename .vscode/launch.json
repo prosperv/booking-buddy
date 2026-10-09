@@ -7,6 +7,7 @@
             "name": "Debug examples/usage.ts",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
             "program": "${workspaceFolder}/examples/usage.ts",
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "skipFiles": [
@@ -23,6 +24,7 @@
                 "${input:playerName1}",
                 "${input:playerName2}"
             ],
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "skipFiles": [
@@ -38,6 +40,7 @@
             "args": [
                 "--force"
             ],
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "skipFiles": [
@@ -53,6 +56,7 @@
             "args": [
                 "--force"
             ],
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "skipFiles": [
@@ -72,6 +76,7 @@
                 "--headed",
                 "--dry-run"
             ],
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "skipFiles": [
