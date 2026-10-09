@@ -4,9 +4,9 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Debug examples/usage.ts",
+            "name": "Debug examples/list-bookings.ts",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
-            "program": "${workspaceFolder}/examples/usage.ts",
+            "program": "${workspaceFolder}/examples/list-bookings.ts",
             "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -34,9 +34,9 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Debug examples/usage.ts (force login)",
+            "name": "Debug examples/list-bookings.ts (force login)",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
-            "program": "${workspaceFolder}/examples/usage.ts",
+            "program": "${workspaceFolder}/examples/list-bookings.ts",
             "args": [
                 "--force"
             ],
@@ -52,7 +52,7 @@
             "request": "launch",
             "name": "Manual login",
             "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
-            "program": "${workspaceFolder}/examples/usage.ts",
+            "program": "${workspaceFolder}/examples/list-bookings.ts",
             "args": [
                 "--force"
             ],

@@ -23,7 +23,7 @@ the two `tsc` commands below, so nothing else catches a mistake.
   installed, so it fails with `MISSING DEPENDENCY`. Don't use it to verify a change.
 - Every `vitest` run prints a `configLoader: 'native'` warning about ESM syntax
   in a CJS-loaded `vitest.config.ts`. Harmless — ignore it.
-- `npm start` / `npx tsx examples/{usage,add-player,remove-player,swap-player}.ts`
+- `npm start` / `npx tsx examples/{list-bookings,add-player,remove-player,swap-player}.ts`
   — launch a real Chromium against the live site; needs a saved session, and every
   example forces `headless: false`. `--force` / `-f` forces a fresh login. Never in CI.
 - `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.

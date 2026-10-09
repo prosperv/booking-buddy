@@ -184,15 +184,15 @@ when nothing is configured, and throws when a credential login fails.
 
 or
 
-`npx tsx examples/usage.ts`
+`npx tsx examples/list-bookings.ts`
 
 ### Force manual login
 
-`npx tsx examples/usage.ts --force`
+`npx tsx examples/list-bookings.ts --force`
 
 or
 
-`npx tsx examples/usage.ts -f`
+`npx tsx examples/list-bookings.ts -f`
 
 The `--force` flag is shorthand for `manualLogin: true`.
 

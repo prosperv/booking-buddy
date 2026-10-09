@@ -135,6 +135,6 @@ it. The bot that builds on it is documented separately in
   - Timezone-pinned, and inherited env vars cleared so default-option tests are
     deterministic.
 - `npm run build` compiles the library to `dist/`.
-- Example scripts cover usage, adding, removing, and swapping a player, each
+- Example scripts cover listing bookings, adding, removing, and swapping a player, each
   with a flag to force a fresh login and a visible window.
 - No lint, formatter, or CI — the two TypeScript checks are the static net.
