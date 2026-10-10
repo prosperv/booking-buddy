@@ -4,6 +4,7 @@ import { formatDateKey, type RosterSet } from "./csv";
 import { loadRoster, logRosterRead } from "./roster";
 import { mappedName } from "./name-map";
 import { runEnsureRoster } from "./ensure-roster";
+import { runDoctor } from "./doctor";
 
 const USAGE = `Usage: npx tsx bot/index.ts <command> [options]
 
@@ -11,11 +12,13 @@ Commands:
   ensure-roster   Add each job's roster to its matching bookings.
   roster-test     Print the parsed roster names for each enabled job (no browser).
   check-auth      Verify the saved CourtReserve session still works.
+  doctor          Report whether this setup can run (no browser; --live checks the sheet).
 
 Options:
   --job <name>    Restrict to a single job by name.
   --dry-run       Plan only; print the diff without editing (ensure-roster).
   --headed        Run a visible browser (default is headless).
+  --live          Also reach the network to probe sheet rosters (doctor).
   --config <path> Path to bot.config.json (default: ./bot.config.json).
   --log-path <dir> Directory for the bot log file (default: LOG_PATH or ./log).
 `;
@@ -26,11 +29,12 @@ type Args = {
     job?: string;
     dryRun: boolean;
     headless: boolean;
+    live: boolean;
     logPath?: string;
 };
 
 function parseArgs(argv: string[]): Args {
-    const args: Args = { command: "", config: "bot.config.json", dryRun: false, headless: true };
+    const args: Args = { command: "", config: "bot.config.json", dryRun: false, headless: true, live: false };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
         switch (arg) {
@@ -42,6 +46,9 @@ function parseArgs(argv: string[]): Args {
                 break;
             case "--headed":
                 args.headless = false;
+                break;
+            case "--live":
+                args.live = true;
                 break;
             case "--config":
                 args.config = argv[++i];
@@ -174,6 +181,11 @@ async function main(args: Args, logger: Logger): Promise<void> {
             return;
         case "check-auth":
             if (!(await runCheckAuth(logger))) process.exitCode = 1;
+            return;
+        case "doctor":
+            if (!(await runDoctor({ configPath: args.config, job: args.job, live: args.live }, logger))) {
+                process.exitCode = 1;
+            }
             return;
         default:
             logger.error(USAGE, { event: "usage" });
