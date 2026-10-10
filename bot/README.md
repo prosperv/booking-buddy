@@ -27,6 +27,7 @@ added or removed by the bot.
 npx tsx bot/index.ts ensure-roster [--job <name>] [--dry-run] [--headed] [--config <path>]
 npx tsx bot/index.ts roster-test   [--job <name>] [--config <path>]
 npx tsx bot/index.ts check-auth    [--config <path>]
+npx tsx bot/index.ts doctor        [--job <name>] [--live] [--config <path>]
 ```
 
 | Command | Purpose |
@@ -34,6 +35,7 @@ npx tsx bot/index.ts check-auth    [--config <path>]
 | `ensure-roster` | Reconcile each job's roster with its matching sessions (add missing, remove dropped). |
 | `roster-test`   | Print the parsed roster for each enabled job (no browser). |
 | `check-auth`    | Verify the saved CourtReserve session still works (via `isLoggedIn()`). |
+| `doctor`        | Report whether the setup can run at all — config, service-account key, roster source, `auth.json`, credentials. No browser; `--live` also probes the sheet. |
 
 Options:
 
@@ -42,7 +44,14 @@ Options:
   the edit modal (recommended first live step).
 - `--headed` — run a visible browser instead of headless (for watching a local
   run; the default is headless).
+- `--live` — `doctor` only: also read each sheet roster over the network, the
+  one check that proves the service-account key authenticates and the sheet is
+  shared with it.
 - `--config <path>` — config file to use (default `./bot.config.json`).
+
+`doctor` is for the setup, `check-auth` for the saved session: neither opens a
+browser for the other's job. See [`systemd/README.md`](systemd/README.md) for
+using `doctor` to check a fresh machine before trusting its timer.
 
 `ensure-roster` exits non-zero only for config/data problems (e.g. a missing
 roster CSV) so `systemd` can flag them. Player-level outcomes (`not-found`,
@@ -55,8 +64,8 @@ session), so a failure can be flagged to `systemd`.
 ## Configuration
 
 Copy [`bot.config.example.json`](bot.config.example.json) to
-`bot.config.json` (gitignored). Each job names the bookings to match and the
-session to fill:
+`bot.config.json` (gitignored) — `install.sh` does this for you on a systemd
+host. Each job names the bookings to match and the session to fill:
 
 ```json
 {
@@ -202,6 +211,15 @@ npx tsx bot/index.ts roster-test --config bot.config.json
 Common failure: a "not found" / "permission denied" error from the Sheets API
 almost always means step 6 was missed, or the wrong `spreadsheetId`/URL was
 configured.
+
+`doctor` covers the same ground with the cause spelled out, and is worth running
+when a step above might have been done imperfectly — a `private_key` pasted with
+decoded newlines instead of `\n` escapes looks correct in the config file and
+fails at the API as an opaque `400`:
+
+```
+npx tsx bot/index.ts doctor --live   # exits non-zero on anything blocking
+```
 
 ## Roster CSV format
 
@@ -361,8 +379,8 @@ including the unprivileged account it runs as and the install-time checks.
 
 ## Tests
 
-Unit tests (no browser) cover `bot/csv.ts`, `bot/config.ts`, `bot/name-map.ts`,
-and `bot/session.ts`:
+Unit tests (no browser) cover `bot/csv.ts`, `bot/config.ts`, `bot/doctor.ts`,
+`bot/name-map.ts`, and `bot/session.ts`:
 
 ```
 npx vitest run bot/test

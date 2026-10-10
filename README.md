@@ -223,6 +223,7 @@ It adds players that are missing and removes players no longer in the roster
 single-column CSV of member names (see `bot/rosters/example.csv`), then:
 
 ```
+npx tsx bot/index.ts doctor --live                        # is this setup runnable?
 npx tsx bot/index.ts roster-test --config bot.config.json   # print parsed rosters
 npx tsx bot/index.ts ensure-roster --config bot.config.json --dry-run
 npx tsx bot/index.ts ensure-roster --config bot.config.json
@@ -230,9 +231,12 @@ npx tsx bot/index.ts check-auth
 ```
 
 `ensure-roster` treats the roster as the source of truth and reconciles both
-adds and removals, so a daily run is safe. See `bot/systemd/README.md` for
-installing the systemd timer on an always-on machine. Typecheck the bot with
-`npx tsc --noEmit -p tsconfig.bot.json`.
+adds and removals, so a daily run is safe. `doctor` checks the setup without a
+browser — config, service-account key, roster source, `auth.json`, credentials —
+and reports each problem with its fix; `--live` also probes a sheet roster. See
+`bot/systemd/README.md` for installing the systemd timer on an always-on machine,
+which seeds `bot.config.json` from the example and points at `doctor` when it
+finishes. Typecheck the bot with `npx tsc --noEmit -p tsconfig.bot.json`.
 
 ## Development and tests
 
