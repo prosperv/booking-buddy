@@ -97,6 +97,29 @@ fi
 echo "repo:  $REPO_DIR"
 echo "user:  $RUN_USER (group $RUN_GROUP, home $RUN_HOME)"
 
+# Seed bot.config.json from the committed example on a fresh install, so setting
+# up a new host is copy-the-repo and run this rather than also hand-assembling the
+# config. An existing file is never touched — it holds a live Google service
+# account key, and re-running the installer must not clobber or re-own it.
+CONFIG_FILE="$REPO_DIR/bot.config.json"
+CONFIG_EXAMPLE="$REPO_DIR/bot/bot.config.example.json"
+CONFIG_SEEDED=no
+
+if [ -e "$CONFIG_FILE" ]; then
+    echo "config: $CONFIG_FILE (existing, left as is)"
+else
+    if [ -f "$CONFIG_EXAMPLE" ]; then
+        install -m 600 -o "$RUN_USER" -g "$RUN_GROUP" "$CONFIG_EXAMPLE" "$CONFIG_FILE" || \
+            warn "$CONFIG_FILE could not be created from the example — copy it yourself and chown it $RUN_USER:$RUN_GROUP"
+        if [ -e "$CONFIG_FILE" ]; then
+            CONFIG_SEEDED=yes
+            echo "config: created $CONFIG_FILE from the example (mode 600, owned by $RUN_USER)"
+        fi
+    else
+        warn "$CONFIG_EXAMPLE is missing — copy bot/bot.config.example.json to $CONFIG_FILE and chown it $RUN_USER:$RUN_GROUP"
+    fi
+fi
+
 # Permissions the service needs at runtime, none of which this script creates:
 # pino makes log/ on its first write (mkdir: true) and Playwright makes
 # my-profile/ when it opens the persistent context, so the only hard requirement
@@ -143,10 +166,36 @@ check_secret_file() {
     fi
 }
 
+# The same exposure, but a file the service itself reads as the unprivileged run
+# user: the bot process opens bot.config.json and auth.json directly, so they must
+# stay owned by $RUN_USER. Root-owned mode 600 would be unreadable and every run
+# would fail with a config-error, which is the opposite of what check_secret_file
+# is guarding. Mode 600 is the part that matters here — it keeps either file off
+# every other local account — and a world-readable one is the same leak.
+check_secret_file_for_user() {
+    local target="$1" remedy="$2" owner mode
+    if [ ! -e "$target" ]; then
+        return
+    fi
+    owner="$(stat -c %U "$target")"
+    mode="$(stat -c %a "$target")"
+    if [ "$owner" != "$RUN_USER" ] || [ "$mode" != "600" ]; then
+        warn "$target is $owner mode $mode — $remedy"
+    fi
+}
+
 check_secret_file "$CREDENTIALS_FILE" "chown root:root $CREDENTIALS_FILE && chmod 600 $CREDENTIALS_FILE"
-check_secret_file "$REPO_DIR/auth.json" "chmod 600 $REPO_DIR/auth.json, keeping it owned by $RUN_USER, which rewrites it on every run"
+check_secret_file_for_user "$REPO_DIR/auth.json" "chown $RUN_USER:$RUN_GROUP $REPO_DIR/auth.json && chmod 600 $REPO_DIR/auth.json, keeping it owned by $RUN_USER, which rewrites it on every run"
+check_secret_file_for_user "$CONFIG_FILE" "chown $RUN_USER:$RUN_GROUP $CONFIG_FILE && chmod 600 $CONFIG_FILE"
 if [ ! -e "$CREDENTIALS_FILE" ]; then
     echo "creds: none at $CREDENTIALS_FILE — a run whose auth.json has gone stale blocks on the manual-login prompt"
+fi
+
+# A seeded config is a working shell, not a working config: the placeholders are
+# still in it, so the first scheduled run would fail on the service account or the
+# sheet. Say so now rather than letting a 14:00 timer discover it.
+if [ "$CONFIG_SEEDED" = yes ] && grep -q "REPLACE_ME" "$CONFIG_FILE"; then
+    warn "$CONFIG_FILE still contains REPLACE_ME placeholders — fill in google.serviceAccount and each job's roster sheet before the first run, then verify with 'npx tsx bot/index.ts doctor --live'"
 fi
 
 # The timer's OnCalendar and the bot's "next upcoming session" pick are both
@@ -193,3 +242,10 @@ echo "installed booking-buddy.service and booking-buddy.timer, running as $RUN_U
 if [ "${#WARNINGS[@]}" -gt 0 ]; then
     echo "${#WARNINGS[@]} warning(s) above — a run may fail until they are fixed"
 fi
+
+# Installation only proves the units exist and the files are arranged; whether a
+# run will actually work is a question about the service account key, the sheet
+# share, and the saved session — none of which this script can check. Point at the
+# one command that answers it instead of leaving a failed 14:00 run to discover it.
+echo "next: run 'npx tsx $REPO_DIR/bot/index.ts doctor --live' as $RUN_USER to confirm the config, the sheet, and auth.json before the first scheduled run"
+
