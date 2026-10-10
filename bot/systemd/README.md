@@ -19,17 +19,91 @@ sudo ./bot/systemd/install.sh /path/to/booking-buddy
 sudo ./bot/systemd/install.sh --user "$USER" /path/to/booking-buddy
 ```
 
-1. Ensure a valid session exists at `<repo>/auth.json` (run `npm start` once
-   from a machine with a display to log in, then copy it to the Pi). A
-   `my-profile/` copied over from that machine is optional — Chromium creates it
-   on the first run if it isn't there.
+1. Ensure a valid session exists at `<repo>/auth.json` (see
+   [Auth transfer](#auth-transfer) below). A `my-profile/` copied over from the
+   desktop is not needed — Chromium creates it on the first run.
 2. Optionally add credentials, so the run can recover by itself when that
-   session expires (see below).
-3. Run the installer.
+   session expires (see [Unattended login](#unattended-login-optional) below).
+3. Run the installer. It creates `<repo>/bot.config.json` from
+   `bot/bot.config.example.json` if it isn't there, so there is nothing to copy
+   by hand — but the seeded file still contains `REPLACE_ME` placeholders and
+   the installer warns about that.
+4. Fill in `bot.config.json` (see
+   [Configuring the Google service account](#configuring-the-google-service-account))
+   and confirm with `doctor` (see below).
 
 This substitutes the placeholders in `booking-buddy.service.in`, copies both
 units to `/etc/systemd/system/`, then runs `systemctl daemon-reload` and
 `systemctl enable --now booking-buddy.timer`.
+
+An existing `bot.config.json` is never overwritten, re-owned, or re-permissioned
+by a re-run — it holds a live service-account key. Only a *missing* one is seeded
+from the example, at mode 600 owned by the run user.
+
+## Auth transfer
+
+`auth.json` is usually produced somewhere else, because logging in needs a
+display. On a machine with one:
+
+```bash
+npm start            # forces headless: false and waits for Enter after you log in
+npm start -- --force # re-login instead of restoring an existing session
+```
+
+Then copy just that file across:
+
+```bash
+scp auth.json <pi>:<repo>/auth.json
+ssh <pi> 'chmod 600 <repo>/auth.json && chown <user>:<user> <repo>/auth.json'
+```
+
+It must be **owned by the run user and mode 600**. The run re-writes it with
+refreshed cookies on close, so a read-only copy shows up as a `save-auth-failed`
+warning and the session quietly stops refreshing.
+
+Do **not** copy `my-profile/`. The session lives in `auth.json`; the profile is
+Chromium state underneath it, and a profile from another host carries that host's
+`SingletonLock`/`SingletonSocket` and a `Last Version` pinned to the Chromium
+build that wrote it. Chromium creates a fresh one on the Pi's first run.
+
+## Configuring the Google service account
+
+A sheet-backed roster needs a service account, which is the most manual part of
+setting up:
+
+1. Create a service account in GCP and generate a JSON key. The downloaded file
+   contains `client_email` and `private_key`.
+2. Copy both into `google.serviceAccount` in `bot.config.json`. **Paste the key
+   exactly as it appears in that file**, with its newlines as the two characters
+   `\n`. Decoding the PEM first and pasting real newlines produces a value the
+   API rejects as an opaque `400`.
+3. Share the spreadsheet with that `client_email` as a Viewer.
+4. Give it a tab per month, named like `Sept-2026` or `Oct 2026` — the first
+   three letters and a 4-digit year anywhere in the title is enough.
+
+`bot.config.json` holds a private key, so it is created and kept at mode 600.
+The installer checks that, and warns (never fails) if it is otherwise.
+
+## Checking the setup (`doctor`)
+
+Before trusting a schedule, ask what the installer cannot:
+
+```bash
+npx tsx bot/index.ts doctor         # local files only, no browser, no network
+npx tsx bot/index.ts doctor --live  # also probe each sheet roster
+```
+
+It reports every problem it finds, each with the fix, and exits non-zero if any
+is blocking: the config missing, unparseable, or still holding `REPLACE_ME`; a
+mangled `private_key`; a roster file that isn't where the config says; an
+`auth.json` that is missing, truncated by a bad copy, or carries no cookies; and
+missing credentials (advisory — runs work until the session expires).
+
+`--live` additionally reads each spreadsheet with the same call a real run makes,
+which is the only way to prove the key authenticates *and* the sheet is shared
+with it. Without it the sheet is reported as unverified. Neither mode opens a
+browser: that is [`check-auth`](#ops), kept separate so this stays fast and
+usable with no Chromium.
 
 ## Unattended login (optional)
 
@@ -64,8 +138,11 @@ the log says so, and `check-auth` exits non-zero. It does *not* fall back to the
 interactive prompt, which could not help here anyway.
 
 `install.sh` warns (never fails) if that file exists but is not root-owned mode
-600, and if `auth.json` is world-readable — both hold secrets of the same
-practical exposure.
+600, and if `auth.json` or `bot.config.json` is not owned by the run user at mode
+600 — all three hold secrets of the same practical exposure. The two checkout
+files are checked against the *run user* rather than root, unlike the env file
+above: the bot process reads both itself, so root-owned mode 600 would make them
+unreadable and fail every run with a config error.
 
 ## The account it runs as
 
@@ -84,9 +161,14 @@ run time — an unexecutable `node_modules/.bin/tsx`, a read-only `auth.json`
 (the run re-writes it with refreshed cookies on close), and a `my-profile/`
 copied in root-owned — but only ever **warns**, printing the exact remedy. A
 root-run `npm install` is what usually causes them; install as the run user and
-then run the installer. It also warns about the two secret files' ownership and
-mode (see "Unattended login" above), and reports when there is no credentials
-file at all.
+then run the installer. It also warns about the ownership and mode of the three
+secret files (see "Unattended login" above), reports when there is no credentials
+file at all, and warns if a freshly seeded `bot.config.json` still contains
+`REPLACE_ME` — a first install is expected to need that edit, and the timer
+would otherwise discover it.
+
+None of these checks prove a run will work; they prove the machine is arranged
+for one. The installer says so and points at `doctor`, which answers the rest.
 
 It also checks the system clock is NTP-synced, enabling NTP once if it isn't,
 and warns (never fails) if it still isn't: the timer's `OnCalendar` and the
