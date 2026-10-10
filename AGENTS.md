@@ -39,11 +39,24 @@ the two `tsc` commands below, so nothing else catches a mistake.
 Full prose lives in `bot/README.md`, with a feature tree in `bot/FEATURE.md`
 (the library has its own at `FEATURE.md`) — read those before changing bot
 behavior. What's load-bearing here:
-- `bot/index.ts` dispatches three commands: `ensure-roster`, `roster-test`
-  (print parsed rosters, no browser), `check-auth`. Flags: `--dry-run` (plans
-  only, never opens the edit modal), `--job <name>`, `--headed` (default is
-  headless), `--config <path>`, `--log-path <dir>`. Uncaught exceptions and
-  rejections are logged and exit 1 via handlers registered before `main`.
+- `bot/index.ts` dispatches four commands: `ensure-roster`, `roster-test`
+  (print parsed rosters, no browser), `check-auth`, `doctor`. Flags:
+  `--dry-run` (plans only, never opens the edit modal), `--job <name>`,
+  `--headed` (default is headless), `--live` (doctor only), `--config <path>`,
+  `--log-path <dir>`. Uncaught exceptions and rejections are logged and exit 1
+  via handlers registered before `main`.
+- `doctor` (`bot/doctor.ts`) answers "can this setup run" without a browser,
+  composing the already-tested `loadConfig`/`enabledJobs`, `credentialsFromEnv`,
+  and (under `--live`) `loadGoogleSheets`. Findings carry a `severity`:
+  `blocking` sets exit 1, `advisory` does not (missing credentials are advisory —
+  runs work until the session expires). It reads files the *run* reads, so
+  `authFile` and `loadSheet` are injectable for tests. Two checks are gated on
+  the config having no `REPLACE_ME` placeholders: an unedited example's key is
+  the literal string `REPLACE_ME`, so judging its shape would report a mangled
+  paste that never happened, and probing with it would just fail. A missing
+  `bot.config.json` is reported by `loadConfig`, so `checkTemplate` swallows its
+  own read error rather than double-reporting. Keep it that way browser-free —
+  `check-auth` is the browser half, and merging them makes the fast path unusable.
 - `bot.config.json` maps job name → `match` (`weekday`/`startTime` go straight
   to `getCurrentBookings`; `location` is a case-insensitive bot-side filter) →
   `session` (`roster`, `courtCapacity` default 6 **including** the organizer,
@@ -117,19 +130,38 @@ behavior. What's load-bearing here:
   courts are needed (`capacity - 1`, since a new court has its own organizer).
 - One `now` is taken per run and threaded through, so month-tab selection and the
   "next session" pick can never disagree across a midnight.
-- Bot unit tests cover `csv` / `config` / `name-map` / `session` / `sheets` only.
-  Everything else is browser- or network-dependent and validated by a live run.
+- Bot unit tests cover `csv` / `config` / `doctor` / `name-map` / `session` /
+  `sheets` only. Everything else is browser- or network-dependent and validated
+  by a live run — including `doctor --live`'s actual sheet read.
 - Runs via `tsx` (never compiled into `dist/`); systemd units live in
   `bot/systemd/`. The bot uses the default headless client, so `auth.json` must
   exist on the machine it runs on; `my-profile/` is created by the first run if
-  it wasn't copied over. The service runs as an unprivileged account
+  it wasn't copied over — and shouldn't be, since a profile carries its
+  creating host's `Singleton*` symlinks and a `Last Version` pinned to that
+  Chromium build. The service runs as an unprivileged account
   (`@USER@`/`@GROUP@`/`@HOME@` in `booking-buddy.service.in`, resolved by
   `install.sh` from `--user` → `$SUDO_USER` → the checkout's owner), capped by
   `TimeoutStartSec` — a missing `auth.json` hangs on the interactive
   manual-login prompt, which a `Type=oneshot` unit has no TTY for. Configuring
   credentials removes the cause: `EnvironmentFile=-/etc/booking-buddy/credentials.env`
-  (leading `-` = optional) is read by systemd as root before privileges drop, and
-  `install.sh` only warns when it or `auth.json` is not root-owned/600.
+  (leading `-` = optional) is read by systemd as root before privileges drop.
+- `install.sh` seeds `<repo>/bot.config.json` from `bot/bot.config.example.json`
+  at mode 600 owned by the run user, but **only when absent** — it never
+  overwrites, re-owns, or re-permissions an existing one, since that file holds a
+  live service-account key. It warns on a seeded file still containing
+  `REPLACE_ME`, and ends by pointing at `doctor` rather than running it, because
+  it can only inspect local files.
+- The secret-file ownership check is **two functions**, not one:
+  `check_secret_file` demands root/600 (right for `credentials.env`, read by
+  systemd before privileges drop), while `check_secret_file_for_user` demands
+  run-user/600 for `auth.json` and `bot.config.json`, which the bot process reads
+  itself. Checking either against the other's rule makes the run fail — root/600
+  is an unreadable config. Don't merge them.
+- `install.sh` has no test harness and must stay root-only; its seeding path was
+  exercised against a throwaway repo copy in `/tmp` with `systemctl`/`runuser`/
+  `timedatectl` stubbed on `PATH`. That is the only way to test it without
+  touching the real `/etc/systemd/system` — a bare sandbox copy also silently
+  drops `SCRIPT_DIR`-relative template lookups, so copy `bot/systemd/` wholesale.
 - **Unattended re-login is opt-in, in the library, not the bot.** `ClientOptions.credentials`
   (or `COURTRESERVE_USERNAME` + `COURTRESERVE_PASSWORD`) resolves through
   `src/credentials.ts`: `credentialsFromEnv()` needs **both** vars non-blank (no
