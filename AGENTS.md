@@ -162,6 +162,11 @@ behavior. What's load-bearing here:
   `timedatectl` stubbed on `PATH`. That is the only way to test it without
   touching the real `/etc/systemd/system` — a bare sandbox copy also silently
   drops `SCRIPT_DIR`-relative template lookups, so copy `bot/systemd/` wholesale.
+  A stub that ignores its arguments (which is all `check_as_user` needs of
+  `runuser`) can't see a malformed `test` invocation, so that call is the one to
+  re-verify by hand: `check_as_user` takes the **bare** operator (`w`, `x`) and
+  prepends the `-`, because `runuser -- test w path` is a syntax error whose
+  exit 2 reads as a failed permission check and warns about all four targets.
 - **Unattended re-login is opt-in, in the library, not the bot.** `ClientOptions.credentials`
   (or `COURTRESERVE_USERNAME` + `COURTRESERVE_PASSWORD`) resolves through
   `src/credentials.ts`: `credentialsFromEnv()` needs **both** vars non-blank (no

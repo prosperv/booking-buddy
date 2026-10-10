@@ -126,12 +126,16 @@ fi
 # is that the checkout itself is writable by the run user. Everything below is a
 # warning rather than a failure — an install you can finish is more useful than
 # one you can't — but each one makes a run fail on its first write.
+# runuser drops to the account that will actually do the writing, since root can
+# write anything. $test_flag is the bare test operator (w, x) — the leading "-" is
+# added here, so a call site passing it wrong is a syntax error, not a check that
+# silently fails.
 check_as_user() {
     local test_flag="$1" word="$2" target="$3" remedy="$4"
     if [ ! -e "$target" ]; then
         return
     fi
-    if ! runuser -u "$RUN_USER" -- test "$test_flag" "$target"; then
+    if ! runuser -u "$RUN_USER" -- test "-$test_flag" "$target"; then
         warn "$target is not $word by $RUN_USER — $remedy"
     fi
 }
