@@ -125,8 +125,7 @@ function checkTemplate(configPath: string): Finding[] {
 
 /**
  * A service account key is hand-edited into the config, so the likeliest damage is
- * a mangled paste: the PEM body pasted with real newlines instead of the `\n`
- * escapes JSON requires, or copied out of a file that was itself truncated.
+ * a mangled paste, or a copy out of a file that was itself truncated.
  */
 function checkServiceAccount(config: BotConfig, jobs: JobConfig[]): Finding[] {
     const sheetJobs = jobs.filter((j) => j.session.roster.kind === "googleSheet");
@@ -153,17 +152,19 @@ function checkServiceAccount(config: BotConfig, jobs: JobConfig[]): Finding[] {
             message: "private_key does not look like a PEM block (no BEGIN PRIVATE KEY marker)",
             remedy: "paste the whole key from the JSON file the GCP console downloaded",
         });
-    } else if (key.includes("\n") || key.includes("\r")) {
-        // A key read from a JSON file has its line breaks as the two characters
-        // \n, which JSON.parse turns into... nothing: the value holding them never
-        // contains a real newline. One that does was pasted from a decoded PEM,
-        // leaving a value the JWT signer cannot use — which surfaces at the API as
-        // an opaque 400, well away from the edit that caused it.
+    } else if (key.includes("\\n") || key.includes("\\r")) {
+        // The config is inspected *after* JSON.parse, which turns the `\n` escapes
+        // of a key pasted from the downloaded file into the real newlines the JWT
+        // signer wants — so real line breaks are the healthy shape, not the broken
+        // one. A value still holding the two characters backslash-n was escaped
+        // twice on its way into the config (pasted out of a shell heredoc, an env
+        // dump, or a copy already round-tripped through JSON), leaving a key the
+        // API rejects as an opaque 400, well away from the edit that caused it.
         findings.push({
             severity: "blocking",
             subject: "service account",
-            message: "private_key contains real newlines; in JSON they must be the two characters \\n",
-            remedy: "copy the key straight from the downloaded JSON file instead of from a decoded PEM",
+            message: "private_key still contains literal \\n two-character escapes instead of real newlines",
+            remedy: "re-copy the key straight from the downloaded JSON file — the config needs one \\n escape per line break, not a doubled one",
         });
     }
 

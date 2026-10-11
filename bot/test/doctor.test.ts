@@ -12,7 +12,12 @@ import type { Logger } from "../../src";
  * auth.json get wrong, so stubbing the input out would test the mock.
  */
 
-const GOOD_KEY = "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBg\\n-----END PRIVATE KEY-----\\n";
+/**
+ * A key as it looks *after* JSON.parse: the `\n` escapes the downloaded file
+ * writes have become the real newlines the signer wants, which is the only form
+ * a correct paste ever takes here.
+ */
+const GOOD_KEY = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg\n-----END PRIVATE KEY-----\n";
 
 /** A config that passes `validateConfig`, with one sheet-roster job by default. */
 function configJson(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -195,15 +200,16 @@ describe("diagnose: the service account key", () => {
         return configJson({ google: { serviceAccount } });
     }
 
-    it("flags a key pasted with real newlines instead of JSON \\n escapes", async () => {
+    it("flags a key whose newlines were escaped twice on the way into the config", async () => {
         const config = sheetJobWith({
             client_email: "bot@example.iam.gserviceaccount.com",
-            // What JSON.parse produces when a decoded PEM was pasted into the file.
-            private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg\n-----END PRIVATE KEY-----\n",
+            // What a value looks like when it was already escaped before landing in
+            // the config, so JSON.parse leaves the two characters backslash-n.
+            private_key: "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBg\\n-----END PRIVATE KEY-----\\n",
         });
         const { configPath, authFile } = fixture(config, { "auth.json": VALID_AUTH });
         const findings = await diagnose(options(configPath, authFile));
-        expect(matching(findings, /real newlines/)).toHaveLength(1);
+        expect(matching(findings, /literal \\n/)).toHaveLength(1);
     });
 
     it("flags a private_key that is not a PEM block at all", async () => {
@@ -216,7 +222,7 @@ describe("diagnose: the service account key", () => {
         expect(matching(findings, "PEM block")).toHaveLength(1);
     });
 
-    it("accepts a key in the escaped form the GCP console actually writes", async () => {
+    it("accepts a key pasted from the downloaded JSON file, newlines and all", async () => {
         const { configPath, authFile } = fixture(configJson(), { "auth.json": VALID_AUTH });
         const findings = await diagnose(options(configPath, authFile));
         expect(matching(findings, /private_key|PEM block|newlines/)).toHaveLength(0);
