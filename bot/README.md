@@ -194,8 +194,10 @@ exists.
    new key → JSON*. This downloads a `*.json` file.
 5. **Paste the key into the config**: copy that file's contents into
    `bot.config.json` under `google.serviceAccount`. The key is JSON with an
-   escaped `private_key` (literal `\n` newlines) — paste it verbatim; only
-   `client_email` and `private_key` are actually read.
+   escaped `private_key` — its line breaks are written `\n`, and after
+   `JSON.parse` that is a value with real newlines, which is what the signer
+   wants. Paste it verbatim; only `client_email` and `private_key` are actually
+   read.
 6. **Share the spreadsheet**: open the target sheet → *Share* → add the
    service account's `client_email` as a **Viewer** (the bot only reads). This
    is required even for a "link shareable" sheet, since the service account is a
@@ -213,9 +215,9 @@ almost always means step 6 was missed, or the wrong `spreadsheetId`/URL was
 configured.
 
 `doctor` covers the same ground with the cause spelled out, and is worth running
-when a step above might have been done imperfectly — a `private_key` pasted with
-decoded newlines instead of `\n` escapes looks correct in the config file and
-fails at the API as an opaque `400`:
+when a step above might have been done imperfectly — a `private_key` that reached
+the config already escaped (so its line breaks are still the two characters `\n`
+after parsing) looks fine in most editors and fails at the API as an opaque `400`:
 
 ```
 npx tsx bot/index.ts doctor --live   # exits non-zero on anything blocking

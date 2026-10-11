@@ -74,9 +74,10 @@ setting up:
 1. Create a service account in GCP and generate a JSON key. The downloaded file
    contains `client_email` and `private_key`.
 2. Copy both into `google.serviceAccount` in `bot.config.json`. **Paste the key
-   exactly as it appears in that file**, with its newlines as the two characters
-   `\n`. Decoding the PEM first and pasting real newlines produces a value the
-   API rejects as an opaque `400`.
+   exactly as it appears in that file**, with one `\n` escape per line break.
+   Escaping it twice on the way in (out of a shell heredoc, an env dump, or a
+   copy already round-tripped through JSON) leaves the two characters `\n` in
+   the value the API signs with, which it rejects as an opaque `400`.
 3. Share the spreadsheet with that `client_email` as a Viewer.
 4. Give it a tab per month, named like `Sept-2026` or `Oct 2026` — the first
    three letters and a 4-digit year anywhere in the title is enough.
@@ -115,7 +116,8 @@ itself back in instead:
 
 ```bash
 sudo install -d -m 700 -o root -g root /etc/booking-buddy
-sudoedit /etc/booking-buddy/credentials.env   # then: chmod 600 /etc/booking-buddy/credentials.env
+sudo install -m 600 -o root -g root credentials.env /etc/booking-buddy/credentials.env
+sudoedit /etc/booking-buddy/credentials.env
 ```
 
 ```ini
