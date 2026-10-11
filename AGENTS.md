@@ -50,7 +50,15 @@ behavior. What's load-bearing here:
   and (under `--live`) `loadGoogleSheets`. Findings carry a `severity`:
   `blocking` sets exit 1, `advisory` does not (missing credentials are advisory —
   runs work until the session expires). It reads files the *run* reads, so
-  `authFile` and `loadSheet` are injectable for tests. Two checks are gated on
+  `authFile`, `credentialsFile`, and `loadSheet` are injectable for tests. The
+  credentials check judges a key *after* `JSON.parse`: the `\n` escapes of a key
+  pasted from the GCP download have become real newlines by then, so those are the
+  healthy shape and only a twice-escaped paste (backslash-n surviving the parse) is
+  a mangled one. It can only `stat` the systemd `EnvironmentFile=`, never read it —
+  that file is root-owned mode 600 and holds the password — so a configured host
+  and an unconfigured one are told apart by its presence, not its contents, and a
+  hand-run `doctor` saying "not in this process" is expected rather than a fault.
+  Two checks are gated on
   the config having no `REPLACE_ME` placeholders: an unedited example's key is
   the literal string `REPLACE_ME`, so judging its shape would report a mangled
   paste that never happened, and probing with it would just fail. A missing

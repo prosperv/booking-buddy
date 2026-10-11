@@ -96,9 +96,15 @@ npx tsx bot/index.ts doctor --live  # also probe each sheet roster
 
 It reports every problem it finds, each with the fix, and exits non-zero if any
 is blocking: the config missing, unparseable, or still holding `REPLACE_ME`; a
-mangled `private_key`; a roster file that isn't where the config says; an
-`auth.json` that is missing, truncated by a bad copy, or carries no cookies; and
-missing credentials (advisory — runs work until the session expires).
+mangled `private_key`; a roster file that isn't where the config says; and an
+`auth.json` that is missing, truncated by a bad copy, or carries no cookies.
+
+Missing credentials are advisory — runs work until the session expires. Run by
+hand, `doctor` sees neither `COURTRESERVE_*` nor the file the unit loads them
+from, because systemd reads it as root before dropping privileges; so it checks
+whether `/etc/booking-buddy/credentials.env` is there and says which of the two
+cases you are in. Only the missing-file one needs anything from you, and neither
+is ever fatal to the check.
 
 `--live` additionally reads each spreadsheet with the same call a real run makes,
 which is the only way to prove the key authenticates *and* the sheet is shared
