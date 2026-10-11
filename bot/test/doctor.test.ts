@@ -271,10 +271,17 @@ describe("diagnose: auth.json", () => {
 });
 
 describe("diagnose: credentials", () => {
-    /** The credentials check is advisory, so look it up by subject rather than severity. */
-    async function credentialFinding(env: Record<string, string | undefined>): Promise<{ severity: string; remedy?: string } | undefined> {
-        const { configPath, authFile } = fixture(configJson(), { "auth.json": VALID_AUTH });
-        const findings = await diagnose(options(configPath, authFile, { env }));
+    /**
+     * The credentials check is advisory, so look it up by subject rather than
+     * severity. `credentialsFile` points into a throwaway dir so the result does
+     * not depend on whether the host running the tests has one installed.
+     */
+    async function credentialFinding(
+        env: Record<string, string | undefined>,
+        credentialsFile?: string,
+    ): Promise<{ severity: string; message: string; remedy?: string } | undefined> {
+        const { dir, configPath, authFile } = fixture(configJson(), { "auth.json": VALID_AUTH });
+        const findings = await diagnose(options(configPath, authFile, { env, credentialsFile: credentialsFile ?? path.join(dir, "credentials.env") }));
         return findings.find((f) => f.subject === "credentials");
     }
 
@@ -283,7 +290,9 @@ describe("diagnose: credentials", () => {
     });
 
     it("names the env file as the fix, since a headless host cannot answer a prompt", async () => {
-        expect((await credentialFinding({}))?.remedy).toContain("/etc/booking-buddy/credentials.env");
+        const dir = tempDir();
+        const finding = await credentialFinding({}, path.join(dir, "credentials.env"));
+        expect(finding?.remedy).toContain(path.join(dir, "credentials.env"));
     });
 
     it("treats a half-configured pair as unconfigured, matching the library", async () => {
@@ -292,6 +301,25 @@ describe("diagnose: credentials", () => {
 
     it("says nothing when both are present", async () => {
         expect(await credentialFinding({ COURTRESERVE_USERNAME: "me@example.com", COURTRESERVE_PASSWORD: "x" })).toBeUndefined();
+    });
+
+    it("separates a configured host from an unconfigured one when the env file is there", async () => {
+        const dir = tempDir();
+        const file = path.join(dir, "credentials.env");
+        fs.writeFileSync(file, "COURTRESERVE_USERNAME=me@example.com\nCOURTRESERVE_PASSWORD=hunter2\n");
+
+        const finding = await credentialFinding({}, file);
+        expect(finding?.message).toContain(file);
+        expect(finding?.remedy).toContain("nothing to fix");
+    });
+
+    it("never reads the env file, whose contents are a root-owned password", async () => {
+        const dir = tempDir();
+        const file = path.join(dir, "credentials.env");
+        fs.writeFileSync(file, "COURTRESERVE_PASSWORD=hunter2\n");
+
+        const finding = await credentialFinding({}, file);
+        expect(JSON.stringify(finding)).not.toContain("hunter2");
     });
 });
 

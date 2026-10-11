@@ -22,6 +22,12 @@ export type Finding = {
     remedy?: string;
 };
 
+/**
+ * Where the systemd unit is pointed for the unattended-login credentials. It is
+ * only ever stat'ed — the run reads it through `EnvironmentFile=`, not from here.
+ */
+const CREDENTIALS_FILE = "/etc/booking-buddy/credentials.env";
+
 export type DoctorOptions = {
     /** Config path; also the anchor for relative roster paths. */
     configPath: string;
@@ -39,6 +45,12 @@ export type DoctorOptions = {
     loadSheet?: typeof loadGoogleSheets;
     /** Credentials to classify, defaults to this process's environment. */
     env?: { COURTRESERVE_USERNAME?: string; COURTRESERVE_PASSWORD?: string };
+    /**
+     * The `EnvironmentFile=` the unit loads credentials from; overridable so
+     * tests need no real one, and so a check for its presence is not a claim
+     * about whichever host the tests run on.
+     */
+    credentialsFile?: string;
 };
 
 /**
@@ -85,7 +97,7 @@ export async function diagnose(options: DoctorOptions): Promise<Finding[]> {
     }
     findings.push(...checkFileRosters(jobs, options.configPath));
     findings.push(...checkAuthFile(options.authFile ?? authPath));
-    findings.push(...checkCredentials(options.env));
+    findings.push(...checkCredentials(options.credentialsFile ?? CREDENTIALS_FILE, options.env));
 
     const hasSheetJob = jobs.some((j) => j.session.roster.kind === "googleSheet");
     if (options.live && template.length === 0) {
@@ -234,15 +246,32 @@ function checkAuthFile(authFile: string): Finding[] {
  * which point the run falls back to the interactive prompt and a oneshot unit has
  * no TTY for it. Worth surfacing now precisely because the failure is deferred and
  * would otherwise be discovered from a hung service.
+ *
+ * The variables reach a scheduled run through `EnvironmentFile=` rather than the
+ * bot reading that file itself, so a doctor run from a shell cannot see them even
+ * on a fully configured host. Checking whether the file is there at least tells
+ * "never configured" apart from "configured, and this shell just cannot see it" —
+ * and it can only be stat'ed, never read: the file is root-owned mode 600 and
+ * holds a password.
  */
-function checkCredentials(env?: { COURTRESERVE_USERNAME?: string; COURTRESERVE_PASSWORD?: string }): Finding[] {
+function checkCredentials(credentialsFile: string, env?: { COURTRESERVE_USERNAME?: string; COURTRESERVE_PASSWORD?: string }): Finding[] {
     const credentials = credentialsFromEnv(env);
     if (credentials) return [];
+
+    if (fs.existsSync(credentialsFile)) {
+        return [{
+            severity: "advisory",
+            subject: "credentials",
+            message: `COURTRESERVE_USERNAME/COURTRESERVE_PASSWORD are not in this process, but ${credentialsFile} is there for the unit to load`,
+            remedy: "normally nothing to fix — systemd reads that file into the service's environment (EnvironmentFile=) before it drops privileges, so a scheduled run has both; it is only a real gap if that file does not hold both",
+        }];
+    }
+
     return [{
         severity: "advisory",
         subject: "credentials",
         message: "COURTRESERVE_USERNAME/COURTRESERVE_PASSWORD are not configured (both are required)",
-        remedy: "runs work while the saved session is fresh; once it expires the run blocks on the manual-login prompt — add them to /etc/booking-buddy/credentials.env",
+        remedy: `runs work while the saved session is fresh; once it expires the run blocks on the manual-login prompt — add them to ${credentialsFile}`,
     }];
 }
 
