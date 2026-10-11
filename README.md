@@ -194,7 +194,7 @@ or
 
 `npx tsx examples/list-bookings.ts -f`
 
-The `--force` flag is shorthand for `manualLogin: true`.
+The `--force` flag forces manual login and opens a visible browser window.
 
 ### Add a player (uses saved session if available)
 

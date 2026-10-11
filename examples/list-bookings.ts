@@ -4,7 +4,7 @@ async function main() {
     const forceLogin = process.argv.includes("--force") || process.argv.includes("-f");
 
     const client = new CourtReserveClient({
-        headless: false,
+        headless: !forceLogin,
         manualLogin: forceLogin,
     });
     await client.init();
