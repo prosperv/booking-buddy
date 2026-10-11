@@ -210,7 +210,9 @@ behavior. What's load-bearing here:
 - `.env` — the same two variables for local work: the debug adapter reads it via
   the `envFile` key in `.vscode/launch.json` (js-debug parses it with dotenv,
   and a *missing* file is silently ignored), and `set -a; . ./.env` covers a
-  plain shell. Filled in locally, never committed.
+  plain shell. Filled in locally, never committed. Every variable the repo
+  reads is documented, commented out, in `.env.template` — kept tracked by a
+  `!.env.template` negation, since `.env.*` would otherwise swallow it.
 - `my-profile/` — persistent Chromium profile directory.
 - `bot.config.json` — real bot config (job + roster paths, and any inline
   Google service-account key). Committed example: `bot/bot.config.example.json`.

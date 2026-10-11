@@ -8,6 +8,7 @@ coverage/
 # Local environment files
 .env
 .env.*
+!.env.template
 
 # npm lock file
 package-lock.json
