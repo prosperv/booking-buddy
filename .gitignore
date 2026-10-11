@@ -55,4 +55,8 @@ bot.config.json
 bot/rosters/*.csv
 !bot/rosters/example.csv
 
+# An installed copy of the credentials template (the real file is /etc/booking-buddy/credentials.env)
+bot/systemd/credentials.env
+
+temp/
 
