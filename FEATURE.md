@@ -135,6 +135,9 @@ it. The bot that builds on it is documented separately in
   - Timezone-pinned, and inherited env vars cleared so default-option tests are
     deterministic.
 - `npm run build` compiles the library to `dist/`.
+- `PLAYWRIGHT_DEBUG_PORT` opens a DevTools-protocol port on the launched browser,
+  so a run can be watched or inspected from another machine. Off unless set, and
+  loopback-bound, so it needs an SSH tunnel to reach.
 - Example scripts cover listing bookings, adding, removing, and swapping a player, each
   with a flag to force a fresh login and a visible window.
 - No lint, formatter, or CI — the two TypeScript checks are the static net.

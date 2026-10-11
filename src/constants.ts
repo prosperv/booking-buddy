@@ -15,6 +15,14 @@ export const profileDir = process.env.PROFILE_DIR ?? "./my-profile";
 export const courtreserveUsername = process.env.COURTRESERVE_USERNAME;
 export const courtreservePassword = process.env.COURTRESERVE_PASSWORD;
 export const headless = process.env.HEADLESS !== "false";
+// Opens a Chrome DevTools Protocol port on the launched browser, so a run can be
+// inspected from another machine (`http://localhost:9222`) or driven over a real
+// display (`DISPLAY=:99` + x11vnc) on a headless host. Chromium binds the port
+// to loopback, so it is reachable only through an SSH tunnel. Unset in normal
+// runs; read with a truthiness check, never `??`, so a blank value — which
+// dotenv produces for a valueless `PLAYWRIGHT_DEBUG_PORT=` line — stays off
+// instead of becoming `--remote-debugging-port=`.
+export const playwrightDebugPort = process.env.PLAYWRIGHT_DEBUG_PORT;
 export const minActionDelay = Number(process.env.MIN_ACTION_DELAY_MS ?? 1000);
 export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 3000);
 // Budget for a single navigation: the `goto` itself plus the wait for the

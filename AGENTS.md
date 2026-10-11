@@ -14,8 +14,8 @@ the two `tsc` commands below, so nothing else catches a mistake.
 - `npx tsc --noEmit -p tsconfig.bot.json` — typechecks `src/` + `bot/` (which
   includes `bot/test/`). The only static check over bot code, so run it after any
   `bot/` edit.
-- `npx vitest run` — full suite: 14 unit files / 236 tests plus 4 functional
-  files / 32 tests. Functional tests need Chromium (`npm run playwright:install`
+- `npx vitest run` — full suite: 18 unit files / 321 tests plus 4 functional
+  files / 35 tests. Functional tests need Chromium (`npm run playwright:install`
   once). Narrow with `npx vitest run test/players.test.ts`, add `-t "<name>"` for
   one test, or `npx vitest run bot/test` for the bot only (4 files / 102 tests).
 - `npm run test:unit` (no browser) / `npm run test:functional` (needs Chromium).
@@ -222,8 +222,11 @@ behavior. What's load-bearing here:
 - `log/` — file logs (`booking-buddy-<date>.log`, `bot-<date>.log`); written by
   `src/logger.ts` (`createLogger`), see "Logging" below.
 - `.notes/`, `.temp-data/`, `opencode.json`, `.opencode/`.
-- Note: the bot entries in `.vscode/launch.json` point at
-  `/home/pvan/bot.test.config.json`, a machine-local config **outside** the repo.
+- Note: the bot entries in `.vscode/launch.json` pass `--config
+  ./bot.config.json`, resolved from js-debug's cwd (`${workspaceFolder}`). Both
+  stay non-destructive — `roster-test` opens no browser and `ensure-roster` keeps
+  `--dry-run` — so debugging reads live rosters and the real service-account key
+  but never edits a court.
 
 ## Gotchas
 - `headless` defaults to **true** (`process.env.HEADLESS !== "false"` in
@@ -232,6 +235,19 @@ behavior. What's load-bearing here:
 - The browser is a **persistent** Chromium context (`launchPersistentContext`
   with `viewport: null`), so `my-profile/` is live login state layered under the
   `auth.json` storage state — refreshing one does not replace the other.
+- `PLAYWRIGHT_DEBUG_PORT` is the only lever on Chromium's launch flags
+  (`src/browser.ts`); unset, it passes `args: []` and every run is unchanged. Set
+  it to watch a run on a host with no display: pair it with `DISPLAY=:99` (Xvfb +
+  x11vnc) for a real window, or attach to `http://localhost:9222` over
+  `ssh -L 9222:localhost:9222 <host>` for devtools — Chromium binds the port to
+  loopback, so nothing new is exposed on the LAN. On a Pi, `systemctl stop
+  booking-buddy.timer` first, or the timer and your debug run contend for
+  `my-profile/`. The systemd unit can't pick this up: it reads only
+  `EnvironmentFile=-/etc/booking-buddy/credentials.env` and never sources `.env`.
+  Read the value with a **truthiness** check, never `??` — dotenv yields `""` for
+  a valueless `PLAYWRIGHT_DEBUG_PORT=` line, and `""` is not nullish, so `??`
+  would emit `--remote-debugging-port=`. `test/browser.test.ts` pins this by
+  mutating that guard.
 - `manualLogin` (`src/auth.ts`) navigates to **google.com**, not CourtReserve,
   and waits for Enter; log into CourtReserve in that window yourself, then the
   storage state is saved. The README's "navigate to app.courtreserve.com"

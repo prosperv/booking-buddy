@@ -1,5 +1,5 @@
 import { chromium, BrowserContext } from "playwright";
-import { navTimeoutMs, profileDir } from "./constants";
+import { navTimeoutMs, playwrightDebugPort, profileDir } from "./constants";
 import { attachPendingTracking } from "./pending-requests";
 import { pauseForAction } from "./utils";
 
@@ -10,6 +10,8 @@ export async function launchPersistentContext(
     const context = await chromium.launchPersistentContext(profileDirOverride ?? profileDir, {
         headless,
         viewport: null,
+        // Truthiness, not `??` — see the note on `playwrightDebugPort`.
+        args: playwrightDebugPort ? [`--remote-debugging-port=${playwrightDebugPort}`] : [],
     });
     // Covers any navigation that doesn't pass its own budget, and gives every
     // page in the context the same ceiling. Action timeouts are left at

@@ -72,7 +72,7 @@
             "args": [
                 "ensure-roster",
                 "--config",
-                "/home/pvan/bot.test.config.json",
+                "./bot.config.json",
                 "--headed",
                 "--dry-run"
             ],
@@ -92,7 +92,7 @@
             "args": [
                 "roster-test",
                 "--config",
-                "/home/pvan/bot.test.config.json"
+                "./bot.config.json"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",

@@ -8,6 +8,7 @@
  */
 for (const key of [
     "HEADLESS",
+    "PLAYWRIGHT_DEBUG_PORT",
     "AUTH_PATH",
     "PROFILE_DIR",
     "MIN_ACTION_DELAY_MS",
