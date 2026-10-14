@@ -27,5 +27,24 @@
       "coverage",
       "**/*.mhtml"
     ]
+  },
+  "permission": {
+    "read": {
+      "*auth.json": "deny",
+      "*bot.config.json": "deny",
+      "*.env*": "deny",
+      "*.bak": "deny",
+      "my-profile*": "deny",
+      "bot/rosters/*.csv": "deny",
+      "bot/rosters/example.csv": "allow",
+      ".temp-data/*.csv": "deny",
+      "~/bot.test.config.json": "ask"
+    },
+    "bash": {
+      "*auth.json*": "deny",
+      "*bot.config.json*": "deny",
+      "*.env*": "deny",
+      "*my-profile*": "deny"
+    }
   }
 }
