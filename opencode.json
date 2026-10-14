@@ -6,5 +6,16 @@
       "command": ["npx", "-y", "@jaenster/node-debugger-mcp"],
       "enabled": true
     }
+  },
+  "watcher": {
+    "ignore": [
+      "my-profile",
+      "log",
+      "auth.json",
+      "bot.config.json",
+      "temp",
+      ".temp-data",
+      "**/*.mhtml"
+    ]
   }
 }
