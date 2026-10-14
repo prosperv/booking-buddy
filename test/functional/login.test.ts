@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
-import { BrowserContext, Page, chromium } from "playwright";
+import { Browser, Page, chromium } from "playwright";
 import { isLoggedIn, loginWithCredentials } from "../../src/login";
 import { fixturePath } from "./setup";
 
@@ -14,17 +14,17 @@ const BROWSER_TEST_TIMEOUT = 20_000;
  * Design XHR whose exact endpoint is only observable live.
  */
 describe("functional: login", () => {
-    let context: BrowserContext;
+    let browser: Browser;
     let page: Page;
 
     beforeAll(async () => {
-        context = await chromium.launch({ headless: true });
-        page = await context.newPage();
+        browser = await chromium.launch({ headless: true });
+        page = await browser.newPage();
     });
 
     afterAll(async () => {
         await page.close();
-        await context.close();
+        await browser.close();
     });
 
     describe("isLoggedIn", () => {

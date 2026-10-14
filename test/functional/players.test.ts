@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
-import { BrowserContext, Page, chromium } from "playwright";
+import { Browser, Page, chromium } from "playwright";
 import {
     closeReservationConfirmation,
     confirmAddPlayer,
@@ -25,17 +25,17 @@ const BROWSER_TEST_TIMEOUT = 20_000;
  * search XHR) must be validated against the live site.
  */
 describe("functional: add-player steps", () => {
-    let context: BrowserContext;
+    let browser: Browser;
     let page: Page;
 
     beforeAll(async () => {
-        context = await chromium.launch({ headless: true });
-        page = await context.newPage();
+        browser = await chromium.launch({ headless: true });
+        page = await browser.newPage();
     });
 
     afterAll(async () => {
         await page.close();
-        await context.close();
+        await browser.close();
     });
 
     describe("openReservationDetail", () => {
@@ -167,17 +167,17 @@ describe("functional: add-player steps", () => {
 });
 
 describe("functional: remove-player steps", () => {
-    let context: BrowserContext;
+    let browser: Browser;
     let page: Page;
 
     beforeAll(async () => {
-        context = await chromium.launch({ headless: true });
-        page = await context.newPage();
+        browser = await chromium.launch({ headless: true });
+        page = await browser.newPage();
     });
 
     afterAll(async () => {
         await page.close();
-        await context.close();
+        await browser.close();
     });
 
     describe("readModalPlayers", () => {

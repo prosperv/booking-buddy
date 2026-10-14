@@ -1,11 +1,7 @@
 import { readFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
+import { resolve } from "path";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const dataDir = resolve(__dirname, "..", "data");
+const dataDir = resolve(process.cwd(), "test/data");
 
 export function fixturePath(name: string): string {
     return resolve(dataDir, name);

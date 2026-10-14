@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs/promises";
+import { resolve } from "node:path";
 import { delay, fileExists, randomDelay } from "../src/index";
 
-const tempPath = new URL("./temp-file.txt", import.meta.url);
+const tempPath = resolve(process.cwd(), "test/temp-file.txt");
 
 describe("utility helpers", () => {
     afterEach(async () => {
@@ -33,8 +34,8 @@ describe("utility helpers", () => {
 
     it("fileExists returns true for created files and false for missing files", async () => {
         await fs.writeFile(tempPath, "hello");
-        expect(await fileExists(tempPath.pathname)).toBe(true);
+        expect(await fileExists(tempPath)).toBe(true);
         await fs.rm(tempPath);
-        expect(await fileExists(tempPath.pathname)).toBe(false);
+        expect(await fileExists(tempPath)).toBe(false);
     });
 });
