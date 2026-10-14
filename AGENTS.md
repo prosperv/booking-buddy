@@ -6,18 +6,19 @@ Club by driving app.courtreserve.com with Playwright. Public entrypoint is
 `src/index.ts` (re-exports `CourtReserveClient` from `src/client.ts`). `bot/` is
 a CLI that uses the library to reconcile rosters. Plain TypeScript, CommonJS
 build, Node >= 20. **No lint, no formatter, no CI** — the only static checks are
-the two `tsc` commands below, so nothing else catches a mistake.
+the two `tsc` commands below (plus the editor LSP, see "LSP" at the end), so
+nothing else catches a mistake.
 
 ## Commands
 - `npm run build` — `tsc` → `dist/`. Typechecks **only** `src/**` (`tsconfig.json`
   sets `rootDir: src`), so it does not cover `test/`, `examples/`, or `bot/`.
-- `npx tsc --noEmit -p tsconfig.bot.json` — typechecks `src/` + `bot/` (which
-  includes `bot/test/`). The only static check over bot code, so run it after any
-  `bot/` edit.
-- `npx vitest run` — full suite: 14 unit files / 236 tests plus 4 functional
+- `npm run typecheck` — `tsc --noEmit -p tsconfig.check.json`, the **only**
+  static check over bot, test, and example code. It covers every tracked `.ts`
+  file and runs in under a second, so run it after any edit outside `src/`.
+- `npx vitest run` — full suite: 15 unit files / 265 tests plus 4 functional
   files / 32 tests. Functional tests need Chromium (`npm run playwright:install`
   once). Narrow with `npx vitest run test/players.test.ts`, add `-t "<name>"` for
-  one test, or `npx vitest run bot/test` for the bot only (4 files / 102 tests).
+  one test, or `npx vitest run bot/test` for the bot only (5 files / 131 tests).
 - `npm run test:unit` (no browser) / `npm run test:functional` (needs Chromium).
 - `npm run test:coverage` — v8 coverage over the whole suite, so it needs Chromium
   like `npx vitest run` does. Writes `coverage/lcov.info` + `coverage/lcov-report/`.
@@ -278,7 +279,9 @@ behavior. What's load-bearing here:
   to the same layout) so the month-tab merge and the closest-upcoming-session
   selection are tested against the real format. `bot/test/csv.test.ts` reads
   them with `resolve(process.cwd(), "bot/test/data", …)` rather than
-  `import.meta`, because `tsconfig.bot.json` typechecks `bot/**` as CommonJS.
+  `import.meta`, because `tsconfig.check.json` typechecks the repo as CommonJS.
+  Same rule for `test/functional/setup.ts` (fixtures at
+  `resolve(process.cwd(), "test/data")`) and `test/utils.test.ts`.
 - vitest config (`vitest.config.ts`) pins `TZ=America/Los_Angeles` — several
   date tests are offset-sensitive and would pass for the wrong reason on a UTC
   runner. Its `setupFiles: ./test/setup.ts` also `delete`s inherited env vars
@@ -314,3 +317,37 @@ behavior. What's load-bearing here:
   `/Online/Account/LogIn/` within 10s (the login form is an Ant Design JS/XHR
   submit with no `action`), so the exact submit/redirect timing and any
   CSRF/token field are only validated on a live run.
+
+## LSP
+`opencode.json` runs a TypeScript language server for `.ts` files, so the editor
+feeds diagnostics back as you read a file. It is **not** the built-in server, and
+the built-in cannot work here:
+- `typescript` is pinned to `^7` (the native compiler), which ships no
+  `tsserver.js`, no JS compiler API, and no LSP mode — `node_modules/typescript/lib`
+  holds only `tsc.js`. opencode's built-in `typescript` entry resolves
+  `typescript/lib/tsserver.js` and bails when it is missing, then also requires
+  `typescript-language-server` on `PATH`. Both gates fail, so `"lsp": true` alone
+  is a no-op here.
+- So the config entry supplies `command` (which **replaces** the built-in spawn),
+  plus `initialization.tsserver.path` pointing at `typescript-js`, an npm alias for
+  `typescript@^6` — the last JS-based release, which does ship `lib/tsserver.js`.
+  That path is the only mechanism `typescript-language-server` has (no CLI flag
+  left in v5) and it is resolved against the project root, which is the cwd
+  opencode spawns the server with.
+- `extensions` is spelled out even though the built-in's list would match, because
+  a config entry only inherits from the built-in that survived its lockfile-based
+  root detection.
+- Keep `typescript-language-server` on `^5`: v6 needs Node >= 22.22.2 and the
+  repo declares `>=20`. Diagnostics come from TS **6** while `npm run typecheck`
+  uses TS **7**, so the two can disagree on a very new construct — the CLI is the
+  authority, the LSP is the early warning.
+- tsserver needs a second or two to load the project, so diagnostics for a file
+  read in the first tool call of a turn can arrive after the turn's last action.
+  That is latency, not a failure. (opencode 1.18.35's `opencode debug lsp
+  diagnostics <file>` returns `{}` regardless: it logs "touching file" but never
+  sends `textDocument/didOpen`, so nothing is ever diagnosed — don't chase it.)
+- An object `lsp` block keeps **all** built-ins enabled (the docs are explicit:
+  `{}` is enough to turn them on); the rest are inert because no file in the repo
+  has their extensions, and none of them download unless such a file appears.
+- The server only starts after `npm install`, since opencode's built-in root check
+  wants a lockfile and `package-lock.json` is gitignored.

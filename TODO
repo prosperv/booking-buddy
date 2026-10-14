@@ -50,13 +50,33 @@ AGENTS.md:26 documents it failing with `MISSING DEPENDENCY`, but the script is
 still in `package.json:12`. An agent will eventually try it and burn a cycle.
 Either `npm i -D @vitest/coverage-v8` or remove the script.
 
-### 4. Turn on the TypeScript LSP
+### 4. Turn on the TypeScript LSP DONE
 LSP is off by default, and neither tsconfig covers test code: `tsconfig.json` is
-`include: ["src/**/*"]`, `tsconfig.bot.json` is `["src/**/*", "bot/**/*"]`. So
-`test/` and `examples/` are never typechecked by any script. Diagnostics at edit
+`include: ["src/**/*"]`, `tsconfig.bot.json` was `["src/**/*", "bot/**/*"]`. So
+`test/` and `examples/` were never typechecked by any script. Diagnostics at edit
 time close that hole for free.
 
+Done as `tsconfig.check.json` (renamed, now covers every tracked `.ts` file via
+`npm run typecheck`) plus the LSP. Two things the item above got wrong:
+
+- The snippet below was a no-op twice over. opencode has a **built-in**
+  `typescript` server, so `command` isn't needed — but that built-in resolves
+  `typescript/lib/tsserver.js` and bails if it is missing, then requires
+  `typescript-language-server` on `PATH`. `typescript` is pinned to `^7` (the
+  native compiler), which ships no `tsserver.js` and no JS compiler API at all, so
+  both gates fail. A `command` in a config entry *replaces* the built-in's spawn,
+  which is what gets it running at all.
+- The hole was not free. `tsconfig.check.json` over the newly covered files
+  surfaced 6 real errors: 4× `TS2740` (`chromium.launch()` typed as
+  `BrowserContext`) in `test/functional/{booking,login,players}.test.ts`, and 2×
+  `TS1343` (`import.meta` under `module: CommonJS`) in
+  `test/functional/setup.ts` + `test/utils.test.ts` — fixed in the same pass.
+
     "lsp": { "typescript": { "command": ["npx", "typescript-language-server", "--stdio"] } }
+
+The shipped config instead points `initialization.tsserver.path` at `typescript-js`,
+an npm alias for `typescript@^6` (the last JS-based release). Details and the
+opencode 1.18.35 gotchas are in AGENTS.md under "LSP".
 
 ### 5. Permissions — enforce the "never read these" rule
 AGENTS.md:117 says never read `auth.json` (111KB of live cookies),
@@ -96,7 +116,7 @@ case, rename a symbol, new `parseRoster` edge case).
 
 ### 7. Project commands (.opencode/command/)
 Each saves a round trip and prevents a wrong guess.
-- `verify.md` — `npx tsc --noEmit -p tsconfig.bot.json && npx vitest run --exclude "**/functional/**"`.
+- `verify.md` — `npm run typecheck && npx vitest run --exclude "**/functional/**"`.
   "Run the typecheck" currently means two commands plus knowing which covers what.
 - `logs.md` — summarize today's `log/bot-*.log` (no `jq` installed) and list
   `log/failures/`. After a run, "what happened?" should be one command.
