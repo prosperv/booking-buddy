@@ -133,12 +133,13 @@ behavior. What's load-bearing here:
   Google service-account key). Committed example: `bot/bot.config.example.json`.
 - `bot/rosters/*.csv` — real player rosters (except the committed
   `example.csv`).
-- `test/data/**/*.mhtml` — raw full-page captures (~4.8MB each). Only the pruned
-  `.html` fixtures derived from them are committed; re-capture live if the
-  markup changes.
+- `test/data/**/*.mhtml` — raw full-page captures (~4.8MB each). **Never commit**
+  them, only the pruned `.html` fixtures derived from them; re-capture live if the
+  markup changes. Reading one is *not* blocked — see "Permissions" below.
 - `log/` — file logs (`booking-buddy-<date>.log`, `bot-<date>.log`); written by
   `src/logger.ts` (`createLogger`), see "Logging" below.
-- `.notes/`, `.temp-data/`, `opencode.json`, `.opencode/`.
+- `.notes/`, `.temp-data/`, `.opencode/` (only its plugin deps are ignored;
+  `opencode.json` itself is committed).
 - Note: the bot entries in `.vscode/launch.json` point at
   `/home/pvan/bot.test.config.json`, a machine-local config **outside** the repo.
 
@@ -351,3 +352,40 @@ the built-in cannot work here:
   has their extensions, and none of them download unless such a file appears.
 - The server only starts after `npm install`, since opencode's built-in root check
   wants a lockfile and `package-lock.json` is gitignored.
+
+## Permissions
+`opencode.json` carries a `permission` block so the "never read these" list is a
+constraint rather than a convention. The semantics that matter, from the 1.18.35
+binary — the docs say none of this:
+- Rules resolve with `findLast`, and the config block is merged **last** into every
+  native agent's ruleset (`build`, `plan` and `explore` all carry it — check with
+  `opencode debug agent <name>`). So a config rule always beats a built-in, which
+  is why the block has **no `"*"` key**: a `read` `*` would override the built-in
+  `*.env` → ask protection. The defaults stay intact by omission instead.
+- Patterns are anchored wildcards, **not** globs: `*` → `.*` (crosses `/`), `?` →
+  `.`, `^…$`. `**` is just two `*`s, so `my-profile/**` needs a trailing slash and
+  misses the directory itself — hence `my-profile*`. A pattern ending in `" *"`
+  (space-star) additionally matches the bare command with no argument.
+- `read` matches the **workspace-relative** path; external paths arrive absolute
+  and hit `external_directory` (ask by default) *before* the read rule.
+- `bash` matches the **raw command string**, not a path. Every read deny therefore
+  needs a bash twin or `cat auth.json` walks straight past it. `grep` matches the
+  **regex**, so it cannot be scoped by file at all — it needs no rule here because
+  ripgrep is spawned without `--no-ignore` and `.gitignore` already excludes every
+  secret path.
+- `deny` never prompts: it raises `DeniedError` before any dialog, and
+  `experimental.continue_loop_on_deny` defaults off, so a denial also stops the
+  turn. `ask` is the escapable version — but see the next point.
+- Clicking "always" on a read prompt grants `read *` for the whole **session**, and
+  the session-approved list is merged after the config rules, so it overrides them.
+  That is why `.env` is denied rather than left on its built-in `ask`: it was the
+  only read prompt reachable, and one click would have unlocked everything else.
+  Cost is that a legitimate `.env` read needs a config edit plus a restart — and
+  nothing in the repo loads it anyway (no `dotenv`, no `--env-file` in any script;
+  `src/constants.ts` reads `process.env`, which the shell or systemd supplies).
+- **`.mhtml` is deliberately left at the default.** `watcher.ignore` keeps it out
+  of the watch set, `.gitignore` keeps ripgrep out of it, a read is capped at 2000
+  lines / 51.2KB with a truncation marker, and the capture is quoted-printable
+  anyway. A deny would cost more than it bought — don't helpfully add one back.
+- The ruleset is built at config load, so **restart opencode** after editing the
+  block; a new session alone is not guaranteed to pick it up.

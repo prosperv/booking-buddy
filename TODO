@@ -78,7 +78,7 @@ The shipped config instead points `initialization.tsserver.path` at `typescript-
 an npm alias for `typescript@^6` (the last JS-based release). Details and the
 opencode 1.18.35 gotchas are in AGENTS.md under "LSP".
 
-### 5. Permissions — enforce the "never read these" rule
+### 5. Permissions — enforce the "never read these" rule DONE
 AGENTS.md:117 says never read `auth.json` (111KB of live cookies),
 `bot.config.json` (inline service-account private key), or `my-profile/`. Today
 `read` defaults to `allow`, so that's a convention, not a constraint. Rules are
@@ -86,27 +86,56 @@ last-match-wins:
 
     "permission": {
       "read": {
-        "*": "allow",
-        "auth.json": "deny",
-        "bot.config.json": "deny",
+        "*auth.json": "deny",
+        "*bot.config.json": "deny",
+        "*.env*": "deny",
+        "*.bak": "deny",
+        "my-profile*": "deny",
         "bot/rosters/*.csv": "deny",
-        "my-profile/**": "deny",
-        "*.mhtml": "deny",
+        "bot/rosters/example.csv": "allow",
+        ".temp-data/*.csv": "deny",
         "~/bot.test.config.json": "ask"
       },
       "bash": {
-        "*": "ask",
-        "git status*": "allow",
-        "git diff*": "allow",
-        "git log*": "allow",
-        "npx vitest*": "allow",
-        "npx tsc*": "allow",
-        "npm run*": "allow",
-        "git push*": "ask"
+        "*auth.json*": "deny",
+        "*bot.config.json*": "deny",
+        "*.env*": "deny",
+        "*my-profile*": "deny"
       }
     }
 
-The `.mhtml` deny also stops a 4.8MB capture from landing in context.
+Done as above — `bash` is `allow` by default with targeted denies rather than the
+`ask`-by-default allowlist the snippet sketched, so routine `ls` / `cat` / `jq` don't
+prompt and only the secret paths are blocked. Four things the snippet above got wrong,
+all from reading the 1.18.35 binary:
+
+- The `"read": {"*": "allow", …}` line would have **disabled the built-in `.env`
+  protection**. The config block is merged last into every agent's ruleset and rules
+  resolve with `findLast`, so `*` → allow beats `*.env` → ask. The shipped block has
+  no `"*"` key at all; the defaults stay intact by omission.
+- `my-profile/**` is a glob assumption, and patterns aren't globs — they're anchored
+  wildcards (`*` → `.*`, crossing `/`), so `**` is just two `*`s and the trailing
+  slash means it misses the directory itself. Hence `my-profile*`.
+- `bot/rosters/*.csv` would have denied the committed `bot/rosters/example.csv`, so
+  the `allow` is listed **after** the deny (key order is load-bearing — `fromConfig`
+  iterates `Object.entries` in order).
+- **A `read` deny is bypassed by `cat auth.json`.** The `bash` permission matches the
+  raw command string, not a path, so every read deny needs a bash twin.
+
+`.env` is denied rather than left on the built-in `ask` for a reason worth keeping:
+the read tool passes `save: ["*"]`, and the session-approved list is merged after the
+config rules, so one "always" click on the `.env` prompt grants `read *` for the
+session and overrides all of the above. No read prompt can fire once `.env` is a
+deny, so that list stays empty.
+
+`*.mhtml` is **deliberately absent**, reversing the snippet's last line. `watcher.ignore`
+already keeps it out of the watch set, `.gitignore` already keeps ripgrep out of it, a
+read is capped at 2000 lines / 51.2KB, and the capture is quoted-printable — so the
+deny would cost more than it bought.
+
+Verified with `opencode debug config`, `opencode debug agent` for build/plan/explore,
+and by replaying the wildcard matcher against 24 real paths. Details and the rest of
+the 1.18.35 gotchas are in AGENTS.md under "Permissions".
 
 ### 6. `small_model` + a cheap grunt subagent
 `.notes/model-knowledge.md` already concluded grunt work is small-model-shaped,
