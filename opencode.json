@@ -7,6 +7,15 @@
       "enabled": true
     }
   },
+  "lsp": {
+    "typescript": {
+      "command": ["./node_modules/.bin/typescript-language-server", "--stdio"],
+      "extensions": [".ts"],
+      "initialization": {
+        "tsserver": { "path": "node_modules/typescript-js/lib/tsserver.js" }
+      }
+    }
+  },
   "watcher": {
     "ignore": [
       "my-profile",
