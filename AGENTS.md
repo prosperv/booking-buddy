@@ -19,8 +19,10 @@ the two `tsc` commands below, so nothing else catches a mistake.
   once). Narrow with `npx vitest run test/players.test.ts`, add `-t "<name>"` for
   one test, or `npx vitest run bot/test` for the bot only (4 files / 102 tests).
 - `npm run test:unit` (no browser) / `npm run test:functional` (needs Chromium).
-- `npm run test:coverage` is configured (v8) but `@vitest/coverage-v8` is not
-  installed, so it fails with `MISSING DEPENDENCY`. Don't use it to verify a change.
+- `npm run test:coverage` — v8 coverage over the whole suite, so it needs Chromium
+  like `npx vitest run` does. Writes `coverage/lcov.info` + `coverage/lcov-report/`.
+  No thresholds are configured, so it's for finding untested paths, not for gating
+  a change — `npx vitest run` is the verification.
 - Every `vitest` run prints a `configLoader: 'native'` warning about ESM syntax
   in a CJS-loaded `vitest.config.ts`. Harmless — ignore it.
 - `npm start` / `npx tsx examples/{usage,add-player,remove-player,swap-player}.ts`

@@ -1,0 +1,233 @@
+## opencode / dev-loop speedups
+
+Ordered by bang for the buck: config-only one-liners first, the real code change
+last.
+
+### 1. Commit the opencode config DONE
+`.gitignore:51-52` ignores `opencode.json` and `.opencode/`, so every setting is
+machine-local and unrecoverable. AGENTS.md is meticulous; the opencode config is
+8 lines and invisible to git. Ignore only the plugin deps instead:
+
+    .opencode/node_modules/
+    .opencode/package-lock.json
+    .opencode/package.json
+    opencode.local.json
+
+Also delete the empty `.opencode/opencode.json` (0 bytes) — it merges as a no-op.
+
+### 2. Watcher ignores (biggest latency win) DONE
+Tree is 4,526 files: 727 are a live 77MB Chromium profile (`my-profile/`) that
+mutates on every bot run, plus 17 `.mhtml` captures (75MB in `test/data/`) and
+`log/` writes. opencode watches all of it.
+
+    "watcher": { "ignore": ["my-profile", "log", "temp", ".temp-data", "auth.json", "bot.config.json", "**/*.mhtml"] }
+
+Three corrections to the list above, from reading the 1.18.35 binary:
+
+- `node_modules` and `dist` are **already** ignored. `FileSystemWatcher.Ignore.PATTERNS`
+  is bundled in the binary: 28 bare names (`node_modules`, `dist`, `.git`, `.vscode`,
+  `build`, `bin`, …) plus 11 globs (`**/*.log`, `**/temp/**`, `**/coverage/**`, …).
+  opencode concatenates those with `watcher.ignore` before calling the native
+  watcher, so re-listing them is dead config.
+- Entries with **no glob metacharacter** become `path.resolve(root, p)` and are
+  matched by absolute-path prefix; entries with one become picomatch regexes
+  matched by `std::regex_match` against the path **relative to the watch root**
+  (`parcel-bundler/watcher` `Watcher.cc::isIgnored`). So bare names are the
+  right form for repo-root entries, and `**/`-prefixed globs the right form for
+  anything matched by pattern.
+- Directories want their **bare name, not `dir/**`**. The initial tree walk
+  (`unix/legacy.cc`) and the `IN_CREATE` handler both call `isIgnored` per path
+  and prune on a hit, so `my-profile/**` would skip `my-profile/Default` but
+  still watch `my-profile` itself. This is why `temp` needed adding too — the
+  built-in `**/temp/**` matches children, never the directory.
+
+Effect, simulated over the live tree on top of the built-ins: 3,745 → 3,006
+files watched, 1,138 → 1,227 dirs pruned. 739 files / 89 dirs, 702 of them the
+Chromium profile.
+
+### 3. Fix `test:coverage` or delete it DONE
+AGENTS.md:26 documents it failing with `MISSING DEPENDENCY`, but the script is
+still in `package.json:12`. An agent will eventually try it and burn a cycle.
+Either `npm i -D @vitest/coverage-v8` or remove the script.
+
+### 4. Turn on the TypeScript LSP
+LSP is off by default, and neither tsconfig covers test code: `tsconfig.json` is
+`include: ["src/**/*"]`, `tsconfig.bot.json` is `["src/**/*", "bot/**/*"]`. So
+`test/` and `examples/` are never typechecked by any script. Diagnostics at edit
+time close that hole for free.
+
+    "lsp": { "typescript": { "command": ["npx", "typescript-language-server", "--stdio"] } }
+
+### 5. Permissions — enforce the "never read these" rule
+AGENTS.md:117 says never read `auth.json` (111KB of live cookies),
+`bot.config.json` (inline service-account private key), or `my-profile/`. Today
+`read` defaults to `allow`, so that's a convention, not a constraint. Rules are
+last-match-wins:
+
+    "permission": {
+      "read": {
+        "*": "allow",
+        "auth.json": "deny",
+        "bot.config.json": "deny",
+        "bot/rosters/*.csv": "deny",
+        "my-profile/**": "deny",
+        "*.mhtml": "deny",
+        "~/bot.test.config.json": "ask"
+      },
+      "bash": {
+        "*": "ask",
+        "git status*": "allow",
+        "git diff*": "allow",
+        "git log*": "allow",
+        "npx vitest*": "allow",
+        "npx tsc*": "allow",
+        "npm run*": "allow",
+        "git push*": "ask"
+      }
+    }
+
+The `.mhtml` deny also stops a 4.8MB capture from landing in context.
+
+### 6. `small_model` + a cheap grunt subagent
+`.notes/model-knowledge.md` already concluded grunt work is small-model-shaped,
+but `small_model` is unset so title/summary generation runs on the main model.
+Set it, and add a subagent for the high-volume/low-stakes shape (add a vitest
+case, rename a symbol, new `parseRoster` edge case).
+
+### 7. Project commands (.opencode/command/)
+Each saves a round trip and prevents a wrong guess.
+- `verify.md` — `npx tsc --noEmit -p tsconfig.bot.json && npx vitest run --exclude "**/functional/**"`.
+  "Run the typecheck" currently means two commands plus knowing which covers what.
+- `logs.md` — summarize today's `log/bot-*.log` (no `jq` installed) and list
+  `log/failures/`. After a run, "what happened?" should be one command.
+- `recapture.md` — the quoted-printable-decode + slice-to-`booking-tabs`
+  procedure from `test/data/README`, which exists only as prose today.
+- `dryrun.md` — `npx tsx bot/index.ts ensure-roster --dry-run` with the
+  machine-local `--config`.
+
+### 8. Two skills for rare-but-expensive procedures
+AGENTS.md:290-297 lists five residual risks only a live run can validate. The
+`node-debugger` MCP is already enabled and solves exactly that, but has zero
+documented workflow — 26 tools of unused context.
+- `.opencode/skill/live-run-debug/SKILL.md` — launch `bot/index.ts` via
+  `node-debugger_debug_launch` with the right `cwd`/`args`, set breakpoints
+  around `swapPlayersOnBooking` and `navigateTo`, inspect on pause.
+- `.opencode/skill/recapture-fixture/SKILL.md` — the MHTML prune procedure.
+
+### 9. Functional tests launch 5 Chromiums
+`chromium.launch()` appears in all 4 functional files (5 sites). The functional
+run takes 22s, ~42s of it tests. A vitest `globalSetup`/`teardown` sharing one
+browser would cut that substantially — biggest single dev-loop win in the repo
+itself, but a code change rather than config, so it goes last.
+
+### Trade-off: AGENTS.md is 24K and always loaded
+Splitting it into skills gives real progressive disclosure, but AGENTS.md is also
+the Copilot instructions — moving content into `.opencode/skill/` makes it
+invisible to Copilot. Leave AGENTS.md intact; put new material in skills.
+
+## Pi / ops (Raspberry Pi deployment)
+
+Not dev-loop work. Deferred on purpose: each is a known gap in the Pi deployment
+that nothing currently breaks, so they wait until the bot has been running long
+enough to show which one actually bites.
+
+### Chromium build drift (breaks runs outright)
+`package-lock.json` is gitignored, so `npm install` on the Pi re-resolves
+`playwright: ^1.62.1` from scratch and can pull a minor that wants a newer
+Chromium build than the one in `~/.cache/ms-playwright`. The next run then dies
+with "Executable doesn't exist at … run npx playwright install" — and only when
+that run happens, which for a weekly slot can be days later.
+
+- Pin `playwright` to an exact version in `package.json` (drop the caret).
+- Record the resolved pair (`npx playwright --version`, plus the
+  `~/.cache/ms-playwright/chromium-*` directory) in `bot/systemd/README.md`, so
+  a drifted install is diagnosable from the Pi without a desktop.
+- Consider re-running `npx playwright install chromium` from a weekly timer
+  alongside the roster timer, so the browser is refreshed on a schedule instead
+  of during a game night.
+
+### Log growth — no logrotate
+Nothing bounds `log/`. `log/*.log` and `log/failures/*.html` accumulate forever;
+there are already 3 snapshots totalling 824KB (~350KB each), written by every
+`error`-level failure via `src/capture.ts`. An SD card fills eventually, and a
+markup change on CourtReserve turns every run into several snapshots.
+
+The config belongs at `/etc/logrotate.d/booking-buddy`, written by
+`bot/systemd/install.sh`. Three constraints that make it non-obvious:
+
+- **`copytruncate`, not plain `rotate`/`create`.** `src/logger.ts` builds pino's
+  destination with `sync: true`, so the process holds an open fd for the whole
+  run; a renamed inode keeps receiving writes and the new file comes up empty.
+- **Two stanzas.** logrotate does not recurse, so `failures/*.html` needs its own
+  block alongside `*.log`.
+- **Absolute paths** from `REPO_DIR`, not a bare glob, or two checkouts would
+  share one config.
+
+That also means `install.sh` needs its single `mktemp`+`trap` swapped for a temp
+dir, since it would then write to `/etc/systemd/system` *and*
+`/etc/logrotate.d`. Add `maxsize` so one pathological day can't balloon, and
+`compress`/`delaycompress` since these are JSON lines and dead snapshots.
+
+### Alerting (deliberately log-only for now)
+`ensure-roster` exits 0 for every player-level problem. That is visible in the
+logs and nowhere else, so nothing tells you a Tuesday night went wrong until you
+ssh in. The `run-end` tally (see `bot/ensure-roster.ts`) makes "did the run do
+anything" a single `grep`, which helps but does not push. A run whose `auth.json`
+has gone stale is no longer in this category: with credentials configured it
+re-logs-in itself, and without them the unit still fails visibly on the
+`TimeoutStartSec` cap.
+
+Three independent options, any of which closes the loop:
+
+- `OnFailure=booking-buddy-alert@%n.service` firing on a failed unit, posting to
+  ntfy.sh (no account, no secret) or a Slack/Discord webhook (needs a
+  root-only credentials file).
+- A second timer running the existing `check-auth` command daily. It is no longer
+  a *recovery* mechanism — a run re-logs-in itself when credentials are
+  configured — so what it adds is lead time: a rotated password fails the next
+  game night's run, whereas a daily check fails a day earlier and says so.
+- A `--strict` flag making `player-failed` / `no-booking` non-zero. Note the
+  caveat: `no-booking` is the normal state for a future month tab whose courts
+  aren't booked yet, so it would need a "session is within N hours" condition
+  to avoid firing on every run.
+
+### Credentials file — plaintext, and root:600 is partly undone by the env
+`/etc/booking-buddy/credentials.env` holds the CourtReserve password in plaintext.
+That is the normal pattern (`.pgpass`, `~/.netrc`, AWS creds files) and the
+hardening already in place is the right one: root-owned 600, outside the repo,
+username-only in logs, and invisible to `systemctl show` precisely because it is
+an `EnvironmentFile=` rather than an inline `Environment=` line. Worth being
+explicit that there is no non-plaintext alternative that keeps unattended
+re-login — the site's other paths (Google OAuth, emailed code) both need a human
+— so the real choice is this file or a manual-login prompt a `Type=oneshot` unit
+can never satisfy.
+
+Two gaps the 600 mode does not close:
+
+- **`EnvironmentFile=` puts the password in the process environment.**
+  `/proc/<pid>/environ` is 0400 owned by the process, i.e. readable by the *run
+  user* — who is not the account the file is protected from. Any process running
+  as that account can read the password for the duration of the run, and it is
+  inherited by `tsx`, node, and Chromium (whose crash dumps land under `$HOME`).
+  The run user already holds `auth.json`'s live cookies, but a session cookie
+  expires and the password does not.
+- **Offline copies.** Backup snapshots, an SD-card image, or a copied
+  `/etc` capture the file in a form root:600 does not protect.
+
+The fix for the first is systemd's credential mechanism, which hands the unit a
+private copy at `/run/credentials/<unit>/credentials.env` readable only by that
+unit and *not* present in its environment:
+
+    LoadCredential=credentials:/etc/booking-buddy/credentials.env
+
+(systemd v247+; the unit's `HOME`/run-user setup is unchanged.) It costs a small
+code change: `credentialsFromEnv` (`src/credentials.ts`) gains a file-path source
+alongside the env one, reading `$CREDENTIALS_DIRECTORY`, so local `.env` work
+keeps working exactly as now. `LoadCredentialEncrypted=` (v250+) would also
+address the second gap, but with no TPM the host key sits in
+`/var/lib/systemd/credential.secret` on the same disk — obfuscation against a
+stolen image, not a second factor, and binding to machine-id breaks SD-card
+cloning.
+
+Do it if the Pi is on an untrusted network or `/etc` reaches a backup that isn't
+fully under your control. Otherwise the current file is fine as-is.

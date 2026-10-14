@@ -15,6 +15,7 @@
       "bot.config.json",
       "temp",
       ".temp-data",
+      "coverage",
       "**/*.mhtml"
     ]
   }
