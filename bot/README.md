@@ -358,5 +358,5 @@ all unit tests repo-wide with `npm run test:unit`.
 Typecheck the bot (the `npm run build` only covers `src/`):
 
 ```
-npx tsc --noEmit -p tsconfig.bot.json
+npm run typecheck
 ```

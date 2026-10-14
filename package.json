@@ -5,6 +5,7 @@
     "main": "dist/index.js",
     "scripts": {
         "build": "tsc",
+        "typecheck": "tsc --noEmit -p tsconfig.check.json",
         "start": "npx tsx examples/usage.ts",
         "dev": "tsc -w",
         "test": "vitest run",

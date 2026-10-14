@@ -209,8 +209,8 @@ npx tsx bot/index.ts check-auth
 
 `ensure-roster` treats the roster as the source of truth and reconciles both
 adds and removals, so a daily run is safe. See `bot/systemd/README.md` for
-installing the systemd timer on an always-on machine. Typecheck the bot with
-`npx tsc --noEmit -p tsconfig.bot.json`.
+installing the systemd timer on an always-on machine. Typecheck the whole repo
+(including the bot and the tests) with `npm run typecheck`.
 
 ## Development and tests
 
