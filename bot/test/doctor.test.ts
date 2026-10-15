@@ -323,6 +323,39 @@ describe("diagnose: credentials", () => {
     });
 });
 
+describe("diagnose: xvfb", () => {
+    /**
+     * Advisory like the credentials check, so it is looked up by subject.
+     * `xvfbRunPath` is injected so neither branch depends on what the host
+     * running the tests happens to have installed.
+     */
+    async function xvfbFinding(xvfbRunPath: string): Promise<{ severity: string; message: string; remedy?: string } | undefined> {
+        const { configPath, authFile } = fixture(configJson(), { "auth.json": VALID_AUTH });
+        const findings = await diagnose(options(configPath, authFile, { xvfbRunPath }));
+        return findings.find((f) => f.subject === "xvfb");
+    }
+
+    it("is advisory, not blocking: an interactive run on a machine with a display never needs it", async () => {
+        expect((await xvfbFinding(""))?.severity).toBe("advisory");
+    });
+
+    it("explains the block it prevents, so it does not read as a missing nicety", async () => {
+        const finding = await xvfbFinding("");
+        expect(finding?.message).toContain("Cloudflare");
+        expect(finding?.message).toContain("HeadlessChrome");
+    });
+
+    it("points at the two commands that fix it, and notes the unit needs no reinstall", async () => {
+        const finding = await xvfbFinding("");
+        expect(finding?.remedy).toContain("apt install xvfb");
+        expect(finding?.remedy).toContain("daemon-reload");
+    });
+
+    it("says nothing when xvfb-run is on PATH", async () => {
+        expect(await xvfbFinding("/usr/bin/xvfb-run")).toBeUndefined();
+    });
+});
+
 describe("diagnose: --live", () => {
     it("makes no network call without --live, and says the sheet is unverified", async () => {
         const { configPath, authFile } = fixture(configJson(), { "auth.json": VALID_AUTH });

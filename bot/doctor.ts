@@ -51,6 +51,12 @@ export type DoctorOptions = {
      * about whichever host the tests run on.
      */
     credentialsFile?: string;
+    /**
+     * Where `xvfb-run` was found, or `""` when it is not on PATH. Overridable so
+     * tests can exercise both branches without depending on what the host running
+     * them happens to have installed.
+     */
+    xvfbRunPath?: string;
 };
 
 /**
@@ -98,6 +104,7 @@ export async function diagnose(options: DoctorOptions): Promise<Finding[]> {
     findings.push(...checkFileRosters(jobs, options.configPath));
     findings.push(...checkAuthFile(options.authFile ?? authPath));
     findings.push(...checkCredentials(options.credentialsFile ?? CREDENTIALS_FILE, options.env));
+    findings.push(...checkXvfb(options.xvfbRunPath ?? findOnPath("xvfb-run")));
 
     const hasSheetJob = jobs.some((j) => j.session.roster.kind === "googleSheet");
     if (options.live && template.length === 0) {
@@ -272,6 +279,43 @@ function checkCredentials(credentialsFile: string, env?: { COURTRESERVE_USERNAME
         subject: "credentials",
         message: "COURTRESERVE_USERNAME/COURTRESERVE_PASSWORD are not configured (both are required)",
         remedy: `runs work while the saved session is fresh; once it expires the run blocks on the manual-login prompt — add them to ${credentialsFile}`,
+    }];
+}
+
+/**
+ * Finds an executable on PATH the way a shell would, so the check reflects what
+ * the unit can actually launch rather than what a hardcoded path assumes. An
+ * empty PATH entry means "current directory" in shell terms and is skipped, and
+ * the first executable hit wins — same as the shell.
+ */
+function findOnPath(name: string, pathValue: string | undefined = process.env.PATH): string {
+    for (const dir of (pathValue ?? "").split(":")) {
+        if (!dir) continue;
+        const candidate = path.join(dir, name);
+        try {
+            fs.accessSync(candidate, fs.constants.X_OK);
+            return candidate;
+        } catch {
+            // Not here, or not executable — keep looking.
+        }
+    }
+    return "";
+}
+
+/**
+ * CourtReserve sits behind Cloudflare, which hard-403s any request whose
+ * user-agent contains `HeadlessChrome`, so the unit drives a headed browser on a
+ * virtual display and `xvfb-run` is what supplies that display. Advisory rather
+ * than blocking: an interactive run on a machine with a real display never needs
+ * it, so this is only a problem for the host that runs the timer.
+ */
+function checkXvfb(xvfbRunPath: string): Finding[] {
+    if (xvfbRunPath) return [];
+    return [{
+        severity: "advisory",
+        subject: "xvfb",
+        message: "xvfb-run was not found on PATH — a scheduled run drives a headed browser on a virtual display, and without one Cloudflare blocks it (it 403s the HeadlessChrome user-agent a headless browser sends)",
+        remedy: "apt install xvfb, then systemctl daemon-reload — the unit already points at xvfb-run",
     }];
 }
 
