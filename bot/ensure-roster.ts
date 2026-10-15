@@ -312,16 +312,25 @@ export async function runEnsureRoster(
 
     const client = new CourtReserveClient({ headless: options.headless ?? true });
     try {
-        await client.init();
-    } catch (err) {
-        logger.error(`ensure-roster: client init failed: ${err instanceof Error ? err.message : err}`, {
-            event: "init-failed",
-            message: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack : undefined,
-        });
-        return false;
-    }
-    try {
+        // `init()` belongs inside the `try` that owns the `finally`, not beside
+        // it: it launches the browser before it can fail, so a failure here has
+        // to close that browser too. Returning with it still open pinned the
+        // process to a live Chromium — `main()` set its exit code and returned,
+        // but the event loop never drained, so the unit sat idle until systemd
+        // SIGTERMed it at TimeoutStartSec and the next timer fire queued up
+        // behind it. `close()` is idempotent and tolerates a half-built client,
+        // so this covers a partial init as well as a completed one.
+        try {
+            await client.init();
+        } catch (err) {
+            logger.error(`ensure-roster: client init failed: ${err instanceof Error ? err.message : err}`, {
+                event: "init-failed",
+                message: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+            });
+            return false;
+        }
+
         // A session can also drop mid-run, so this re-authenticates with the
         // configured credentials rather than only reporting the stale state.
         // A failed login throws; abort here so it is reported the same way as a
