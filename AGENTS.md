@@ -234,6 +234,21 @@ behavior. What's load-bearing here:
 - `headless` defaults to **true** (`process.env.HEADLESS !== "false"` in
   `src/constants.ts`); the `examples/*` force it false so a window shows for
   login.
+- **CourtReserve is behind Cloudflare, which hard-403s any user-agent containing
+  `HeadlessChrome`** — exactly what Playwright's headless shell sends. A headless
+  run is therefore blocked, and it does not fail with a 403: the WAF block page
+  carries neither readiness selector, so `navigateTo` burns two 60s attempts and
+  throws a `locator.waitFor` timeout against markup that was never going to
+  appear. The `init-failed` `snapshot` is the diagnostic (an HTML page titled
+  `Attention Required! | Cloudflare` saying "Sorry, you have been blocked"), not
+  the log line. Reproduce without a browser: `curl -o /dev/null -w '%{http_code}'`
+  the bookings-list URL with and without `HeadlessChrome` in the agent — same IP,
+  `302` then `403`. So the systemd unit runs **headed under `xvfb-run`** (see
+  `bot/systemd/README.md`), and `--headed` is load-bearing rather than cosmetic:
+  `bot/index.ts` defaults `headless` to `true` and only that flag clears it, then
+  passes `options.headless ?? true` to the client, overriding `src/constants.ts`
+  entirely — **`Environment=HEADLESS=false` in the unit does nothing**, and the
+  CLI never reads it.
 - The browser is a **persistent** Chromium context (`launchPersistentContext`
   with `viewport: null`), so `my-profile/` is live login state layered under the
   `auth.json` storage state — refreshing one does not replace the other.

@@ -335,8 +335,12 @@ Two consequences worth knowing:
    removes and adds each court's players in a single edit-modal save and logs
    removed/added/skipped/failed.
 
-The client uses the default headless browser, so `auth.json` and `my-profile/`
-must exist in the working directory. If `COURTRESERVE_USERNAME` and
+An interactive run uses the default headless browser, so `auth.json` and
+`my-profile/` must exist in the working directory. The scheduled run on the Pi
+is the exception: it passes `--headed` on a `xvfb-run` virtual display, because
+Cloudflare 403s the `HeadlessChrome` user-agent — see
+[`systemd/README.md`](systemd/README.md#why-the-run-is-headed). If
+`COURTRESERVE_USERNAME` and
 `COURTRESERVE_PASSWORD` are set in the environment (on the Pi, via
 `EnvironmentFile=` — see [`systemd/README.md`](systemd/README.md)), a run
 re-logs-in unattended when the saved session has gone stale, so a missing
