@@ -223,6 +223,20 @@ check_clock() {
 
 check_clock
 
+# CourtReserve is behind Cloudflare, which hard-403s the `HeadlessChrome`
+# user-agent, so the unit runs a headed browser on a virtual display. Resolve
+# the wrapper to an absolute path (systemd would search only a fixed set of
+# directories for a bare name) and warn rather than fail when it is missing: the
+# install is still worth completing, because installing the package afterwards is
+# enough — the unit only needs a `daemon-reload`, not another install.sh run.
+XVFB_RUN="$(command -v xvfb-run 2>/dev/null || true)"
+if [ -z "$XVFB_RUN" ]; then
+    XVFB_RUN="xvfb-run"
+    warn "xvfb-run not found — every run will be blocked by Cloudflare (it 403s the HeadlessChrome user-agent a headless browser sends); fix with 'apt install xvfb' then 'systemctl daemon-reload'"
+else
+    echo "xvfb: $XVFB_RUN"
+fi
+
 UNIT_DIR="/etc/systemd/system"
 SERVICE_SRC="$SCRIPT_DIR/booking-buddy.service.in"
 TIMER_SRC="$SCRIPT_DIR/booking-buddy.timer"
@@ -234,6 +248,7 @@ sed -e "s|@REPO_DIR@|$REPO_DIR|g" \
     -e "s|@USER@|$RUN_USER|g" \
     -e "s|@GROUP@|$RUN_GROUP|g" \
     -e "s|@HOME@|$RUN_HOME|g" \
+    -e "s|@XVFB_RUN@|$XVFB_RUN|g" \
     "$SERVICE_SRC" > "$workdir/booking-buddy.service"
 
 install -m 644 "$workdir/booking-buddy.service" "$UNIT_DIR/booking-buddy.service"

@@ -25,4 +25,20 @@ EnvironmentFile=-/etc/booking-buddy/credentials.env
 # ceiling that would leave the unit activating indefinitely and every later
 # timer fire piling up behind it.
 TimeoutStartSec=3600
-ExecStart=@REPO_DIR@/node_modules/.bin/tsx @REPO_DIR@/bot/index.ts ensure-roster
+# CourtReserve sits behind Cloudflare, which hard-403s any request whose
+# user-agent contains `HeadlessChrome` — the exact agent Playwright's headless
+# shell sends. The block page carries neither readiness selector, so a headless
+# run does not fail with a 403: it burns two 60s navigation attempts and exits
+# on a `locator.waitFor` timeout against a WAF page that never had that markup.
+# A real (headed) Chromium sends the ordinary Chrome agent and passes, so the
+# unit runs headed on a virtual display instead. `--headed` is load-bearing and
+# is NOT interchangeable with `Environment=HEADLESS=false`: bot/index.ts defaults
+# `headless` to true and only this flag clears it, and ensure-roster.ts then
+# passes `options.headless ?? true` straight to the client, overriding the
+# `HEADLESS` read in src/constants.ts. The CLI never sees that variable.
+# `@XVFB_RUN@` is resolved to an absolute path by install.sh, which warns if it
+# finds no `xvfb-run` rather than failing the install. `-a` picks a free display
+# so a stale one cannot make a run fail, and the explicit screen size is what
+# the browser's `viewport: null` resolves against — under a default Xvfb screen
+# that is the window size, not a fixed viewport.
+ExecStart=@XVFB_RUN@ -a --server-args="-screen 0 1280x1024x24" @REPO_DIR@/node_modules/.bin/tsx @REPO_DIR@/bot/index.ts ensure-roster --headed
