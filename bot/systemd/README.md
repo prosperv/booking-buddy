@@ -4,12 +4,55 @@ Daily `ensure-roster` run on the Raspberry Pi. The job is idempotent (players
 already on a booking are reported as skipped), so a daily timer is safe and
 catches bookings as they appear.
 
+## Why the run is headed
+
+The unit runs the browser headed, on a virtual display, and this is not a
+preference — it is the only configuration that works.
+
+CourtReserve sits behind Cloudflare, which **hard-403s any request whose
+user-agent contains `HeadlessChrome`**. That is precisely the agent Playwright's
+headless shell sends. A headless run therefore never sees a booking list, and
+it never sees a 403 either: the WAF block page carries neither readiness
+selector, so `navigateTo` burns two 60-second attempts against markup that was
+never going to appear and the run fails with a `locator.waitFor` timeout that
+points at nothing useful. The `init-failed` snapshot in `log/failures/` is the
+tell — an HTML page titled `Attention Required! | Cloudflare` whose body reads
+"Sorry, you have been blocked".
+
+A headed Chromium sends the ordinary Chrome agent and passes. On a host with no
+display, `xvfb-run` supplies a virtual one:
+
+```
+ExecStart=/usr/bin/xvfb-run -a --server-args="-screen 0 1280x1024x24" .../tsx .../bot/index.ts ensure-roster --headed
+```
+
+Three details are load-bearing:
+
+- **`--headed` is not interchangeable with `Environment=HEADLESS=false`.**
+  `bot/index.ts` defaults `headless` to `true` and only that flag clears it, then
+  passes `options.headless ?? true` straight to the client — overriding the
+  `HEADLESS` read in `src/constants.ts`. The CLI never sees that variable, so
+  setting it in the unit changes nothing and the run is silently headless again.
+- **`-a` picks a free display**, so a stale one from a killed run cannot make the
+  next one fail.
+- **The explicit screen size** is what `viewport: null` resolves against. Under a
+  default Xvfb screen that is the window size rather than a fixed viewport, and
+  too small a screen makes real clicks land outside an element.
+
+`install.sh` resolves `xvfb-run` to an absolute path (systemd would otherwise
+search only a fixed set of directories for a bare name) and **warns rather than
+fails** when it is missing, so an install you can finish is still an install you
+can finish — the unit needs only `systemctl daemon-reload` once `apt install
+xvfb` has run. `doctor` reports the same thing as an advisory finding; it is
+advisory because an interactive run on a machine with a real display never needs
+it.
+
 ## Install
 
 `booking-buddy.service.in` is a template with `@REPO_DIR@`, `@USER@`,
-`@GROUP@`, and `@HOME@` placeholders; `install.sh` substitutes them, installs
-the units, and enables the timer. It takes the repo path as an optional argument
-and otherwise infers it from its own location.
+`@GROUP@`, `@HOME@`, and `@XVFB_RUN@` placeholders; `install.sh` substitutes them,
+installs the units, and enables the timer. It takes the repo path as an optional
+argument and otherwise infers it from its own location.
 
 ```bash
 sudo ./bot/systemd/install.sh            # auto-detect repo path
