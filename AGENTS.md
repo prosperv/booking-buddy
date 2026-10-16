@@ -331,6 +331,31 @@ behavior. What's load-bearing here:
 - All scraping keys off CourtReserve `data-testid` attributes and dayjs parsing
   (`src/booking.ts`, `src/parsers.ts`); if the site markup changes, parsing
   breaks.
+- `collectBookingSessions` waits for the first card **or** the `no-bookings`
+  empty-state marker (`bookingListPopulateMs`, default 10s) before counting. The
+  readiness selector only covers the list *container*, which can be on screen a
+  beat before the cards render into it, and counting early returns 0 — which is
+  indistinguishable from an account with no bookings and makes the bot report
+  `no upcoming roster` and exit 0. Don't "optimise" the wait away.
+- A card can cover **several courts** (one reservation booked together), and the
+  site renders the whole span in one row: `Mukilteo 8, Mukilteo 9, …`.
+  `parseCourt` splits on the comma first so `courtLocation` stays a real
+  location; splitting on spaces (right for the single-court shape) used to make
+  the whole run the location, which then failed `groupBookingsIntoSessions`' `===`
+  and dropped the booking from its session with no log line. `Booking.courtNumbers`
+  carries the span, and a run logs `multi-court-booking` at `warn` because the
+  plan still fills such a booking to one `courtCapacity`, not one per court.
+- A booking card's date row carries **no year**, so `parseDatetime` takes a
+  `reference` (default: now) and rolls a month/day already past that reference
+  into next year — the list is always upcoming. Only month/day is compared, so a
+  booking later today stays today instead of jumping a year.
+- `getCurrentBookings` logs `filter-matched-nothing` at `warn` when a filter
+  keeps none of the bookings the page actually holds, naming the days, start
+  times, and locations that were available. This is the guard against a `match`
+  that can never match — a `startTime` written 12-hour (`06:30` for 6:30 PM)
+  against a 24-hour `HH:MM` comparison filtered every booking out and every
+  roster out of `RosterSet.next`, so the run reported `no upcoming roster` and
+  exited 0. The same silent shrug is the symptom; this event is the diagnosis.
 - `init()` registers SIGINT/SIGTERM/`beforeExit` handlers (re-exiting 130/143
   after `close()`) and `close()` removes them, so a long-lived host process can
   run the client without leaking handlers or an orphaned browser.
