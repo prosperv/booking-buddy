@@ -42,6 +42,16 @@ import {
     verifyPlayerAdded,
 } from "./players";
 
+/** Unique values, in first-seen order, for the diagnostic a filter mismatch reports. */
+function distinct(values: string[]): string[] {
+    return [...new Set(values)];
+}
+
+/** 24-hour `HH:MM`, the form `BookingFilters.startTime` is compared against. */
+function timeKey(date: Date): string {
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 type RemoveLoopResult = {
     removed: string[];
     skipped: PlayerRemoveOutcome[];
@@ -370,6 +380,22 @@ export class CourtReserveClient {
                 snapshot,
             });
             throw err;
+        }
+        // A filter that discards everything the scrape found is the failure mode
+        // that looks like success: the caller reports zero bookings, concludes
+        // there is nothing to reconcile, and exits 0. The only reason to believe
+        // that is a mistyped filter, so say what was asked for and what the page
+        // actually holds — a 24-hour time written as 12-hour, or a full weekday
+        // against a site that abbreviates, is the usual cause.
+        if (bookingSessions.length > 0 && filtered.length === 0) {
+            this.logger.warn("the filter matched none of the bookings on the page", {
+                event: "filter-matched-nothing",
+                filters,
+                scraped: bookingSessions.length,
+                availableDays: distinct(bookingSessions.map((s) => s.dayOfWeek)),
+                availableStartTimes: distinct(bookingSessions.map((s) => timeKey(s.startTime))),
+                availableLocations: distinct(bookingSessions.map((s) => s.courtLocation)),
+            });
         }
         return filtered.map((session) => {
             const { page: _, ...booking } = session;
