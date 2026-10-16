@@ -2,7 +2,11 @@ import { Locator, Page } from "playwright";
 import { humanClick } from "./interactions";
 import { loggerFor } from "./log-context";
 import { parseDatetime, parseCourt, parsePlayers, parseBookingId } from "./parsers";
+import { bookingListPopulateMs } from "./constants";
 import { Booking, BookingFilters, BookingSession } from "./types";
+
+/** The card wrapper's `data-testid`, which is suffixed with the booking id. */
+const BOOKING_CARD_SELECTOR = '[data-testid^="booking-card-wrapper-"]';
 
 /**
  * Pulls the leading integer out of CourtReserve's "N Booking Found" label.
@@ -30,10 +34,10 @@ export function buildBooking(
     bookingId: string,
 ): Booking {
     const { dayOfWeek, startTime, endTime } = parseDatetime(datetimeText);
-    const { courtNumber, courtLocation } = parseCourt(locationAndCourt);
+    const { courtNumber, courtLocation, courtNumbers } = parseCourt(locationAndCourt);
     const players = parsePlayers(playersText);
 
-    return { bookingId, dayOfWeek, startTime, endTime, courtNumber, courtLocation, players };
+    return { bookingId, dayOfWeek, startTime, endTime, courtNumber, courtLocation, courtNumbers, players };
 }
 
 /**
@@ -71,6 +75,19 @@ export async function convertBookingCardToBookingSession(
 
 export async function collectBookingSessions(page: Page): Promise<BookingSession[]> {
     const bookingCard = page.getByTestId(/^booking-card-wrapper-\d+$/);
+    // The readiness selector waits for the list container, which can be on
+    // screen a beat before the cards render into it, so counting immediately
+    // reads 0 — indistinguishable from an account with no bookings, and the
+    // single most misleading thing this function could return. Wait for the
+    // first card *or* the empty-state marker, which the site renders inside the
+    // same container, so a genuinely empty list costs nothing. A third state
+    // (neither marker, i.e. changed markup) falls through on the timeout and
+    // keeps the old behaviour rather than failing the run.
+    await page
+        .locator(`${BOOKING_CARD_SELECTOR}, [data-testid="no-bookings"]`)
+        .first()
+        .waitFor({ state: "attached", timeout: bookingListPopulateMs })
+        .catch(() => undefined);
     const count = await bookingCard.count();
     const bookingSessions: BookingSession[] = [];
 

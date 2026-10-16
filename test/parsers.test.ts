@@ -42,12 +42,43 @@ describe("parseDatetime", () => {
         expect(result.startTime.getHours()).toBe(18);
     });
 
-    it("defaults to the current year, since the site text carries no year", () => {
-        // Documents a known limitation: a December booking parsed in January
-        // will come back with the wrong year.
-        const result = parseDatetime("Mon, Aug 10th,  6:00 PM - 8:00 PM");
+    it("defaults to the reference date's year when the site text is still ahead of it", () => {
+        const reference = new Date(2026, 7, 10, 12, 0, 0);
+        const result = parseDatetime("Mon, Aug 10th,  6:00 PM - 8:00 PM", reference);
 
-        expect(result.startTime.getFullYear()).toBe(new Date().getFullYear());
+        expect(result.startTime.getFullYear()).toBe(2026);
+    });
+
+    it("rolls a month/day that has already passed into next year", () => {
+        // The site text carries no year, so dayjs fills in the reference's. Read
+        // literally, "Jan 4" parsed in December 2026 is 11 months in the past
+        // and every date comparison misses it.
+        const reference = new Date(2026, 11, 28, 12, 0, 0);
+        const result = parseDatetime("Mon, Jan 4th,  6:30 PM - 8:30 PM", reference);
+
+        expect(result.startTime.getFullYear()).toBe(2027);
+        expect(result.startTime.getMonth()).toBe(0);
+        expect(result.startTime.getDate()).toBe(4);
+        expect(result.startTime.getHours()).toBe(18);
+    });
+
+    it("does not roll a booking that is later today", () => {
+        // Only month/day is compared, so a booking still to come today stays
+        // today instead of jumping a whole year.
+        const reference = new Date(2026, 9, 15, 9, 0, 0);
+        const result = parseDatetime("Wed, Oct 15th,  6:30 PM - 8:30 PM", reference);
+
+        expect(result.startTime.getFullYear()).toBe(2026);
+        expect(result.startTime.getDate()).toBe(15);
+        expect(result.startTime.getHours()).toBe(18);
+    });
+
+    it("rolls the end time with the start time", () => {
+        const reference = new Date(2026, 11, 28, 12, 0, 0);
+        const result = parseDatetime("Mon, Jan 4th,  6:30 PM - 8:30 PM", reference);
+
+        expect(result.endTime.getFullYear()).toBe(2027);
+        expect(result.endTime.getHours()).toBe(20);
     });
 
     it("produces an endTime before startTime for a cross-midnight booking", () => {
@@ -89,11 +120,36 @@ describe("parseCourt", () => {
     });
 
     it("parses the real site format", () => {
-        expect(parseCourt("Mukilteo 10")).toEqual({ courtNumber: 10, courtLocation: "Mukilteo" });
+        expect(parseCourt("Mukilteo 10")).toEqual({
+            courtNumber: 10,
+            courtLocation: "Mukilteo",
+            courtNumbers: [10],
+        });
+    });
+
+    it("keeps the location a real location when one card covers several courts", () => {
+        // Courts booked together render as a single card listing every court.
+        // Splitting that on spaces made the whole run the "location", so it then
+        // failed every location comparison and dropped out of its session.
+        const parsed = parseCourt("Mukilteo 8, Mukilteo 9, Mukilteo 10, Mukilteo 11, Mukilteo 12");
+
+        expect(parsed.courtLocation).toBe("Mukilteo");
+        expect(parsed.courtNumbers).toEqual([8, 9, 10, 11, 12]);
+    });
+
+    it("keys a multi-court card on its lowest court so ordering stays stable", () => {
+        expect(parseCourt("Mukilteo 12, Mukilteo 8, Mukilteo 9").courtNumber).toBe(8);
+    });
+
+    it("handles a multi-word location across a multi-court card", () => {
+        const parsed = parseCourt("Bellevue Court 3, Bellevue Court 4");
+
+        expect(parsed.courtLocation).toBe("Bellevue Court");
+        expect(parsed.courtNumbers).toEqual([3, 4]);
     });
 
     it("returns an empty location when there is only a number", () => {
-        expect(parseCourt("10")).toEqual({ courtNumber: 10, courtLocation: "" });
+        expect(parseCourt("10")).toEqual({ courtNumber: 10, courtLocation: "", courtNumbers: [10] });
     });
 
     it("returns NaN when the trailing token is not numeric", () => {
@@ -105,7 +161,7 @@ describe("parseCourt", () => {
     });
 
     it("returns court 0 for empty input", () => {
-        expect(parseCourt("")).toEqual({ courtNumber: 0, courtLocation: "" });
+        expect(parseCourt("")).toEqual({ courtNumber: 0, courtLocation: "", courtNumbers: [] });
     });
 });
 

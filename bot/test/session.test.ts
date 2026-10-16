@@ -23,6 +23,7 @@ function booking(opts: {
     start: Date;
     players: string[];
     location?: string;
+    courtNumbers?: number[];
 }): Booking {
     return {
         bookingId: opts.id,
@@ -31,6 +32,7 @@ function booking(opts: {
         endTime: new Date(opts.start.getTime() + 90 * 60_000),
         courtNumber: opts.court,
         courtLocation: opts.location ?? "Bellevue",
+        courtNumbers: opts.courtNumbers ?? [opts.court],
         players: opts.players,
     };
 }
@@ -71,6 +73,57 @@ describe("groupBookingsIntoSessions", () => {
             booking({ id: "2", court: 1, start, players: [], location: "Mukilteo" }),
         ]);
         expect(groups).toHaveLength(2);
+    });
+
+    it("keeps a multi-court booking in its location's session", () => {
+        // `parseCourt` used to leave the whole "Mukilteo 8, Mukilteo 9, ..."
+        // run as the location, so this booking failed the location comparison
+        // and vanished from the run with no log line. Regression guard for the
+        // session that had the most players in it.
+        const groups = groupBookingsIntoSessions(
+            [
+                booking({
+                    id: "solo",
+                    court: 7,
+                    start,
+                    players: [],
+                    location: "Mukilteo",
+                    courtNumbers: [7],
+                }),
+                booking({
+                    id: "group",
+                    court: 8,
+                    start,
+                    players: ["A", "B"],
+                    location: "Mukilteo",
+                    courtNumbers: [8, 9, 10, 11, 12],
+                }),
+            ],
+            "Mukilteo",
+        );
+
+        expect(groups).toHaveLength(1);
+        expect(groups[0].courts.map((b) => b.bookingId)).toEqual(["solo", "group"]);
+    });
+
+    it("still excludes a booking at another location when a location is given", () => {
+        const groups = groupBookingsIntoSessions(
+            [
+                booking({ id: "1", court: 1, start, players: [], location: "Bellevue" }),
+                booking({
+                    id: "2",
+                    court: 8,
+                    start,
+                    players: [],
+                    location: "Redmond",
+                    courtNumbers: [8, 9],
+                }),
+            ],
+            "Bellevue",
+        );
+
+        expect(groups).toHaveLength(1);
+        expect(groups[0].courts.map((b) => b.bookingId)).toEqual(["1"]);
     });
 
     it("filters by location case-insensitively", () => {

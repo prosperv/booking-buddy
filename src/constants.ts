@@ -31,3 +31,10 @@ export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 3000);
 // than Playwright's 30s default, so the default here is deliberately larger.
 export const navTimeoutMs = Number(process.env.NAV_TIMEOUT_MS ?? 60_000);
 export const navRetries = Number(process.env.NAV_RETRIES ?? 1);
+// Budget for the bookings list to fill in after its container appears. The
+// container and its cards are rendered separately, so scraping on the container
+// alone can read an empty list that looks exactly like an account with no
+// bookings. Deliberately short and separate from the navigation budget: this
+// is a short local render, not a network wait, and a changed-markup state
+// should fall through to counting rather than burn a whole navigation timeout.
+export const bookingListPopulateMs = Number(process.env.BOOKING_LIST_TIMEOUT_MS ?? 10_000);

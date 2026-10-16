@@ -37,6 +37,12 @@ export type Booking = {
     endTime: Date;
     courtNumber: number;
     courtLocation: string;
+    /**
+     * Every court on the card, when one reservation covers more than one. Length
+     * 1 for the usual single-court booking. Present so a multi-court reservation
+     * is recognisable rather than silently planned as one court.
+     */
+    courtNumbers?: number[];
     players: string[];
 };
 
