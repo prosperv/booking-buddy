@@ -187,6 +187,20 @@ function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan, ca
 
     for (const court of plan.courts) {
         const b = court.booking;
+        // A reservation covering several courts is one booking id the site edits
+        // as a unit, but the plan fills it to `courtCapacity` like any single
+        // court — so the run under-fills it rather than erroring. Say so instead
+        // of quietly leaving courts on that booking short.
+        if (b.courtNumbers !== undefined && b.courtNumbers.length > 1) {
+            logger.warn(
+                `  booking ${b.bookingId} spans courts ${b.courtNumbers.join(", ")} — planned as a single court, so it holds at most courtCapacity players, not one set per court`,
+                {
+                    event: "multi-court-booking",
+                    bookingId: b.bookingId,
+                    courts: b.courtNumbers,
+                },
+            );
+        }
         logger.info(`  Court ${b.courtNumber} (${b.bookingId})`, {
             event: "court",
             bookingId: b.bookingId,
