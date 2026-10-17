@@ -494,8 +494,16 @@ behavior. What's load-bearing here:
 - `typePlayerSearch` uses `pressSequentially` with an 80ms per-char delay; a
   bulk `fill()` collapses to one input event that the Kendo debounce drops.
 - Member-search XHR is undiscoverable from captures, so option selection keys
-  off the rendered `#OwnersDropdown_listbox li.k-list-item` DOM, not the
-  response.
+  off the rendered `#OwnersDropdown_listbox li.k-list-item` DOM. The ids in
+  `src/member-search.ts` are an **enrichment** of that DOM, never a replacement:
+  see the Gotchas entry on member ids for the pairing and the fallback.
+- `humanClick` retries a target that moved (detached / not stable / not visible /
+  intercepts pointer events), 3 attempts, because CourtReserve re-renders the
+  member table from its own async cost recalculation the moment a player is added
+  or removed — a remove click has been lost mid-action after Playwright's own
+  three retries over 620ms. Only the classifier is unit-tested
+  (`test/interactions.test.ts`); surviving a re-render is still validated only by
+  a live run. Anything else still fails on the first attempt.
 - After save the edit modal is swapped in place for a "Reservation Confirmed"
   screen (only when the detail page was reached directly — empty
   `document.referrer`; otherwise the site navigates away and it never appears).
