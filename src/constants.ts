@@ -38,3 +38,9 @@ export const navRetries = Number(process.env.NAV_RETRIES ?? 1);
 // is a short local render, not a network wait, and a changed-markup state
 // should fall through to counting rather than burn a whole navigation timeout.
 export const bookingListPopulateMs = Number(process.env.BOOKING_LIST_TIMEOUT_MS ?? 10_000);
+// How long to wait for the save POST to answer before calling the save
+// unconfirmed. Explicit rather than inherited from Playwright's default action
+// timeout, because the consequence of hitting it is now a reported
+// `save-unconfirmed` rather than a thrown failure — a number worth being able
+// to tune per host.
+export const saveTimeoutMs = Number(process.env.SAVE_TIMEOUT_MS ?? 30_000);

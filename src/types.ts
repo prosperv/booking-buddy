@@ -46,7 +46,16 @@ export type Booking = {
     players: string[];
 };
 
-export type PlayerInput = { name: string };
+export type PlayerInput = {
+    name: string;
+    /**
+     * CourtReserve `MemberId` to select instead of matching `name` against the
+     * search results. Set for the members the club lists under a name another
+     * member shares, where no string comparison can tell the results apart.
+     * Absent for everyone else, and the search then behaves exactly as before.
+     */
+    memberId?: number;
+};
 
 export type BookingSession = Booking & {
     page: Page;
@@ -56,6 +65,7 @@ export type PlayerAddReason =
     | "already-added"
     | "not-found"
     | "ambiguous"
+    | "member-id-not-found"
     | "query-too-short"
     | "not-added";
 
@@ -95,4 +105,11 @@ export type SwapPlayerResult = {
     skipped: (PlayerAddOutcome | PlayerRemoveOutcome)[];
     failed: (PlayerAddOutcome | PlayerRemoveOutcome)[];
     saved: boolean;
+    /**
+     * Whether the save POST was actually observed. `saved` can be true with this
+     * false: the roster changed and Save was clicked, but no response arrived in
+     * time, so whether it landed is unknown. The caller reports that rather than
+     * counting it as done.
+     */
+    confirmed: boolean;
 };

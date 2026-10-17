@@ -25,6 +25,7 @@ import { createLogger, defaultLogFile, resolveLogDir, type Logger } from "./logg
 import { attachLoggerToContext } from "./log-context";
 import { captureFailure } from "./capture";
 import {
+    clearMemberSearch,
     closeModal,
     confirmAddPlayer,
     matchPlayerOption,
@@ -112,7 +113,7 @@ async function runAddLoop(
     result: AddLoopResult,
     logger: Logger,
 ): Promise<void> {
-    for (const { name } of players) {
+    for (const { name, memberId } of players) {
         if (roster.some((existing) => normalizePlayerName(existing) === normalizePlayerName(name))) {
             result.skipped.push({ name, reason: "already-added" });
             logger.info("player already added", { event: "player-skip", name, reason: "already-added" });
@@ -134,9 +135,9 @@ async function runAddLoop(
         await pauseForAction();
 
         const options = await readPlayerOptions(page);
-        const match = matchPlayerOption(options, name);
+        const match = matchPlayerOption(options, name, memberId);
 
-        if (match.status === "exact" || match.status === "unique") {
+        if (match.status === "exact" || match.status === "unique" || match.status === "by-id") {
             await selectPlayerOption(page, match.index);
             await pauseForAction();
             await confirmAddPlayer(page);
@@ -144,7 +145,14 @@ async function runAddLoop(
             if (await verifyPlayerAdded(modal, match.name)) {
                 result.added.push(match.name);
                 roster.push(match.name);
-                logger.info("player added", { event: "player-added", name: match.name });
+                logger.info("player added", {
+                    event: "player-added",
+                    name: match.name,
+                    // Present only for an id-picked add, so the log shows which
+                    // of two same-named members actually went on the court.
+                    memberId,
+                    byId: match.status === "by-id",
+                });
             } else {
                 // Report the requested `name` (not the resolved `match.name`) so
                 // this failure lines up with the other add-failure outcomes
@@ -152,6 +160,18 @@ async function runAddLoop(
                 result.failed.push({ name, reason: "not-added" });
                 logger.warn("player not added", { event: "player-failed", name, reason: "not-added" });
             }
+        } else if (match.status === "id-not-found") {
+            // Not a `not-found`: the member was pinned by id precisely because a
+            // same-named stranger is in the results, and falling back to names
+            // here would book them instead.
+            result.failed.push({ name, reason: "member-id-not-found", candidates: match.candidates });
+            logger.warn("configured member id was not among the search results", {
+                event: "player-failed",
+                name,
+                memberId,
+                reason: "member-id-not-found",
+                candidates: match.candidates,
+            });
         } else if (match.status === "ambiguous") {
             result.failed.push({ name, reason: "ambiguous", candidates: match.candidates });
             logger.warn("player ambiguous", {
@@ -168,6 +188,12 @@ async function runAddLoop(
                 reason: "not-found",
                 candidates: match.candidates,
             });
+        }
+
+        // A search that ended in a failure leaves the box full and the dropdown
+        // open, so clear it before the next player or the save.
+        if (match.status !== "exact" && match.status !== "unique" && match.status !== "by-id") {
+            await clearMemberSearch(modal);
         }
     }
 }
@@ -504,7 +530,7 @@ export class CourtReserveClient {
     private async withEditModal(
         booking: Booking,
         run: (page: Page, modal: Locator) => Promise<boolean>,
-    ): Promise<{ saved: boolean; players: string[] }> {
+    ): Promise<{ saved: boolean; confirmed: boolean; players: string[] }> {
         if (!booking.bookingId) {
             throw new Error("Booking is missing bookingId; cannot navigate to its detail page.");
         }
@@ -522,15 +548,21 @@ export class CourtReserveClient {
             const changed = await run(page, modal);
 
             if (changed) {
-                await saveReservation(page);
+                // Clear the search box and blur it first: the last search of a
+                // run is always left in the widget (and a failed one leaves the
+                // dropdown open on top of it), and Save has been seen to not
+                // post at all from that state.
+                await clearMemberSearch(modal);
+                const confirmed = await saveReservation(page);
                 await openReservationDetail(page, booking.bookingId);
                 const players = await readDetailPlayers(page);
                 this.logger.info("reservation saved", {
                     event: "modal-saved",
                     bookingId: booking.bookingId,
+                    confirmed,
                     players: players.length,
                 });
-                return { saved: true, players };
+                return { saved: true, confirmed, players };
             }
 
             await closeModal(page);
@@ -538,7 +570,8 @@ export class CourtReserveClient {
                 event: "modal-closed",
                 bookingId: booking.bookingId,
             });
-            return { saved: false, players: booking.players };
+            // Nothing was clicked, so there is nothing to have gone unconfirmed.
+            return { saved: false, confirmed: true, players: booking.players };
         } finally {
             await page.close().catch(() => undefined);
         }
@@ -623,16 +656,19 @@ export class CourtReserveClient {
         const removeLoop: RemoveLoopResult = { removed: [], skipped: [], failed: [] };
         const addLoop: AddLoopResult = { added: [], skipped: [], failed: [] };
 
-        const { saved, players: finalPlayers } = await this.withEditModal(booking, async (page, modal) => {
-            await runRemoveLoop(modal, playersToRemove, removeLoop, this.logger);
+        const { saved, confirmed, players: finalPlayers } = await this.withEditModal(
+            booking,
+            async (page, modal) => {
+                await runRemoveLoop(modal, playersToRemove, removeLoop, this.logger);
 
-            // Seed the add loop from the post-removal roster. Using the opening
-            // snapshot here would report a just-removed player as already-added.
-            const roster = await readModalPlayers(modal);
-            await runAddLoop(page, modal, playersToAdd, roster, addLoop, this.logger);
+                // Seed the add loop from the post-removal roster. Using the opening
+                // snapshot here would report a just-removed player as already-added.
+                const roster = await readModalPlayers(modal);
+                await runAddLoop(page, modal, playersToAdd, roster, addLoop, this.logger);
 
-            return removeLoop.removed.length > 0 || addLoop.added.length > 0;
-        });
+                return removeLoop.removed.length > 0 || addLoop.added.length > 0;
+            },
+        );
 
         return {
             players: finalPlayers,
@@ -641,6 +677,7 @@ export class CourtReserveClient {
             skipped: [...removeLoop.skipped, ...addLoop.skipped],
             failed: [...removeLoop.failed, ...addLoop.failed],
             saved,
+            confirmed,
         };
     }
 }

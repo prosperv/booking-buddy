@@ -18,6 +18,11 @@ import { fixturePath, loadFixture } from "./setup";
 
 const BROWSER_TEST_TIMEOUT = 20_000;
 
+/** `readPlayerOptions` returns `{ displayName, memberId? }`; most checks here are about the name. */
+function names(options: { displayName: string }[]): string[] {
+    return options.map((o) => o.displayName);
+}
+
 /**
  * Per-state DOM coverage of the add-player step functions. The captured MHTML
  * pages contain no JavaScript, so these exercise locators and state reads
@@ -118,8 +123,19 @@ describe("functional: add-player steps", () => {
             const options = await readPlayerOptions(page);
 
             expect(options).toHaveLength(11);
-            expect(options[0]).toBe("Lee Zii Chau");
-            expect(options).toContain("Lee Zii Jiaa");
+            expect(options[0].displayName).toBe("Lee Zii Chau");
+            expect(names(options)).toContain("Lee Zii Jiaa");
+        });
+
+        it("reports names only when the member-search payload was not captured", async () => {
+            // A fixture loads static markup, so no search request is ever made and
+            // there is nothing to pair ids with. This is the degraded path, and it
+            // has to keep working: the ids are an enrichment, not a requirement.
+            await loadFixture(page, "adding-player/player-options.html");
+
+            const options = await readPlayerOptions(page);
+
+            expect(options.every((o) => o.memberId === undefined)).toBe(true);
         });
 
         it("returns an empty list when the dropdown shows no data", async () => {

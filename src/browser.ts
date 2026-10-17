@@ -1,5 +1,6 @@
 import { chromium, BrowserContext } from "playwright";
 import { navTimeoutMs, playwrightDebugPort, profileDir } from "./constants";
+import { attachMemberSearchCapture } from "./member-search";
 import { attachPendingTracking } from "./pending-requests";
 import { pauseForAction } from "./utils";
 
@@ -19,6 +20,7 @@ export async function launchPersistentContext(
     // different budget.
     context.setDefaultNavigationTimeout(navTimeoutMs);
     attachPendingTracking(context);
+    attachMemberSearchCapture(context);
     await pauseForAction();
     return context;
 }
