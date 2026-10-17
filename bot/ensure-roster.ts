@@ -2,7 +2,7 @@ import { CourtReserveClient, type Logger } from "../src";
 import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
 import { formatDateKey, type Roster, type RosterSet } from "./csv";
 import { loadRoster, logRosterRead } from "./roster";
-import { mappedName, type NameMap } from "./name-map";
+import { resolveMapping, type NameMap } from "./name-map";
 import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
 
 /**
@@ -33,6 +33,14 @@ type RunTally = {
     emptyRoster: number;
     /** Rosters left for a later run because they aren't the next session. */
     deferred: number;
+    /**
+     * Courts whose roster changed but whose save the bot never saw acknowledged.
+     * Distinct from a failed save: these may well be correct, and the next run
+     * settles them by re-reading the booking.
+     */
+    saveUnconfirmed: number;
+    /** Courts abandoned mid-swap, which abandoned nothing else in the session. */
+    courtsFailed: number;
 };
 
 function emptyTally(): RunTally {
@@ -47,6 +55,8 @@ function emptyTally(): RunTally {
         noUpcoming: 0,
         emptyRoster: 0,
         deferred: 0,
+        saveUnconfirmed: 0,
+        courtsFailed: 0,
     };
 }
 
@@ -56,7 +66,14 @@ function emptyTally(): RunTally {
  * forward through a month.
  */
 function tallyNeedsAttention(tally: RunTally): boolean {
-    return tally.failed > 0 || tally.noBooking > 0 || tally.noUpcoming > 0 || tally.emptyRoster > 0;
+    return (
+        tally.failed > 0 ||
+        tally.noBooking > 0 ||
+        tally.noUpcoming > 0 ||
+        tally.emptyRoster > 0 ||
+        tally.saveUnconfirmed > 0 ||
+        tally.courtsFailed > 0
+    );
 }
 
 /**
@@ -73,6 +90,8 @@ function tallySummary(tally: RunTally): string {
         `${tally.skipped} skipped`,
         `${tally.failed} failed`,
     ];
+    if (tally.courtsFailed > 0) parts.push(`${tally.courtsFailed} court(s) abandoned`);
+    if (tally.saveUnconfirmed > 0) parts.push(`${tally.saveUnconfirmed} save(s) unconfirmed`);
     if (tally.noBooking > 0) parts.push(`${tally.noBooking} session(s) with no booking`);
     if (tally.noUpcoming > 0) parts.push(`${tally.noUpcoming} job(s) with no upcoming session`);
     if (tally.emptyRoster > 0) parts.push(`${tally.emptyRoster} empty roster(s), courts cleared`);
@@ -155,20 +174,23 @@ function selectNextRoster(
  */
 function logNameMappings(logger: Logger, job: JobConfig, nameMap: NameMap | undefined, roster: Roster): void {
     const applied = roster.players
-        .map((name) => ({ from: name, to: mappedName(nameMap, name) }))
-        .filter(({ from, to }) => to !== from);
+        .map((name) => ({ name, to: resolveMapping(nameMap, name) }))
+        // An id mapping leaves `to.name` equal to the roster name, so filtering
+        // on a name change alone would drop exactly the mappings that are least
+        // obvious and most worth seeing before a run touches anything.
+        .filter(({ name, to }) => to.name !== name || to.memberId !== undefined);
     if (applied.length === 0) return;
 
     logger.info(
-        `[job "${job.name}"] ${applied.length} roster name(s) mapped to a CourtReserve member name: ${applied
-            .map(({ from, to }) => `${from} -> ${to}`)
+        `[job "${job.name}"] ${applied.length} roster name(s) mapped to a CourtReserve member: ${applied
+            .map(({ name, to }) => `${name} -> ${to.memberId === undefined ? to.name : `id ${to.memberId}`}`)
             .join(", ")}`,
         {
             event: "name-mapped",
             job: job.name,
             date: formatDateKey(roster.date),
             tab: roster.tab,
-            mappings: applied,
+            mappings: applied.map(({ name, to }) => ({ from: name, to: to.name, memberId: to.memberId })),
         },
     );
 }
@@ -205,7 +227,7 @@ function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan, ca
             event: "court",
             bookingId: b.bookingId,
             court: b.courtNumber,
-            add: court.add,
+            add: court.add.map((p) => (p.memberId === undefined ? p.name : `${p.name} (id ${p.memberId})`)),
             remove: court.remove,
             alreadyPlaced: court.alreadyPlaced,
         });
@@ -453,40 +475,83 @@ export async function runEnsureRoster(
 
                 if (options.dryRun) continue;
 
+                // One court is handled in isolation from the rest. A failure here used to
+                // escape to the per-job catch, abandoning every court after it —
+                // so a single save the bot could not confirm cost the run three
+                // untouched courts and the removals on two of them. The roster is
+                // authoritative and the next run re-reads from a clean page, so
+                // carrying on is both safe and the difference between finishing
+                // most of a session and finishing none of the rest of it.
                 for (const court of plan.courts) {
                     if (court.add.length === 0 && court.remove.length === 0) continue;
-                    const result = await client.swapPlayersOnBooking(
-                        court.booking,
-                        court.remove.map((name) => ({ name })),
-                        court.add.map((name) => ({ name })),
-                    );
-                    tally.courtsEdited += 1;
-                    tally.removed += result.removed.length;
-                    tally.added += result.added.length;
-                    tally.skipped += result.skipped.length;
-                    tally.failed += result.failed.length;
-                    logger.info(
-                        `    saved=${result.saved} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
-                        {
-                            event: "swap",
-                            job: job.name,
-                            bookingId: court.booking.bookingId,
-                            court: court.booking.courtNumber,
-                            saved: result.saved,
-                            removed: result.removed,
-                            added: result.added,
-                            skipped: result.skipped,
-                            failed: result.failed,
-                        },
-                    );
-                    for (const failed of result.failed) {
-                        logger.warn(`    FAILED ${JSON.stringify(failed)}`, {
-                            event: "player-failed",
-                            job: job.name,
-                            bookingId: court.booking.bookingId,
-                            court: court.booking.courtNumber,
-                            ...failed,
-                        });
+                    try {
+                        const result = await client.swapPlayersOnBooking(
+                            court.booking,
+                            court.remove.map((name) => ({ name })),
+                            court.add,
+                        );
+                        tally.courtsEdited += 1;
+                        tally.removed += result.removed.length;
+                        tally.added += result.added.length;
+                        tally.skipped += result.skipped.length;
+                        tally.failed += result.failed.length;
+                        logger.info(
+                            `    saved=${result.saved} confirmed=${result.confirmed} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
+                            {
+                                event: "swap",
+                                job: job.name,
+                                bookingId: court.booking.bookingId,
+                                court: court.booking.courtNumber,
+                                saved: result.saved,
+                                confirmed: result.confirmed,
+                                removed: result.removed,
+                                added: result.added,
+                                skipped: result.skipped,
+                                failed: result.failed,
+                            },
+                        );
+                        // Changed but unobserved: the roster may or may not have
+                        // landed. Reported as needing a human, because the run
+                        // cannot honestly call this court done — and left for the
+                        // next run, which reads the booking fresh and settles it.
+                        if (!result.confirmed) {
+                            ok = false;
+                            tally.saveUnconfirmed += 1;
+                            logger.warn(
+                                `    court ${court.booking.courtNumber}: save was not confirmed (added ${result.added.length}, removed ${result.removed.length}) — the next run re-reads this booking and will finish it`,
+                                {
+                                    event: "save-unconfirmed",
+                                    job: job.name,
+                                    bookingId: court.booking.bookingId,
+                                    court: court.booking.courtNumber,
+                                    added: result.added,
+                                    removed: result.removed,
+                                },
+                            );
+                        }
+                        for (const failed of result.failed) {
+                            logger.warn(`    FAILED ${JSON.stringify(failed)}`, {
+                                event: "player-failed",
+                                job: job.name,
+                                bookingId: court.booking.bookingId,
+                                court: court.booking.courtNumber,
+                                ...failed,
+                            });
+                        }
+                    } catch (err) {
+                        ok = false;
+                        tally.courtsFailed += 1;
+                        logger.error(
+                            `[job "${job.name}"] court ${court.booking.courtNumber} (${court.booking.bookingId}) failed: ${err instanceof Error ? err.message : err}`,
+                            {
+                                event: "court-error",
+                                job: job.name,
+                                bookingId: court.booking.bookingId,
+                                court: court.booking.courtNumber,
+                                message: err instanceof Error ? err.message : String(err),
+                                stack: err instanceof Error ? err.stack : undefined,
+                            },
+                        );
                     }
                 }
             } catch (err) {
