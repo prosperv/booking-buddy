@@ -224,9 +224,35 @@ describe("validateConfig nameMap", () => {
         expect(() => config([{ from: "Riley Poe" }])).toThrow(/nameMap/);
     });
 
-    it("rejects a non-string or empty member name", () => {
-        expect(() => config({ "Riley Poe": 42 })).toThrow(/nameMap/);
+    it("accepts a member id for a roster name two members share", () => {
+        // The club lists "PHUONG TRUONG" and "Phuong Truong" as separate members,
+        // and the member search returns both for either spelling, so no name
+        // mapping can pick between them. The id can.
+        expect(config({ "Phuong Truong": 6227635 }).nameMap).toEqual({
+            "phuong truong": 6227635,
+        });
+    });
+
+    it("rejects an empty member name", () => {
         expect(() => config({ "Riley Poe": "   " })).toThrow(/nameMap/);
+    });
+
+    it("rejects a member id that is not a positive integer", () => {
+        expect(() => config({ "Phuong Truong": 0 })).toThrow(/positive integer/);
+        expect(() => config({ "Phuong Truong": -1 })).toThrow(/positive integer/);
+        expect(() => config({ "Phuong Truong": 1.5 })).toThrow(/positive integer/);
+    });
+
+    it("rejects a value that is neither a name nor an id, naming both options", () => {
+        expect(() => config({ "Riley Poe": true })).toThrow(/MemberId/);
+        expect(() => config({ "Riley Poe": { memberId: 1 } })).toThrow(/MemberId/);
+    });
+
+    it("does not call a name pinned by id a self-mapping", () => {
+        // "Phuong Truong" -> "Phuong Truong" changes no name, so as a string it
+        // would be rejected as doing nothing; as an id it is the normal way to
+        // say which of two same-named members is meant.
+        expect(config({ "Phuong Truong": 6227635 }).nameMap).toBeDefined();
     });
 
     it("rejects an empty roster name", () => {

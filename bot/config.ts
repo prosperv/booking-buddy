@@ -114,16 +114,39 @@ export function validateConfig(raw: unknown): BotConfig {
         if (!root.nameMap || typeof root.nameMap !== "object" || Array.isArray(root.nameMap)) {
             throw new ConfigError("config.nameMap must be an object mapping a roster name to a member name");
         }
-        const entries: Record<string, string> = {};
+        const entries: Record<string, string | number> = {};
         for (const [from, to] of Object.entries(root.nameMap as Record<string, unknown>)) {
             if (from.trim() === "") {
                 throw new ConfigError("config.nameMap has an entry with an empty key");
             }
-            if (typeof to !== "string" || to.trim() === "") {
-                throw new ConfigError(`config.nameMap["${from}"] must be a non-empty string`);
+            // A string maps the roster name to a different name to search for; a
+            // number pins the member by CourtReserve id, for two members who
+            // share a name outright. Anything else is a typo worth failing on --
+            // a bare object here would be the easiest thing to write by mistake
+            // and the hardest to spot, since an id mapping silently does nothing.
+            let value: string | number;
+            if (typeof to === "string") {
+                if (to.trim() === "") {
+                    throw new ConfigError(`config.nameMap["${from}"] must be a non-empty string`);
+                }
+                value = to.trim();
+            } else if (typeof to === "number") {
+                if (!Number.isSafeInteger(to) || to < 1) {
+                    throw new ConfigError(
+                        `config.nameMap["${from}"] must be a positive integer MemberId, got ${JSON.stringify(to)}`,
+                    );
+                }
+                value = to;
+            } else {
+                throw new ConfigError(
+                    `config.nameMap["${from}"] must be a non-empty string (a member name) or a positive integer (a CourtReserve MemberId)`,
+                );
             }
             const key = normalizePlayerName(from);
-            if (key === normalizePlayerName(to)) {
+            // Only meaningful for a name mapping: "the roster name maps to the
+            // roster name" changes nothing, but the same roster name pinned to
+            // an id is the normal way to disambiguate two members who share one.
+            if (typeof value === "string" && key === normalizePlayerName(value)) {
                 throw new ConfigError(`config.nameMap["${from}"] maps a name to itself`);
             }
             if (entries[key] !== undefined) {
@@ -131,7 +154,7 @@ export function validateConfig(raw: unknown): BotConfig {
                     `config.nameMap has two entries for the same name once normalized: "${from}"`,
                 );
             }
-            entries[key] = to.trim();
+            entries[key] = value;
         }
         nameMap = entries;
     }

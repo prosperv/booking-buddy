@@ -39,6 +39,15 @@ function booking(opts: {
 
 const start = new Date(2026, 8, 1, 18, 0); // Tue Sep 1 2026, 18:00 local
 
+/**
+ * `add` carries the search query plus an optional member id, so a member the
+ * club lists twice can be pinned. Most assertions here are about *which names*
+ * land on which court, which is the query alone.
+ */
+function names(mappings: { name: string }[]): string[] {
+    return mappings.map((m) => m.name);
+}
+
 describe("groupBookingsIntoSessions", () => {
     it("groups same date/time/location into one session, sorted by court number", () => {
         const groups = groupBookingsIntoSessions([
@@ -155,7 +164,7 @@ describe("planSession", () => {
         ]);
 
         const plan = planSession(session, NAMES.slice(0, 10), 6, organizer);
-        expect(plan.courts.map((c) => c.add)).toEqual([NAMES.slice(0, 5), NAMES.slice(5, 10), []]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([NAMES.slice(0, 5), NAMES.slice(5, 10), []]);
         expect(plan.courts.map((c) => c.remove)).toEqual([[], [], []]);
         expect(plan.overflow).toEqual([]);
         expect(plan.waitlisted).toEqual([]);
@@ -168,7 +177,7 @@ describe("planSession", () => {
         ]);
 
         const plan = planSession(session, NAMES.slice(0, 11), 6, organizer);
-        expect(plan.courts.map((c) => c.add)).toEqual([NAMES.slice(0, 5), NAMES.slice(5, 10)]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([NAMES.slice(0, 5), NAMES.slice(5, 10)]);
         // Both courts end up 6/6, so the fullness tie breaks on court number.
         expect(plan.overflow).toEqual([{ name: NAMES[10], court: 1, bookingId: "1", seated: 6 }]);
         expect(plan.waitlisted).toEqual([]);
@@ -227,7 +236,7 @@ describe("planSession", () => {
 
         const plan = planSession(session, [organizer, "Viktor Axelsen"], 6, organizer);
         expect(plan.satisfied).toEqual([organizer]);
-        expect(plan.courts[0].add).toEqual(["Viktor Axelsen"]);
+        expect(names(plan.courts[0].add)).toEqual(["Viktor Axelsen"]);
         expect(plan.courts[0].alreadyPlaced).toEqual([]);
     });
 
@@ -239,9 +248,9 @@ describe("planSession", () => {
 
         const plan = planSession(session, ["Viktor Axelsen", "Chen Long", "Chou Tien-chen"], 6, organizer);
         expect(plan.courts[0].alreadyPlaced).toEqual(["Viktor Axelsen"]);
-        expect(plan.courts[0].add).toEqual(["Chen Long", "Chou Tien-chen"]);
+        expect(names(plan.courts[0].add)).toEqual(["Chen Long", "Chou Tien-chen"]);
         expect(plan.courts[0].remove).toEqual([]);
-        expect(plan.courts[1].add).toEqual([]);
+        expect(names(plan.courts[1].add)).toEqual([]);
     });
 
     it("flags names too short to search", () => {
@@ -249,7 +258,7 @@ describe("planSession", () => {
 
         const plan = planSession(session, ["Al", "Chen Long"], 6, organizer);
         expect(plan.tooShort).toEqual(["Al"]);
-        expect(plan.courts[0].add).toEqual(["Chen Long"]);
+        expect(names(plan.courts[0].add)).toEqual(["Chen Long"]);
     });
 
     it("removes a name no longer in the roster", () => {
@@ -260,7 +269,7 @@ describe("planSession", () => {
 
         const plan = planSession(session, ["Chen Long"], 6, organizer);
         expect(plan.courts[0].remove).toEqual(["Viktor Axelsen"]);
-        expect(plan.courts[0].add).toEqual(["Chen Long"]);
+        expect(names(plan.courts[0].add)).toEqual(["Chen Long"]);
     });
 
     it("never removes the organizer, even on a single court", () => {
@@ -268,7 +277,7 @@ describe("planSession", () => {
 
         const plan = planSession(session, ["Chen Long"], 6, organizer);
         expect(plan.courts[0].remove).toEqual(["Viktor Axelsen"]);
-        expect(plan.courts[0].add).toEqual(["Chen Long"]);
+        expect(names(plan.courts[0].add)).toEqual(["Chen Long"]);
     });
 
     it("a removal frees a slot for a replacement in the same run", () => {
@@ -288,7 +297,7 @@ describe("planSession", () => {
             organizer,
         );
         expect(plan.courts[0].remove).toEqual(["Viktor Axelsen"]);
-        expect(plan.courts[0].add).toEqual(["Lee Zii Chau"]);
+        expect(names(plan.courts[0].add)).toEqual(["Lee Zii Chau"]);
         expect(plan.overflow).toEqual([]);
         expect(plan.waitlisted).toEqual([]);
     });
@@ -301,7 +310,53 @@ describe("planSession", () => {
 
         const plan = planSession(session, ["Viktor Axelsen"], 6);
         expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
-        expect(plan.courts[0].add).toEqual(["Viktor Axelsen"]);
+        expect(names(plan.courts[0].add)).toEqual(["Viktor Axelsen"]);
+    });
+
+    it("carries a configured member id from the roster into the plan", () => {
+        // Two club members share this name, so the search cannot tell them
+        // apart; the id is what says which one is on the roster.
+        const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
+        const plan = planSession(session, ["Phuong Truong"], 6, organizer, {
+            "phuong truong": 6227635,
+        });
+
+        expect(plan.courts[0].add).toEqual([{ name: "Phuong Truong", memberId: 6227635 }]);
+    });
+
+    it("still searches by the roster name when the map pins an id", () => {
+        // The member search is a case-insensitive substring match, so the roster
+        // name is what brings both same-named members back to choose between.
+        const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
+        const plan = planSession(session, ["Phuong Truong"], 6, organizer, {
+            "phuong truong": 6227635,
+        });
+
+        expect(names(plan.courts[0].add)).toEqual(["Phuong Truong"]);
+    });
+
+    it("keeps the name for a name mapping and adds no id", () => {
+        const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
+        const plan = planSession(session, ["Brian Lim"], 6, organizer, {
+            "brian lim": "Brian Lim (Superior)",
+        });
+
+        expect(plan.courts[0].add).toEqual([{ name: "Brian Lim (Superior)" }]);
+    });
+
+    it("reports an id-mapped overflow by its roster name", () => {
+        // One court holding only the organizer leaves 5 playable slots, so the
+        // 6th roster name has nowhere to go — and its report is the roster name
+        // people recognise, not an id.
+        const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
+        const plan = planSession(session, [...NAMES.slice(0, 5), "Phuong Truong"], 6, organizer, {
+            "phuong truong": 6227635,
+        });
+
+        expect(names(plan.courts[0].add)).toEqual(NAMES.slice(0, 5));
+        expect(plan.overflow).toEqual([
+            { name: "Phuong Truong", court: 1, bookingId: "1", seated: 6 },
+        ]);
     });
 
     it("never adds or removes an organizer who booked the courts but is not playing", () => {
@@ -315,7 +370,7 @@ describe("planSession", () => {
 
         const roster = NAMES.slice(0, 10);
         const plan = planSession(session, roster, 6, organizer);
-        expect(plan.courts.map((c) => c.add)).toEqual([roster.slice(0, 5), roster.slice(5, 10)]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([roster.slice(0, 5), roster.slice(5, 10)]);
         expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
         expect(plan.satisfied).toEqual([]);
         expect(plan.overflow).toEqual([]);
@@ -333,7 +388,7 @@ describe("planSession", () => {
 
         const roster = [...NAMES, ...Array.from({ length: 3 }, (_, i) => `Extra Player ${i}`)];
         const plan = planSession(session, roster, 6, organizer);
-        expect(plan.courts.map((c) => c.add).map((a) => a.length)).toEqual([5, 5]);
+        expect(plan.courts.map((c) => names(c.add)).map((a) => a.length)).toEqual([5, 5]);
         expect(plan.overflow).toEqual([
             { name: roster[10], court: 1, bookingId: "1", seated: 6 },
             { name: roster[11], court: 2, bookingId: "2", seated: 6 },
@@ -350,7 +405,7 @@ describe("planSession", () => {
         const plan = planSession(session, [organizer, "Viktor Axelsen"], 6, organizer);
         expect(plan.satisfied).toEqual([organizer]);
         expect(plan.courts[0].alreadyPlaced).toEqual(["Viktor Axelsen"]);
-        expect(plan.courts.map((c) => c.add)).toEqual([[], []]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([[], []]);
         expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
     });
 });
@@ -368,7 +423,7 @@ describe("planSession with a name map", () => {
         const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
 
         const plan = planSession(session, ["Riley Poe", "Chen Long"], 6, organizer, nameMap);
-        expect(plan.courts[0].add).toEqual(["Lee Zii Jia", "Chen Long"]);
+        expect(names(plan.courts[0].add)).toEqual(["Lee Zii Jia", "Chen Long"]);
     });
 
     it("does not re-add a name the court already holds under its mapped name", () => {
@@ -379,7 +434,7 @@ describe("planSession with a name map", () => {
 
         const plan = planSession(session, ["Riley Poe", "Chen Long"], 6, organizer, nameMap);
         expect(plan.courts[0].alreadyPlaced).toEqual(["Riley Poe"]);
-        expect(plan.courts.map((c) => c.add)).toEqual([["Chen Long"], []]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([["Chen Long"], []]);
         expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
     });
 
@@ -392,7 +447,7 @@ describe("planSession with a name map", () => {
         const plan = planSession(session, ["Riley Poe"], 6, organizer, nameMap);
         expect(plan.courts[0].alreadyPlaced).toEqual(["Riley Poe"]);
         expect(plan.courts.map((c) => c.remove)).toEqual([[], []]);
-        expect(plan.courts.map((c) => c.add)).toEqual([[], []]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([[], []]);
     });
 
     it("keeps two roster names that map to different members apart", () => {
@@ -405,7 +460,7 @@ describe("planSession with a name map", () => {
         // and goes in as its own member name.
         const plan = planSession(session, ["Riley Poo"], 6, organizer, nameMap);
         expect(plan.courts[0].alreadyPlaced).toEqual([]);
-        expect(plan.courts.map((c) => c.add)).toEqual([["Lee Zii Jiaa"], []]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([["Lee Zii Jiaa"], []]);
     });
 
     it("protects a mapped organizer who is not in the roster", () => {
@@ -413,7 +468,7 @@ describe("planSession with a name map", () => {
 
         const plan = planSession(session, ["Chen Long"], 6, "Riley Poe", nameMap);
         expect(plan.courts[0].remove).toEqual([]);
-        expect(plan.courts[0].add).toEqual(["Chen Long"]);
+        expect(names(plan.courts[0].add)).toEqual(["Chen Long"]);
     });
 
     it("tests searchability on the mapped name, not the roster name", () => {
@@ -421,7 +476,7 @@ describe("planSession with a name map", () => {
 
         const plan = planSession(session, ["Al"], 6, organizer, { al: "Lee Zii Jia" });
         expect(plan.tooShort).toEqual([]);
-        expect(plan.courts[0].add).toEqual(["Lee Zii Jia"]);
+        expect(names(plan.courts[0].add)).toEqual(["Lee Zii Jia"]);
     });
 
     it("reports an unplaced name by its mapped name", () => {
@@ -443,7 +498,7 @@ describe("planSession with a name map", () => {
             "Viktor Axelsen",
         ];
         const plan = planSession(session, [...full, "Riley Poe"], 6, organizer, nameMap);
-        expect(plan.courts.map((c) => c.add)).toEqual([[full[0], full[1], full[2], full[3], full[4]], full.slice(5)]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([[full[0], full[1], full[2], full[3], full[4]], full.slice(5)]);
         expect(plan.overflow).toEqual([{ name: "Lee Zii Jia", court: 1, bookingId: "1", seated: 6 }]);
         expect(plan.waitlisted).toEqual([]);
     });

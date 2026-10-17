@@ -1,6 +1,6 @@
 import type { Booking } from "../src";
 import { searchNameError } from "../src/players";
-import { playerIdentity, mappedName, type NameMap } from "./name-map";
+import { playerIdentity, resolveMapping, type NameMap, type NameMapping } from "./name-map";
 
 export type SessionGroup = {
     date: string;
@@ -11,7 +11,13 @@ export type SessionGroup = {
 
 export type CourtAssignment = {
     booking: Booking;
-    add: string[];
+    /**
+     * Names to add, as resolved against `nameMap`: `name` is what gets typed
+     * into the member search, and `memberId` (when the config pins one) picks
+     * which of the returned members to take. `name` is a plain string so this is
+     * exactly `PlayerInput` for the add path.
+     */
+    add: NameMapping[];
     remove: string[];
     alreadyPlaced: string[];
 };
@@ -169,7 +175,7 @@ export function planSession(
 
     const satisfied: string[] = [];
     const alreadyPlacedByCourt: string[][] = courts.map(() => []);
-    const candidates: string[] = [];
+    const candidates: NameMapping[] = [];
     const tooShort: string[] = [];
 
     for (const name of roster) {
@@ -177,7 +183,9 @@ export function planSession(
         // The mapped name is what actually gets typed into the member search,
         // so it is what the plan carries and what the search has to be able to
         // match — a short roster name mapping to a searchable one is addable.
-        const toAdd = mappedName(nameMap, name);
+        // An id mapping carries no name to search for beyond the roster's own,
+        // and pins which of the returned members to take.
+        const toAdd = resolveMapping(nameMap, name);
         const onCourts: number[] = [];
         courtPlayers.forEach((players, i) => {
             if (players.includes(identity)) onCourts.push(i);
@@ -187,7 +195,7 @@ export function planSession(
             satisfied.push(name);
         } else if (onCourts.length > 0) {
             for (const i of onCourts) alreadyPlacedByCourt[i].push(name);
-        } else if (searchNameError(toAdd)) {
+        } else if (searchNameError(toAdd.name)) {
             tooShort.push(name);
         } else {
             candidates.push(toAdd);
@@ -195,7 +203,7 @@ export function planSession(
     }
 
     const freeSlots = courts.map((b, i) => Math.max(0, capacity - (b.players.length - removeByCourt[i].length)));
-    const addByCourt: string[][] = courts.map(() => []);
+    const addByCourt: NameMapping[][] = courts.map(() => []);
 
     let cursor = 0;
     for (let i = 0; i < courts.length; i++) {
@@ -217,10 +225,10 @@ export function planSession(
         .map((_, i) => i)
         .sort((a, b) => postPlayers[b] - postPlayers[a] || courts[a].courtNumber - courts[b].courtNumber);
     const leftover = candidates.slice(cursor);
-    const overflow: OverflowPlayer[] = leftover.slice(0, byFullness.length).map((name, j) => {
+    const overflow: OverflowPlayer[] = leftover.slice(0, byFullness.length).map((candidate, j) => {
         const i = byFullness[j];
         return {
-            name,
+            name: candidate.name,
             court: courts[i].courtNumber,
             bookingId: courts[i].bookingId,
             seated: postPlayers[i],
@@ -237,6 +245,6 @@ export function planSession(
         satisfied,
         tooShort,
         overflow,
-        waitlisted: leftover.slice(byFullness.length),
+        waitlisted: leftover.slice(byFullness.length).map((c) => c.name),
     };
 }
