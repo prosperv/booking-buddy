@@ -231,6 +231,45 @@ behavior. What's load-bearing here:
   but never edits a court.
 
 ## Gotchas
+- **Member ids come from a request the page makes on its own.** The member search
+  is a Kendo ComboBox filtering via `Api_Reservation_GetMembersToPlayWith`, whose
+  records carry `MemberId` / `OrgMemberId` / `DisplayName`. The dropdown renders
+  the same records in the same order and states this itself: every
+  `#OwnersDropdown_listbox li.k-list-item` carries `data-offset-index` equal to
+  its index in the payload. `src/member-search.ts` records the payload per page
+  and `readPlayerOptions` pairs the two **by that attribute, and only when the
+  counts match exactly** — the names are always the source of truth, and ids are
+  an enrichment that a renamed endpoint or reordered payload silently drops.
+  Nothing waits on this request: the dropdown cannot render before it lands, so
+  by the time `readPlayerOptions` has waited for the DOM the payload is there.
+- **The member search is a case-insensitive substring match server-side** —
+  `operator=contains` with `ignoreCase=true` on `DisplayName`. So searching
+  `"Phuong Truong"` returns a member registered as `PHUONG TRUONG` *and* another
+  as `Phuong Truong`: two distinct members, identical initials, no phone on file.
+  `matchPlayerOption` normalizes both sides and calls that `ambiguous`, which is
+  correct — a case-sensitive matcher would silently pick one of two people.
+  `nameMap` with a **number** value is the way out: see `bot/name-map.ts`, where
+  an id ends the identity chain rather than aliasing to it (an id is a selection
+  constraint, not another spelling of the name, and `normalizePlayerName` on a
+  number would throw). Ids fix *selection* only — booking cards expose no member
+  ids, so `already-added` and removal remain name-based.
+- **One court's failure must not abort the rest.** Both halves of that live in
+  `bot/ensure-roster.ts`: `saveReservation` returns a `confirmed` flag instead of
+  throwing when no save response is seen (`SAVE_TIMEOUT_MS`, default 30s), and
+  the court loop catches per court (`court-error`, `tally.courtsFailed`). An
+  unconfirmed save is reported (`save-unconfirmed`, `tally.saveUnconfirmed`) and
+  sets `ok = false`, but never stops the run — the next one re-reads from a
+  clean page and settles it. Do **not** verify an unconfirmed save by re-reading
+  the roster in the same run: the member table arrives in the async
+  `Api_CalculateReservationCostMemberPortal` response, which is exactly why a
+  `save-timeout` snapshot showed an empty table.
+- **Clear the member search before saving.** `typePlayerSearch` empties the box
+  at the *start* of a search, so the last one of a run is always left behind, and
+  a search that failed leaves the dropdown open on top of it. A run whose last add
+  failed as `ambiguous` logged `player-failed` and `click Save` in the same
+  second, then timed out waiting for the save POST with the courts unchanged.
+  `clearMemberSearch` does select-all → Delete → `Tab` (`Tab`, not `Escape`, which
+  would dismiss the modal) and runs on every failed add and before every save.
 - `headless` defaults to **true** (`process.env.HEADLESS !== "false"` in
   `src/constants.ts`); the `examples/*` force it false so a window shows for
   login.

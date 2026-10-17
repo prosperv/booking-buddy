@@ -114,13 +114,54 @@ translates one to the other before the bot searches:
 ```json
 "nameMap": {
   "Riley Poe":  "Lee Zii Jia",
-  "Riley Poo": "Lee Zii Jiaa"
+  "Riley Poo": "Lee Zii Jiaa",
+  "Phuong Truong": 6227635
 }
 ```
 
-Each entry maps the **roster name** to the **CourtReserve member name**, and the
-map is global — one entry per person covers every job. Only the mapped name is
-typed into the member search, so `Riley Poe` is booked as `Lee Zii Jia`.
+Each entry maps the **roster name** to either a **CourtReserve member name**
+(string) or a **CourtReserve `MemberId`** (number), and the map is global — one
+entry per person covers every job. Only the mapped name is typed into the member
+search, so `Riley Poe` is booked as `Lee Zii Jia`.
+
+### Two members with the same name
+
+A number maps to a member id, for the harder case: the club has members whose
+names are *identical* on CourtReserve, and the member search returns both for
+either spelling. Nothing in the display names separates them — the two people can
+share initials and leave no phone number on file — so a name mapping cannot help
+and the bot reports the name as `ambiguous`.
+
+For those, put the member's id in `nameMap`. The bot then searches by the roster
+name (the search is a case-insensitive substring match, so the roster name is
+what brings both members back) and picks the option with that id:
+
+```json
+"nameMap": { "Phuong Truong": 6227635 }
+```
+
+**How to find the id:** run the bot and read the `ambiguous` warning. Candidates
+are listed with their ids, so the entry can be copied straight from the log:
+
+```
+player ambiguous  name="Phuong Truong" reason="ambiguous"
+                 candidates=["PHUONG TRUONG (id 661539)", "Phuong Truong (id 6227635)"]
+```
+
+An id that is not among the search results is reported as `member-id-not-found`
+rather than falling back to names, because the fallback would book the other
+member — the one thing the id exists to prevent.
+
+An id picks **which member is added**; it does not change how names are compared
+elsewhere. CourtReserve's booking list does not expose member ids, so `add`
+decisions for players already seated are still made by name. If both members ever
+appear on the same session, the roster needs one entry per person.
+
+The ids come from the member search the page makes on its own, so there is a
+documented fallback: if that request cannot be paired with the rendered dropdown
+(same number of results, matched by the `data-offset-index` each option carries),
+the ids are withheld and matching falls back to names. A `member-id-not-found`
+with no candidates carrying ids is the symptom of that fallback being in effect.
 
 Matching works on both sides, which matters when a member's name changed after
 some courts were already filled by hand. A roster's `Riley Poe` and a court's
@@ -133,7 +174,9 @@ Keys are matched case- and whitespace-insensitively (the same normalization the
 rest of the bot uses to compare names), and entries chain, so
 `{"A": "B", "B": "C"}` makes `A`, `B` and `C` one player. `validateConfig`
 rejects an entry mapping a name to itself, and two keys that normalize to the
-same name — both are always typos.
+same name — both are always typos. An **id** entry is exempt from the
+self-mapping rule: it changes no name, which is the point, since it says which of
+two same-named members is meant.
 
 To see what a run would search for, run `roster-test`: it prints each roster
 name with its mapped name (`- Riley Poe -> Lee Zii Jia`). An `ensure-roster`
