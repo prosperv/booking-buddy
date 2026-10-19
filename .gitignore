@@ -52,7 +52,6 @@ log/
 .opencode/package.json
 .opencode/package-lock.json
 .opencode/bun.lock
-.opencode/.gitignore
 
 # Bot local config and rosters (example files are committed)
 bot.config.json
