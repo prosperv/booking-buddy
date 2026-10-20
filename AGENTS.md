@@ -31,6 +31,23 @@ nothing else catches a mistake.
   example forces `headless: false`. `--force` / `-f` forces a fresh login. Never in CI.
 - `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.
 
+## Project commands (`.opencode/command/`)
+Slash commands for the dev loop — each is one step so a wrong guess is
+harder to make. Run them with `/name` in the TUI:
+- `/verify` — `npm run typecheck && npm run test:unit`, with the note that
+  `npm run build` typechecks `src/` only and silently skips `bot/`, `test/`,
+  and `examples/`. The one to run after any edit.
+- `/logs` — digest of the newest `log/bot-*.log` (level + event tallies, run
+  boundaries, every warn/error line) plus `log/failures/`. No `jq` installed,
+  so the digest is grep-based. Leads with the trap that `run-end ok=true`
+  is not a clean run — player failures are warn-level and never touch `ok`.
+- `/recapture` — turn a full-page `.mhtml` capture into a pruned
+  `test/data/*.html` fixture via `test/data/recapture.ts`. The committed
+  fixtures are hand-trimmed subsets of the slice, not byte-exact output.
+- `/dryrun` — `ensure-roster --dry-run` against the machine-local
+  `/home/pvan/bot.test.config.json` (fallback `bot.config.json`). Still opens a
+  browser and reads live bookings; never edits.`
+
 ## Workflow
 - Commit incrementally as you go, with Conventional Commit subjects
   (`feat(nav):`, `fix(bot):`, `test(bot):`, `docs(bot):`, `chore(data):`) — that
@@ -296,8 +313,9 @@ behavior. What's load-bearing here:
   faithful. `humanClick` (`src/interactions.ts`) falls back to
   `locator.click()` when an element has no usable bounding box, which is what
   keeps those tests working. Provenance / re-capture steps are in
-  `test/data/README` (note: its claim that the raw captures live in
-  `../test-data/` is stale — they sit beside the fixtures, gitignored).
+  `test/data/README` and `/recapture` (`test/data/recapture.ts`), which decodes
+  the quoted-printable MHTML part and slices it; the committed fixtures are
+  hand-trimmed subsets of that slice, not byte-exact output.
 - The captures contain no JavaScript, so the interactive chain (Kendo ComboBox,
   sweetalert2 confirm, member-search XHR, save POST) is untestable offline and
   gated on a live run; `saveReservation` only asserts HTTP status.
