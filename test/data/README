@@ -39,7 +39,10 @@ CourtReserve "My Reservations" page (`app.courtreserve.com/Online/Bookings/List/
    Two things the script does not do: the committed fixtures are hand-trimmed
    subsets of the subtree, not byte-exact output, and a live capture contains
    real member names, so check for those before committing. The `/recapture`
-   command (`.opencode/command/recapture.md`) walks the whole procedure.
+   command (`.opencode/command/recapture.md`) is the short version of the
+   procedure and the **`recapture-fixture` skill** (`.opencode/skills/`) the
+   long one — including how to produce a capture, since only two remain on
+   disk and neither is a bookings list.
 
 ## Fixtures
 
