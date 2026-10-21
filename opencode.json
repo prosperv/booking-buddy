@@ -29,6 +29,10 @@
     ]
   },
   "permission": {
+    "skill": {
+      "live-run-debug": "allow",
+      "recapture-fixture": "allow"
+    },
     "read": {
       "*auth.json": "deny",
       "*bot.config.json": "deny",
