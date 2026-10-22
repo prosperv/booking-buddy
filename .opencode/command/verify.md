@@ -12,7 +12,7 @@ npm run test:unit
 
 **`npm run typecheck`** is the only static check over the whole repo — `tsc --noEmit -p tsconfig.check.json`, which includes `src/`, `bot/`, `test/`, `examples/`, and `vitest.config.ts`. Do **not** reach for `npm run build` instead: `tsconfig.json` is `include: ["src/**/*"]` with `rootDir: src`, so a green build says nothing about `bot/`, `test/`, or `examples/` and fails *silently*. "Run the typecheck" means `npm run typecheck`, full stop.
 
-**`npm run test:unit`** is `vitest run --exclude "**/functional/**"` — 15 files / 265 tests, no browser, a couple of seconds. Every vitest run prints a `configLoader: 'native'` warning about ESM syntax in the CommonJS-loaded `vitest.config.ts`; that is expected, ignore it.
+**`npm run test:unit`** is `vitest run --project unit` — 15 files / 265 tests, no browser, a couple of seconds. Every vitest run prints a `configLoader: 'native'` warning about ESM syntax in the CommonJS-loaded `vitest.config.ts`; that is expected, ignore it.
 
 Report, don't fix, unless asked:
 

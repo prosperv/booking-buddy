@@ -3,9 +3,9 @@ import { readFileSync, existsSync } from "fs";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { Browser, BrowserContext, Page, chromium } from "playwright";
+import { Browser, BrowserContext, Page } from "playwright";
 import { saveAuthIfLoggedIn } from "../../src/auth";
-import { fixturePath } from "./setup";
+import { connectSharedBrowser, fixturePath } from "./setup";
 
 const BOOKINGS_LIST_URL = "https://app.courtreserve.com/Online/Bookings/List/7031?type=1";
 
@@ -18,7 +18,7 @@ describe("functional: saveAuthIfLoggedIn", () => {
     const authFile = (): string => join(dir, "auth.json");
 
     beforeAll(async () => {
-        browser = await chromium.launch({ headless: true });
+        browser = await connectSharedBrowser();
         context = await browser.newContext();
         page = await context.newPage();
         dir = await mkdtemp(join(tmpdir(), "auth-save-test-"));

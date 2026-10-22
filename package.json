@@ -9,8 +9,8 @@
         "start": "npx tsx examples/usage.ts",
         "dev": "tsc -w",
         "test": "vitest run",
-        "test:unit": "vitest run --exclude \"**/functional/**\"",
-        "test:functional": "vitest run test/functional bot/test/functional",
+        "test:unit": "vitest run --project unit",
+        "test:functional": "vitest run --project functional",
         "test:watch": "vitest watch",
         "test:coverage": "vitest run --coverage",
         "playwright:install": "npx playwright install chromium"

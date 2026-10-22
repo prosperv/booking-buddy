@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Browser, Page, chromium } from "playwright";
+import { Browser, Page } from "playwright";
 import { getBookingsFound, collectBookingSessions, editBooking } from "../../src/booking";
-import { loadFixture } from "./setup";
+import { connectSharedBrowser, loadFixture } from "./setup";
 
 describe("functional: booking scraping", () => {
     let browser: Browser;
     let page: Page;
 
     beforeAll(async () => {
-        browser = await chromium.launch({ headless: true });
+        browser = await connectSharedBrowser();
         page = await browser.newPage();
     });
 

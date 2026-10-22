@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
-import { Browser, Page, chromium } from "playwright";
+import { Browser, Page } from "playwright";
 import {
     closeReservationConfirmation,
     confirmAddPlayer,
@@ -14,7 +14,7 @@ import {
     selectPlayerOption,
     typePlayerSearch,
 } from "../../src/players";
-import { fixturePath, loadFixture } from "./setup";
+import { connectSharedBrowser, fixturePath, loadFixture } from "./setup";
 
 const BROWSER_TEST_TIMEOUT = 20_000;
 
@@ -29,7 +29,7 @@ describe("functional: add-player steps", () => {
     let page: Page;
 
     beforeAll(async () => {
-        browser = await chromium.launch({ headless: true });
+        browser = await connectSharedBrowser();
         page = await browser.newPage();
     });
 
@@ -171,7 +171,7 @@ describe("functional: remove-player steps", () => {
     let page: Page;
 
     beforeAll(async () => {
-        browser = await chromium.launch({ headless: true });
+        browser = await connectSharedBrowser();
         page = await browser.newPage();
     });
 

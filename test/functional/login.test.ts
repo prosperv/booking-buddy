@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
-import { Browser, Page, chromium } from "playwright";
+import { Browser, Page } from "playwright";
 import { isLoggedIn, loginWithCredentials } from "../../src/login";
-import { fixturePath } from "./setup";
+import { connectSharedBrowser, fixturePath } from "./setup";
 
 const BOOKINGS_LIST_URL = "https://app.courtreserve.com/Online/Bookings/List/7031?type=1";
 const BROWSER_TEST_TIMEOUT = 20_000;
@@ -18,7 +18,7 @@ describe("functional: login", () => {
     let page: Page;
 
     beforeAll(async () => {
-        browser = await chromium.launch({ headless: true });
+        browser = await connectSharedBrowser();
         page = await browser.newPage();
     });
 

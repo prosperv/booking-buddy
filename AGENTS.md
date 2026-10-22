@@ -283,7 +283,9 @@ behavior. What's load-bearing here:
   in `test/navigation.test.ts` (which also `vi.mock`s `pauseForAction` away,
   since the real one sleeps 1–3s).
 - Functional tests (real Chromium) live under `*/test/functional/` — currently
-  `test/functional/*.test.ts`; they `chromium.launch()` themselves and use
+  `test/functional/*.test.ts`; they share one Chromium via a vitest `globalSetup`
+  (`test/functional/global-setup.ts` launches `chromium.launchServer`, exposed
+  through `connectSharedBrowser()` in `test/functional/setup.ts`) and use
   `test/functional/setup.ts` (`fixturePath`, `loadFixture`) to `setContent()` a
   pruned HTML fixture. Bot functional tests belong in `bot/test/functional/`
   (`npm run test:functional` already passes that path as a filter).
