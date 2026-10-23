@@ -6,27 +6,47 @@ Club by driving app.courtreserve.com with Playwright. Public entrypoint is
 `src/index.ts` (re-exports `CourtReserveClient` from `src/client.ts`). `bot/` is
 a CLI that uses the library to reconcile rosters. Plain TypeScript, CommonJS
 build, Node >= 20. **No lint, no formatter, no CI** — the only static checks are
-the two `tsc` commands below, so nothing else catches a mistake.
+the two `tsc` commands below (plus the editor LSP, see "LSP" at the end), so
+nothing else catches a mistake.
 
 ## Commands
 - `npm run build` — `tsc` → `dist/`. Typechecks **only** `src/**` (`tsconfig.json`
   sets `rootDir: src`), so it does not cover `test/`, `examples/`, or `bot/`.
-- `npx tsc --noEmit -p tsconfig.bot.json` — typechecks `src/` + `bot/` (which
-  includes `bot/test/`). The only static check over bot code, so run it after any
-  `bot/` edit.
-- `npx vitest run` — full suite: 18 unit files / 321 tests plus 4 functional
-  files / 35 tests. Functional tests need Chromium (`npm run playwright:install`
+- `npm run typecheck` — `tsc --noEmit -p tsconfig.check.json`, the **only**
+  static check over bot, test, and example code. It covers every tracked `.ts`
+  file and runs in under a second, so run it after any edit outside `src/`.
+- `npx vitest run` — full suite: 15 unit files / 265 tests plus 4 functional
+  files / 32 tests. Functional tests need Chromium (`npm run playwright:install`
   once). Narrow with `npx vitest run test/players.test.ts`, add `-t "<name>"` for
-  one test, or `npx vitest run bot/test` for the bot only (4 files / 102 tests).
+  one test, or `npx vitest run bot/test` for the bot only (5 files / 131 tests).
 - `npm run test:unit` (no browser) / `npm run test:functional` (needs Chromium).
-- `npm run test:coverage` is configured (v8) but `@vitest/coverage-v8` is not
-  installed, so it fails with `MISSING DEPENDENCY`. Don't use it to verify a change.
+- `npm run test:coverage` — v8 coverage over the whole suite, so it needs Chromium
+  like `npx vitest run` does. Writes `coverage/lcov.info` + `coverage/lcov-report/`.
+  No thresholds are configured, so it's for finding untested paths, not for gating
+  a change — `npx vitest run` is the verification.
 - Every `vitest` run prints a `configLoader: 'native'` warning about ESM syntax
   in a CJS-loaded `vitest.config.ts`. Harmless — ignore it.
 - `npm start` / `npx tsx examples/{list-bookings,add-player,remove-player,swap-player}.ts`
   — launch a real Chromium against the live site; needs a saved session, and every
   example forces `headless: false`. `--force` / `-f` forces a fresh login. Never in CI.
 - `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.
+
+## Project commands (`.opencode/command/`)
+Slash commands for the dev loop — each is one step so a wrong guess is
+harder to make. Run them with `/name` in the TUI:
+- `/verify` — `npm run typecheck && npm run test:unit`, with the note that
+  `npm run build` typechecks `src/` only and silently skips `bot/`, `test/`,
+  and `examples/`. The one to run after any edit.
+- `/logs` — digest of the newest `log/bot-*.log` (level + event tallies, run
+  boundaries, every warn/error line) plus `log/failures/`. No `jq` installed,
+  so the digest is grep-based. Leads with the trap that `run-end ok=true`
+  is not a clean run — player failures are warn-level and never touch `ok`.
+- `/recapture` — turn a full-page `.mhtml` capture into a pruned
+  `test/data/*.html` fixture via `test/data/recapture.ts`. The committed
+  fixtures are hand-trimmed subsets of the slice, not byte-exact output.
+- `/dryrun` — `ensure-roster --dry-run` against the machine-local
+  `/home/pvan/bot.test.config.json` (fallback `bot.config.json`). Still opens a
+  browser and reads live bookings; never edits.`
 
 ## Workflow
 - Commit incrementally as you go, with Conventional Commit subjects
@@ -218,17 +238,15 @@ behavior. What's load-bearing here:
   Google service-account key). Committed example: `bot/bot.config.example.json`.
 - `bot/rosters/*.csv` — real player rosters (except the committed
   `example.csv`).
-- `test/data/**/*.mhtml` — raw full-page captures (~4.8MB each). Only the pruned
-  `.html` fixtures derived from them are committed; re-capture live if the
-  markup changes.
+- `test/data/**/*.mhtml` — raw full-page captures (~4.8MB each). **Never commit**
+  them, only the pruned `.html` fixtures derived from them; re-capture live if the
+  markup changes. Reading one is *not* blocked — see "Permissions" below.
 - `log/` — file logs (`booking-buddy-<date>.log`, `bot-<date>.log`); written by
   `src/logger.ts` (`createLogger`), see "Logging" below.
-- `.notes/`, `.temp-data/`, `opencode.json`, `.opencode/`.
-- Note: the bot entries in `.vscode/launch.json` pass `--config
-  ./bot.config.json`, resolved from js-debug's cwd (`${workspaceFolder}`). Both
-  stay non-destructive — `roster-test` opens no browser and `ensure-roster` keeps
-  `--dry-run` — so debugging reads live rosters and the real service-account key
-  but never edits a court.
+- `.notes/`, `.temp-data/`, `.opencode/` (only its plugin deps are ignored;
+  `opencode.json` itself is committed).
+- Note: the bot entries in `.vscode/launch.json` point at
+  `/home/pvan/bot.test.config.json`, a machine-local config **outside** the repo.
 
 ## Gotchas
 - **Member ids come from a request the page makes on its own.** The member search
@@ -451,7 +469,9 @@ behavior. What's load-bearing here:
   in `test/navigation.test.ts` (which also `vi.mock`s `pauseForAction` away,
   since the real one sleeps 1–3s).
 - Functional tests (real Chromium) live under `*/test/functional/` — currently
-  `test/functional/*.test.ts`; they `chromium.launch()` themselves and use
+  `test/functional/*.test.ts`; they share one Chromium via a vitest `globalSetup`
+  (`test/functional/global-setup.ts` launches `chromium.launchServer`, exposed
+  through `connectSharedBrowser()` in `test/functional/setup.ts`) and use
   `test/functional/setup.ts` (`fixturePath`, `loadFixture`) to `setContent()` a
   pruned HTML fixture. Bot functional tests belong in `bot/test/functional/`
   (`npm run test:functional` already passes that path as a filter).
@@ -465,7 +485,9 @@ behavior. What's load-bearing here:
   to the same layout) so the month-tab merge and the closest-upcoming-session
   selection are tested against the real format. `bot/test/csv.test.ts` reads
   them with `resolve(process.cwd(), "bot/test/data", …)` rather than
-  `import.meta`, because `tsconfig.bot.json` typechecks `bot/**` as CommonJS.
+  `import.meta`, because `tsconfig.check.json` typechecks the repo as CommonJS.
+  Same rule for `test/functional/setup.ts` (fixtures at
+  `resolve(process.cwd(), "test/data")`) and `test/utils.test.ts`.
 - vitest config (`vitest.config.ts`) pins `TZ=America/Los_Angeles` — several
   date tests are offset-sensitive and would pass for the wrong reason on a UTC
   runner. Its `setupFiles: ./test/setup.ts` also `delete`s inherited env vars
@@ -480,8 +502,9 @@ behavior. What's load-bearing here:
   faithful. `humanClick` (`src/interactions.ts`) falls back to
   `locator.click()` when an element has no usable bounding box, which is what
   keeps those tests working. Provenance / re-capture steps are in
-  `test/data/README` (note: its claim that the raw captures live in
-  `../test-data/` is stale — they sit beside the fixtures, gitignored).
+  `test/data/README` and `/recapture` (`test/data/recapture.ts`), which decodes
+  the quoted-printable MHTML part and slices it; the committed fixtures are
+  hand-trimmed subsets of that slice, not byte-exact output.
 - The captures contain no JavaScript, so the interactive chain (Kendo ComboBox,
   sweetalert2 confirm, member-search XHR, save POST) is untestable offline and
   gated on a live run; `saveReservation` only asserts HTTP status.
@@ -521,3 +544,74 @@ behavior. What's load-bearing here:
   value *property* and `page.content()` serializes the `value` *attribute*. If a
   future change fills differently, demote `login-failed` in `src/login.ts` from
   `error` to `warn` so it stops triggering `captureFailure`.
+
+## LSP
+`opencode.json` runs a TypeScript language server for `.ts` files, so the editor
+feeds diagnostics back as you read a file. It is **not** the built-in server, and
+the built-in cannot work here:
+- `typescript` is pinned to `^7` (the native compiler), which ships no
+  `tsserver.js`, no JS compiler API, and no LSP mode — `node_modules/typescript/lib`
+  holds only `tsc.js`. opencode's built-in `typescript` entry resolves
+  `typescript/lib/tsserver.js` and bails when it is missing, then also requires
+  `typescript-language-server` on `PATH`. Both gates fail, so `"lsp": true` alone
+  is a no-op here.
+- So the config entry supplies `command` (which **replaces** the built-in spawn),
+  plus `initialization.tsserver.path` pointing at `typescript-js`, an npm alias for
+  `typescript@^6` — the last JS-based release, which does ship `lib/tsserver.js`.
+  That path is the only mechanism `typescript-language-server` has (no CLI flag
+  left in v5) and it is resolved against the project root, which is the cwd
+  opencode spawns the server with.
+- `extensions` is spelled out even though the built-in's list would match, because
+  a config entry only inherits from the built-in that survived its lockfile-based
+  root detection.
+- Keep `typescript-language-server` on `^5`: v6 needs Node >= 22.22.2 and the
+  repo declares `>=20`. Diagnostics come from TS **6** while `npm run typecheck`
+  uses TS **7**, so the two can disagree on a very new construct — the CLI is the
+  authority, the LSP is the early warning.
+- tsserver needs a second or two to load the project, so diagnostics for a file
+  read in the first tool call of a turn can arrive after the turn's last action.
+  That is latency, not a failure. (opencode 1.18.35's `opencode debug lsp
+  diagnostics <file>` returns `{}` regardless: it logs "touching file" but never
+  sends `textDocument/didOpen`, so nothing is ever diagnosed — don't chase it.)
+- An object `lsp` block keeps **all** built-ins enabled (the docs are explicit:
+  `{}` is enough to turn them on); the rest are inert because no file in the repo
+  has their extensions, and none of them download unless such a file appears.
+- The server only starts after `npm install`, since opencode's built-in root check
+  wants a lockfile and `package-lock.json` is gitignored.
+
+## Permissions
+`opencode.json` carries a `permission` block so the "never read these" list is a
+constraint rather than a convention. The semantics that matter, from the 1.18.35
+binary — the docs say none of this:
+- Rules resolve with `findLast`, and the config block is merged **last** into every
+  native agent's ruleset (`build`, `plan` and `explore` all carry it — check with
+  `opencode debug agent <name>`). So a config rule always beats a built-in, which
+  is why the block has **no `"*"` key**: a `read` `*` would override the built-in
+  `*.env` → ask protection. The defaults stay intact by omission instead.
+- Patterns are anchored wildcards, **not** globs: `*` → `.*` (crosses `/`), `?` →
+  `.`, `^…$`. `**` is just two `*`s, so `my-profile/**` needs a trailing slash and
+  misses the directory itself — hence `my-profile*`. A pattern ending in `" *"`
+  (space-star) additionally matches the bare command with no argument.
+- `read` matches the **workspace-relative** path; external paths arrive absolute
+  and hit `external_directory` (ask by default) *before* the read rule.
+- `bash` matches the **raw command string**, not a path. Every read deny therefore
+  needs a bash twin or `cat auth.json` walks straight past it. `grep` matches the
+  **regex**, so it cannot be scoped by file at all — it needs no rule here because
+  ripgrep is spawned without `--no-ignore` and `.gitignore` already excludes every
+  secret path.
+- `deny` never prompts: it raises `DeniedError` before any dialog, and
+  `experimental.continue_loop_on_deny` defaults off, so a denial also stops the
+  turn. `ask` is the escapable version — but see the next point.
+- Clicking "always" on a read prompt grants `read *` for the whole **session**, and
+  the session-approved list is merged after the config rules, so it overrides them.
+  That is why `.env` is denied rather than left on its built-in `ask`: it was the
+  only read prompt reachable, and one click would have unlocked everything else.
+  Cost is that a legitimate `.env` read needs a config edit plus a restart — and
+  nothing in the repo loads it anyway (no `dotenv`, no `--env-file` in any script;
+  `src/constants.ts` reads `process.env`, which the shell or systemd supplies).
+- **`.mhtml` is deliberately left at the default.** `watcher.ignore` keeps it out
+  of the watch set, `.gitignore` keeps ripgrep out of it, a read is capped at 2000
+  lines / 51.2KB with a truncation marker, and the capture is quoted-printable
+  anyway. A deny would cost more than it bought — don't helpfully add one back.
+- The ruleset is built at config load, so **restart opencode** after editing the
+  block; a new session alone is not guaranteed to pick it up.

@@ -162,7 +162,7 @@ describe("matchPlayerOption", () => {
             { displayName: "Lee Zii Jia", memberId: 1 },
             { displayName: "Lee Zii Jiaa", memberId: 2 },
         ];
-        expect(matchPlayerOption(withIds, "Lee Zii").candidates).toEqual([
+        expect((matchPlayerOption(withIds, "Lee Zii") as { candidates: string[] }).candidates).toEqual([
             "Lee Zii Jia (id 1)",
             "Lee Zii Jiaa (id 2)",
         ]);

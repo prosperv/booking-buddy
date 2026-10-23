@@ -236,7 +236,8 @@ browser — config, service-account key, roster source, `auth.json`, credentials
 and reports each problem with its fix; `--live` also probes a sheet roster. See
 `bot/systemd/README.md` for installing the systemd timer on an always-on machine,
 which seeds `bot.config.json` from the example and points at `doctor` when it
-finishes. Typecheck the bot with `npx tsc --noEmit -p tsconfig.bot.json`.
+finishes. Typecheck the whole repo (including the bot and the tests) with
+`npm run typecheck`.
 
 ## Development and tests
 

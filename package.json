@@ -5,11 +5,12 @@
     "main": "dist/index.js",
     "scripts": {
         "build": "tsc",
+        "typecheck": "tsc --noEmit -p tsconfig.check.json",
         "start": "npx tsx examples/list-bookings.ts",
         "dev": "tsc -w",
         "test": "vitest run",
-        "test:unit": "vitest run --exclude \"**/functional/**\"",
-        "test:functional": "vitest run test/functional bot/test/functional",
+        "test:unit": "vitest run --project unit",
+        "test:functional": "vitest run --project functional",
         "test:watch": "vitest watch",
         "test:coverage": "vitest run --coverage",
         "playwright:install": "npx playwright install chromium"
@@ -22,8 +23,11 @@
     },
     "devDependencies": {
         "@types/node": "^26.1.2",
+        "@vitest/coverage-v8": "^4.1.11",
         "tsx": "^4.23.12",
         "typescript": "^7.0.2",
+        "typescript-js": "npm:typescript@^6.0.3",
+        "typescript-language-server": "^5.3.0",
         "vitest": "^4.1.10"
     },
     "engines": {

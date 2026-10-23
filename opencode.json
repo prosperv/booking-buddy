@@ -1,0 +1,54 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "node-debugger": {
+      "type": "local",
+      "command": ["npx", "-y", "@jaenster/node-debugger-mcp"],
+      "enabled": true
+    }
+  },
+  "lsp": {
+    "typescript": {
+      "command": ["./node_modules/.bin/typescript-language-server", "--stdio"],
+      "extensions": [".ts"],
+      "initialization": {
+        "tsserver": { "path": "node_modules/typescript-js/lib/tsserver.js" }
+      }
+    }
+  },
+  "watcher": {
+    "ignore": [
+      "my-profile",
+      "log",
+      "auth.json",
+      "bot.config.json",
+      "temp",
+      ".temp-data",
+      "coverage",
+      "**/*.mhtml"
+    ]
+  },
+  "permission": {
+    "skill": {
+      "live-run-debug": "allow",
+      "recapture-fixture": "allow"
+    },
+    "read": {
+      "*auth.json": "deny",
+      "*bot.config.json": "deny",
+      "*.env*": "deny",
+      "*.bak": "deny",
+      "my-profile*": "deny",
+      "bot/rosters/*.csv": "deny",
+      "bot/rosters/example.csv": "allow",
+      ".temp-data/*.csv": "deny",
+      "~/bot.test.config.json": "ask"
+    },
+    "bash": {
+      "*auth.json*": "deny",
+      "*bot.config.json*": "deny",
+      "*.env*": "deny",
+      "*my-profile*": "deny"
+    }
+  }
+}

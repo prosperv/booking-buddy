@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
-import { BrowserContext, Page, chromium } from "playwright";
+import { Browser, Page } from "playwright";
 import { isLoggedIn, loginWithCredentials } from "../../src/login";
-import { fixturePath } from "./setup";
+import { connectSharedBrowser, fixturePath } from "./setup";
 
 const BOOKINGS_LIST_URL = "https://app.courtreserve.com/Online/Bookings/List/7031?type=1";
 const BROWSER_TEST_TIMEOUT = 20_000;
@@ -19,17 +19,17 @@ const BROWSER_TEST_TIMEOUT = 20_000;
  * the bookings list afterwards.
  */
 describe("functional: login", () => {
-    let context: BrowserContext;
+    let browser: Browser;
     let page: Page;
 
     beforeAll(async () => {
-        context = await chromium.launch({ headless: true });
-        page = await context.newPage();
+        browser = await connectSharedBrowser();
+        page = await browser.newPage();
     });
 
     afterAll(async () => {
         await page.close();
-        await context.close();
+        await browser.close();
     });
 
     describe("isLoggedIn", () => {
@@ -125,7 +125,8 @@ describe("functional: login", () => {
             // attribute, so a snapshot cannot leak the typed password. This
             // guards that reasoning against a future switch to a fill that
             // writes the attribute.
-            const probePage = await context.newPage();
+            const probeContext = await browser.newContext();
+            const probePage = await probeContext.newPage();
             try {
                 await probePage.route("**/Online/Account/LogIn/**", (route) =>
                     route.fulfill({
@@ -139,6 +140,7 @@ describe("functional: login", () => {
                 expect(await probePage.content()).not.toContain("sup3r-s3cret-value");
             } finally {
                 await probePage.close();
+                await probeContext.close();
             }
         });
     });
@@ -162,7 +164,7 @@ describe("functional: login", () => {
             </script></body>`,
         );
 
-        const serveBookingsList = (target: Page): Promise<void> =>
+        const serveBookingsList = (target: Page) =>
             target.route("**/Online/Bookings/List/**", (route) =>
                 route.fulfill({
                     body: readFileSync(

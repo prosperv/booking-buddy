@@ -1,0 +1,10 @@
+{
+    // The whole-repo typecheck: `npm run typecheck`. `tsconfig.json` stays the
+    // build (src -> dist), this covers every tracked .ts file including tests.
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "rootDir": ".",
+        "noEmit": true
+    },
+    "include": ["src/**/*", "bot/**/*", "test/**/*", "examples/**/*", "vitest.config.ts"]
+}

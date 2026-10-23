@@ -7,29 +7,42 @@ CourtReserve "My Reservations" page (`app.courtreserve.com/Online/Bookings/List/
 
 1. **Saved from live data.** Log in to CourtReserve in a real Chromium, open the
    bookings list, and use the browser's "Save page as..." to capture the page
-   as an MHTML file (`.mhtml`). The raw captures live outside the repo in
-   `../test-data/` and are several MB each.
+   as an MHTML file (`.mhtml`). The raw captures are gitignored and sit beside
+   the fixtures here, several MB each.
 
-2. **Prune to reduce size.** The scrapers only read the
-   `[data-testid="booking-tabs"]` subtree, so each capture is cut down to just
-   that `<div>` and everything inside it. The MHTML body is quoted-printable
-   encoded; decode it, then slice from `<div data-testid="booking-tabs">`
-   through its matching closing `</div>`. The result is wrapped in a minimal
-   HTML shell:
+2. **Prune to reduce size.** `recapture.ts` does it:
+
+   ```
+   npx tsx test/data/recapture.ts <capture.mhtml> [anchor] [out.html] [tag]
+   ```
+
+   It decodes the quoted-printable `text/html` part, slices from `anchor`
+   (default `data-testid="booking-tabs"`) through that element's matching
+   closing tag, and wraps the result in a minimal HTML shell:
 
    ```html
    <!DOCTYPE html>
    <html lang="en">
    <head><meta charset="utf-8"><title>Booking List | powered by CourtReserve</title></head>
    <body>
-   <div data-testid="booking-tabs">...subtree...</div>
+   ...subtree...
    </body>
    </html>
    ```
 
-   This shrinks each fixture from ~4.8 MB to a few KB. The markup inside the
-   `<div>` is byte-for-byte as the site served it; only the surrounding CSS,
-   images, and scripts are removed.
+   This shrinks each fixture from ~4.8 MB to a few KB. The markup inside is
+   byte-for-byte as the site served it; only the surrounding CSS, images, and
+   scripts are removed. `tag` overrides which element is sliced — needed when
+   the anchor is not a `<div>` (`data-testid="member-table"` is on a `<table>`)
+   or carries no testid at all (`class="header-nav`).
+
+   Two things the script does not do: the committed fixtures are hand-trimmed
+   subsets of the subtree, not byte-exact output, and a live capture contains
+   real member names, so check for those before committing. The `/recapture`
+   command (`.opencode/command/recapture.md`) is the short version of the
+   procedure and the **`recapture-fixture` skill** (`.opencode/skills/`) the
+   long one — including how to produce a capture, since only two remain on
+   disk and neither is a bookings list.
 
 ## Fixtures
 
@@ -44,8 +57,14 @@ CourtReserve "My Reservations" page (`app.courtreserve.com/Online/Bookings/List/
 - `login-page.html` — the login form from `/Online/Account/LogIn/7031`:
   `input[name="email"]`, `input[name="password"]`, and the
   `button[data-testid="Continue"]` submit. Used to test credential login.
-- `adding-player/` — raw MHTML captures of the edit-reservation flow, kept for
-  reverse-engineering the (unimplemented) add/remove-player methods.
+- `adding-player/` — the edit-reservation flow read by `players.test.ts`:
+  `edit-modal.html`, `player-options.html`, `no-player-options.html`,
+  `player-added.html`, `confirm-dialog.html`, `reservation-confirmed.html`,
+  `reservation-detail.html`. (`two-bookings.html` is not read by any test.)
+- `removing-player/` — `modal-player-list.html` and `modal-player-removed.html`,
+  the `data-testid="member-table"` grid before and after a removal.
+- `reserving-courts/` — captures of the book-a-court flow. Gitignored, no
+  functional test reads them; reference only.
 
 ## Caveats
 
