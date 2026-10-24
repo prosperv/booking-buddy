@@ -85,7 +85,7 @@ describe("functional: booking scraping", () => {
                 <div data-testid="details-btn">Edit Reservation</div>
                 <div data-testid="row-date-and-times">Mon, Oct 19th, 6:30 PM - 8:30 PM</div>
                 <div data-testid="row-courts">Mukilteo 8, Mukilteo 9, Mukilteo 10, Mukilteo 11, Mukilteo 12</div>
-                <div data-testid="row-members">Bryan Cheong, Brandon Luu</div>
+                <div data-testid="row-members">Viktor Axelsen, Chen Long</div>
               </div>
             </div>`;
 

@@ -147,12 +147,12 @@ describe("matchPlayerOption", () => {
 
     it("still matches by name when no id is supplied", () => {
         const mixed: MemberOption[] = [
-            { displayName: "Brian Lim", memberId: 1388512 },
-            { displayName: "Brian Lim (Superior)", memberId: 827034 },
+            { displayName: "Viktor Axelsen", memberId: 1388512 },
+            { displayName: "Viktor Axelsen (Superior)", memberId: 827034 },
         ];
-        expect(matchPlayerOption(mixed, "Brian Lim (Superior)")).toEqual({
+        expect(matchPlayerOption(mixed, "Viktor Axelsen (Superior)")).toEqual({
             status: "exact",
-            name: "Brian Lim (Superior)",
+            name: "Viktor Axelsen (Superior)",
             index: 1,
         });
     });

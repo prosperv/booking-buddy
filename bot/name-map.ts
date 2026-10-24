@@ -6,7 +6,7 @@ import { normalizePlayerName } from "../src/players";
  *
  * A **string** value is the member name as written, for the members whose own
  * name is not unique enough for the booking system's member search to tell them
- * apart and who registered under a modified one instead ("Brian Lim" -> "Brian
+ * apart and who registered under a modified one instead ("Viktor Axelsen" -> "Brian
  * Lim (Superior)"). The roster still carries the name people recognise, so the
  * bot has to translate before it can search.
  *
