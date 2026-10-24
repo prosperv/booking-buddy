@@ -89,7 +89,9 @@ behavior. What's load-bearing here:
   to `getCurrentBookings`; `location` is a case-insensitive bot-side filter) →
   `session` (`roster`, `courtCapacity` default 6 **including** the organizer,
   optional `organizer`). `validateConfig` is strict and throws `ConfigError`
-  with a path-like message rather than skipping a bad job.
+  with a path-like message rather than skipping a bad job. `courtCapacity` is
+  per court; a reservation covering N courts holds N times that, with one slot
+  for its organizer.
 - `session.roster` in JSON is a **string** (local CSV path, resolved relative to
   the config file) or an **object** `{ sheet: "<url|id>", range? }`.
   `validateConfig` normalizes these into a discriminated union
@@ -141,19 +143,24 @@ behavior. What's load-bearing here:
   self-mapping and two keys that normalize alike; it stores keys normalized but
   values as written, since the value is what gets typed and logged.
 - A **session** is the set of bookings at the same date/time/location across
-  courts. `bot/session.ts` groups them and plans the split: fill courts in
-  court-number order preserving roster order, up to `courtCapacity`. It imports
+  courts. `bot/session.ts` groups them and plans the split: fill reservations in
+  court-number order preserving roster order, up to N x `courtCapacity` for a
+  reservation covering N courts (one slot for its organizer). It imports
   `normalizePlayerName` / `searchNameError` from `../src/players` (not the
   `../src` barrel) so comparisons stay consistent with the add flow.
   `ensure-roster` applies each court with `swapPlayersOnBooking` — one
   edit-modal save per court, and courts with no add/remove are skipped.
 - Names the session has no room for are reported, never added, split two ways in
-  `SessionPlan`: `overflow` is at most **one name per court**, each attributed to
-  the fullest court first (`postPlayers` descending, court number as tie-break),
-  since that court is the one blocking; `waitlisted` is everything past that,
-  which needs a court that isn't booked yet. Both are hypothetical attributions —
-  the greedy fill exhausts every free slot before anything lands there, so
-  `overflow`/`waitlisted` together are just the tail of the candidate list. They
+  `SessionPlan`: `overflow` is at most **one name per reservation**, each
+  attributed to the fullest reservation first (`postPlayers` descending, court
+  number as tie-break), since that reservation is the one blocking — its
+  organizer's locked seat is what cost the name its slot; `waitlisted` is
+  everything past that, which needs a reservation that isn't booked yet. The
+  budget is the number of reservations, or one fewer when the organizer is
+  playing (they occupy one of those locked seats productively). Both are
+  hypothetical attributions — the greedy fill exhausts every free slot before
+  anything lands there, so `overflow`/`waitlisted` together are just the tail
+  of the candidate list. They
   are `warn`-level and never affect `ok`; the `waitlist` event adds how many more
   courts are needed (`capacity - 1`, since a new court has its own organizer).
 - One `now` is taken per run and threaded through, so month-tab selection and the
@@ -400,8 +407,9 @@ behavior. What's load-bearing here:
   location; splitting on spaces (right for the single-court shape) used to make
   the whole run the location, which then failed `groupBookingsIntoSessions`' `===`
   and dropped the booking from its session with no log line. `Booking.courtNumbers`
-  carries the span, and a run logs `multi-court-booking` at `warn` because the
-  plan still fills such a booking to one `courtCapacity`, not one per court.
+  carries the span, and the bot now scales the plan to N x `courtCapacity` for a
+  reservation covering N courts, logging `multi-court-booking` at `info` with the
+  computed capacity.
 - A booking card's date row carries **no year**, so `parseDatetime` takes a
   `reference` (default: now) and rolls a month/day already past that reference
   into next year — the list is always upcoming. Only month/day is compared, so a

@@ -3,7 +3,7 @@ import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./confi
 import { formatDateKey, type Roster, type RosterSet } from "./csv";
 import { loadRoster, logRosterRead } from "./roster";
 import { resolveMapping, type NameMap } from "./name-map";
-import { groupBookingsIntoSessions, planSession, type SessionGroup, type SessionPlan } from "./session";
+import { groupBookingsIntoSessions, planSession, sessionCourtCount, type SessionGroup, type SessionPlan } from "./session";
 
 /**
  * Counters for everything a run touched or decided not to touch. The run's exit
@@ -197,29 +197,32 @@ function logNameMappings(logger: Logger, job: JobConfig, nameMap: NameMap | unde
 
 function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan, capacity: number): void {
     logger.info(
-        `[session] ${session.date} ${session.startTime} @ ${session.location} (${session.courts.length} court(s))`,
+        `[session] ${session.date} ${session.startTime} @ ${session.location} (${sessionCourtCount(session)} court(s), ${session.courts.length} reservation(s))`,
         {
             event: "session",
             date: session.date,
             startTime: session.startTime,
             location: session.location,
-            courts: session.courts.length,
+            courts: sessionCourtCount(session),
+            reservations: session.courts.length,
         },
     );
 
     for (const court of plan.courts) {
         const b = court.booking;
         // A reservation covering several courts is one booking id the site edits
-        // as a unit, but the plan fills it to `courtCapacity` like any single
-        // court — so the run under-fills it rather than erroring. Say so instead
-        // of quietly leaving courts on that booking short.
+        // as a unit; its capacity is now courtCount x courtCapacity rather than
+        // a single court's worth.
         if (b.courtNumbers !== undefined && b.courtNumbers.length > 1) {
-            logger.warn(
-                `  booking ${b.bookingId} spans courts ${b.courtNumbers.join(", ")} — planned as a single court, so it holds at most courtCapacity players, not one set per court`,
+            logger.info(
+                `  booking ${b.bookingId} covers courts ${b.courtNumbers.join(", ")} — planned for ${
+                    b.courtNumbers.length * capacity
+                } player(s)`,
                 {
                     event: "multi-court-booking",
                     bookingId: b.bookingId,
                     courts: b.courtNumbers,
+                    capacity: b.courtNumbers.length * capacity,
                 },
             );
         }
@@ -248,18 +251,19 @@ function logSession(logger: Logger, session: SessionGroup, plan: SessionPlan, ca
     if (plan.overflow.length > 0) {
         logger.warn(
             `  no space: ${plan.overflow
-                .map((p) => `${p.name} (court ${p.court}, ${p.seated}/${capacity})`)
+                .map((p) => `${p.name} (court ${p.court}, ${p.seated}/${p.capacity})`)
                 .join(", ")}`,
             {
                 event: "overflow",
-                capacity,
                 players: plan.overflow,
             },
         );
     }
     if (plan.waitlisted.length > 0) {
         // A court that is not booked yet holds one fewer player than `capacity`:
-        // its own organizer occupies a seat without playing.
+        // its own organizer occupies a seat without playing. Extending an
+        // existing reservation instead would add a full `capacity`, since it
+        // already has its own organizer.
         const courtsNeeded = Math.ceil(plan.waitlisted.length / Math.max(1, capacity - 1));
         logger.warn(`  waitlisted: ${plan.waitlisted.join(", ")} — book ${courtsNeeded} more court(s)`, {
             event: "waitlist",

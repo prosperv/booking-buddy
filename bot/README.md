@@ -17,9 +17,10 @@ what the bot implements lives in [`FEATURE.md`](FEATURE.md).
 
 A session is a group of bookings at the same date, time, and location spread
 across courts (e.g. three courts booked for one evening). The roster of signups
-is split across the session's courts, respecting the per-court capacity. The
-organizer — named in `session.organizer` — appears on every court and is never
-added or removed by the bot.
+is split across the session's reservations, respecting the per-court capacity:
+a reservation covering N courts holds N times that. The organizer — named in
+`session.organizer` — appears on every reservation and is never added or
+removed by the bot.
 
 ## Commands
 
@@ -100,7 +101,7 @@ host. Each job names the bookings to match and the session to fill:
 | `enabled`    | boolean           | Default `true`; disabled jobs are skipped. |
 | `match`      | object (optional) | `weekday`, `startTime`, and/or `location` (all optional). `weekday`/`startTime` are passed straight to `getCurrentBookings`; `location` is matched case-insensitively against the booking's location name (e.g. `"Bellevue"`). Omit to match all editable bookings. The specific weeks to fill come from the roster's dates, not from `match`. |
 | `session.roster` | string or object | The roster source. A **string** is a path (relative to the config file) to a local CSV. An **object** with `"sheet"` is a Google Sheet (see below). |
-| `session.courtCapacity` | number | Optional, default `6`. Total players per court, **including** the organizer. |
+| `session.courtCapacity` | number | Optional, default `6`. Total players per court, **including** the organizer. A reservation covering N courts holds N times that, with one slot for its organizer. |
 | `session.organizer` | string     | Optional. The organizer's name — never added or removed by the bot. Strongly recommended, especially for single-court sessions where the "on every court" heuristic can't tell the organizer apart from a dropped player. |
 | `google.serviceAccount` | object | Required when any job uses a Google Sheet. The full service-account key, inline (only `client_email` and `private_key` are used). |
 
@@ -362,18 +363,18 @@ Two consequences worth knowing:
    matching by month/day, and by start time when the roster carries one. With
    no such session, report that there is nothing to do. With no matching
    booking, report it and move on.
-7. Plan the session: fill courts in court-number order, preserving roster
-   order, up to `courtCapacity` (the organizer already occupies a slot on every
-   court). Names in the roster but on no court are added; names on a court but
-   no longer in the roster are removed — except the organizer (and any name on
-   every court). A removal frees a slot, so a dropped player's court can absorb
-   a replacement in the same run. Names too short to search are reported, and so
-   are the names the session has no room for: those that would fill a court that
-   is at capacity are reported as `overflow` — with the court each one would have
-   gone to, fullest court first and at most one name per court — and the rest are
-   `waitlisted`, since they need a court that is not booked yet. When a
-   [`nameMap`](#player-name-map) is configured, names are compared by identity
-   and the mapped name is the one added.
+7. Plan the session: fill reservations in court-number order, preserving roster
+   order, up to N x `courtCapacity` for a reservation covering N courts (the
+   organizer already occupies a slot on every reservation). Names in the roster
+   but on no reservation are added; names on a reservation but no longer in the
+   roster are removed — except the organizer (and any name on every reservation).
+   A removal frees a slot, so a dropped player's reservation can absorb a
+   replacement in the same run. Names too short to search are reported, and so
+   are the names the session has no room for: at most one per reservation is
+   reported as `overflow` — with the reservation each one would have gone to,
+   fullest first — and the rest are `waitlisted`, since they need a reservation
+   that is not booked yet. When a [`nameMap`](#player-name-map) is configured,
+   names are compared by identity and the mapped name is the one added.
 8. In `--dry-run`, print the assignment. Otherwise `swapPlayersOnBooking()`
    removes and adds each court's players in a single edit-modal save and logs
    removed/added/skipped/failed.

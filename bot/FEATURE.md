@@ -26,7 +26,8 @@ What the `bot/` CLI does on top of the library (see
 - Per job, a session definition.
   - `roster` — a local CSV path (relative to the config file) or a Google Sheet
     by URL or id, with an optional A1 range.
-  - `courtCapacity` — defaults to 6 and includes the organizer.
+  - `courtCapacity` — defaults to 6 and includes the organizer. Per court; a
+    reservation covering N courts holds N times that.
   - `organizer` — a name that is never removed.
 - A global player name map.
   - Roster name → CourtReserve member name, for members who registered under a
@@ -83,11 +84,12 @@ What the `bot/` CLI does on top of the library (see
   - On some courts: left alone, so re-running never churns an assignment.
   - On no court and too short to search: flagged rather than assigned.
   - On no court and beyond the free slots: reported, split two ways.
-    - Overflow: at most one name per court, attributed to the fullest court
-      first, since that court is the one actually blocking.
-    - Waitlisted: everything past one per court, which needs a court that is not
+    - Overflow: at most one name per reservation, attributed to the fullest
+      reservation first, since that reservation's locked organizer seat is the
+      one actually blocking.
+    - Waitlisted: everything past that, which needs a reservation that is not
       booked yet.
-    - Both are hypothetical — no court had room, so neither was added.
+    - Both are hypothetical — no seat had room, so neither was added.
 - Slot filling respects court capacity.
   - Roster order preserved, courts filled in court-number order.
   - Removals free capacity, so a dropped player's court absorbs a replacement in

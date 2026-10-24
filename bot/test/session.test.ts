@@ -179,7 +179,7 @@ describe("planSession", () => {
         const plan = planSession(session, NAMES.slice(0, 11), 6, organizer);
         expect(plan.courts.map((c) => names(c.add))).toEqual([NAMES.slice(0, 5), NAMES.slice(5, 10)]);
         // Both courts end up 6/6, so the fullness tie breaks on court number.
-        expect(plan.overflow).toEqual([{ name: NAMES[10], court: 1, bookingId: "1", seated: 6 }]);
+        expect(plan.overflow).toEqual([{ name: NAMES[10], court: 1, bookingId: "1", seated: 6, capacity: 6 }]);
         expect(plan.waitlisted).toEqual([]);
     });
 
@@ -202,9 +202,9 @@ describe("planSession", () => {
         // One name per court, fullest first: the over-capacity court leads, and
         // the two 6/6 courts fall back to court number.
         expect(plan.overflow).toEqual([
-            { name: fresh[9], court: 1, bookingId: "1", seated: 7 },
-            { name: fresh[10], court: 2, bookingId: "2", seated: 6 },
-            { name: fresh[11], court: 3, bookingId: "3", seated: 6 },
+            { name: fresh[9], court: 1, bookingId: "1", seated: 7, capacity: 6 },
+            { name: fresh[10], court: 2, bookingId: "2", seated: 6, capacity: 6 },
+            { name: fresh[11], court: 3, bookingId: "3", seated: 6, capacity: 6 },
         ]);
         // Everything past one per court has no court to be attributed to.
         expect(plan.waitlisted).toEqual(fresh.slice(12));
@@ -221,11 +221,61 @@ describe("planSession", () => {
         const roster = [...NAMES, ...Array.from({ length: 9 }, (_, i) => `Extra Player ${i}`)];
         const plan = planSession(session, roster, 6, organizer);
         expect(plan.overflow).toEqual([
-            { name: roster[15], court: 1, bookingId: "1", seated: 6 },
-            { name: roster[16], court: 2, bookingId: "2", seated: 6 },
-            { name: roster[17], court: 3, bookingId: "3", seated: 6 },
+            { name: roster[15], court: 1, bookingId: "1", seated: 6, capacity: 6 },
+            { name: roster[16], court: 2, bookingId: "2", seated: 6, capacity: 6 },
+            { name: roster[17], court: 3, bookingId: "3", seated: 6, capacity: 6 },
         ]);
         expect(plan.waitlisted).toEqual(roster.slice(18));
+    });
+
+    it("plans a multi-court reservation for one court's worth of capacity per court", () => {
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer], courtNumbers: [1, 2] }),
+        ]);
+
+        const plan = planSession(session, NAMES, 6, organizer);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([NAMES.slice(0, 11)]);
+        expect(plan.overflow).toEqual([{ name: NAMES[11], court: 1, bookingId: "1", seated: 12, capacity: 12 }]);
+        expect(plan.waitlisted).toEqual([]);
+    });
+
+    it("waitlists names past a multi-court reservation's doubled capacity", () => {
+        const roster = [...NAMES, "Extra Player A", "Extra Player B"];
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer], courtNumbers: [1, 2] }),
+        ]);
+
+        const plan = planSession(session, roster, 6, organizer);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([roster.slice(0, 11)]);
+        expect(plan.overflow).toEqual([{ name: roster[11], court: 1, bookingId: "1", seated: 12, capacity: 12 }]);
+        expect(plan.waitlisted).toEqual(roster.slice(12));
+    });
+
+    it("splits a roster across a single-court and a multi-court reservation in one session", () => {
+        const roster = [...NAMES, "Extra A", "Extra B", "Extra C", "Extra D"];
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer] }),
+            booking({ id: "2", court: 2, start, players: [organizer], courtNumbers: [2, 3] }),
+        ]);
+
+        const plan = planSession(session, roster, 6, organizer);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([roster.slice(0, 5), roster.slice(5, 16)]);
+        expect(plan.overflow).toEqual([]);
+        expect(plan.waitlisted).toEqual([]);
+    });
+
+    it("drops the organizer's overflow slot when they are playing", () => {
+        const session = group([
+            booking({ id: "1", court: 1, start, players: [organizer, ...NAMES.slice(0, 5)] }),
+            booking({ id: "2", court: 2, start, players: [organizer, ...NAMES.slice(5, 10)] }),
+        ]);
+
+        const roster = [organizer, ...NAMES.slice(0, 10), NAMES[10], NAMES[11]];
+        const plan = planSession(session, roster, 6, organizer);
+        expect(plan.satisfied).toEqual([organizer]);
+        expect(plan.courts.map((c) => names(c.add))).toEqual([[], []]);
+        expect(plan.overflow).toEqual([{ name: NAMES[10], court: 1, bookingId: "1", seated: 6, capacity: 6 }]);
+        expect(plan.waitlisted).toEqual([NAMES[11]]);
     });
 
     it("treats a name on every court as satisfied (organizer)", () => {
@@ -337,11 +387,11 @@ describe("planSession", () => {
 
     it("keeps the name for a name mapping and adds no id", () => {
         const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
-        const plan = planSession(session, ["Brian Lim"], 6, organizer, {
-            "brian lim": "Brian Lim (Superior)",
+        const plan = planSession(session, ["Viktor Axelsen"], 6, organizer, {
+            "viktor axelsen": "Viktor Axelsen (Superior)",
         });
 
-        expect(plan.courts[0].add).toEqual([{ name: "Brian Lim (Superior)" }]);
+        expect(plan.courts[0].add).toEqual([{ name: "Viktor Axelsen (Superior)" }]);
     });
 
     it("reports an id-mapped overflow by its roster name", () => {
@@ -355,7 +405,7 @@ describe("planSession", () => {
 
         expect(names(plan.courts[0].add)).toEqual(NAMES.slice(0, 5));
         expect(plan.overflow).toEqual([
-            { name: "Phuong Truong", court: 1, bookingId: "1", seated: 6 },
+            { name: "Phuong Truong", court: 1, bookingId: "1", seated: 6, capacity: 6 },
         ]);
     });
 
@@ -390,8 +440,8 @@ describe("planSession", () => {
         const plan = planSession(session, roster, 6, organizer);
         expect(plan.courts.map((c) => names(c.add)).map((a) => a.length)).toEqual([5, 5]);
         expect(plan.overflow).toEqual([
-            { name: roster[10], court: 1, bookingId: "1", seated: 6 },
-            { name: roster[11], court: 2, bookingId: "2", seated: 6 },
+            { name: roster[10], court: 1, bookingId: "1", seated: 6, capacity: 6 },
+            { name: roster[11], court: 2, bookingId: "2", seated: 6, capacity: 6 },
         ]);
         expect(plan.waitlisted).toEqual(roster.slice(12));
     });
@@ -499,7 +549,7 @@ describe("planSession with a name map", () => {
         ];
         const plan = planSession(session, [...full, "Riley Poe"], 6, organizer, nameMap);
         expect(plan.courts.map((c) => names(c.add))).toEqual([[full[0], full[1], full[2], full[3], full[4]], full.slice(5)]);
-        expect(plan.overflow).toEqual([{ name: "Lee Zii Jia", court: 1, bookingId: "1", seated: 6 }]);
+        expect(plan.overflow).toEqual([{ name: "Lee Zii Jia", court: 1, bookingId: "1", seated: 6, capacity: 6 }]);
         expect(plan.waitlisted).toEqual([]);
     });
 });

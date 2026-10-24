@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBooking, filterBookings, isEditableBooking, parseBookingCount } from "../src/booking";
+import { buildBooking, courtCount, filterBookings, isEditableBooking, parseBookingCount } from "../src/booking";
 import type { Booking } from "../src/types";
 
 /**
@@ -20,6 +20,24 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
         ...overrides,
     };
 }
+
+describe("courtCount", () => {
+    it("counts every court in the span", () => {
+        expect(courtCount(makeBooking({ courtNumbers: [8, 9, 10] }))).toBe(3);
+    });
+
+    it("is 1 for a single-court booking", () => {
+        expect(courtCount(makeBooking({ courtNumbers: [10] }))).toBe(1);
+    });
+
+    it("falls back to 1 for an empty span", () => {
+        expect(courtCount(makeBooking({ courtNumbers: [] }))).toBe(1);
+    });
+
+    it("falls back to 1 when courtNumbers is missing", () => {
+        expect(courtCount(makeBooking({ courtNumbers: undefined }))).toBe(1);
+    });
+});
 
 describe("parseBookingCount", () => {
     it("reads the count out of the label", () => {

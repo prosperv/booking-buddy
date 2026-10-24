@@ -39,8 +39,11 @@ export type Booking = {
     courtLocation: string;
     /**
      * Every court on the card, when one reservation covers more than one. Length
-     * 1 for the usual single-court booking. Present so a multi-court reservation
-     * is recognisable rather than silently planned as one court.
+     * 1 for the usual single-court booking. Length > 1 means a single
+     * reservation spanning several courts, which the site edits as one unit
+     * (one flat member list, one save). That count scales the session's per-court
+     * capacity: a reservation covering N courts holds N times courtCapacity
+     * players, with one slot for its organizer.
      */
     courtNumbers?: number[];
     players: string[];

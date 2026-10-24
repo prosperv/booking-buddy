@@ -49,6 +49,17 @@ export function isEditableBooking(buttonText: string): boolean {
     return /edit/i.test(buttonText.trim());
 }
 
+/**
+ * How many courts one reservation covers. CourtReserve renders one booking
+ * card per reservation and lists every court in its court row as
+ * `Mukilteo 8, Mukilteo 9, …`, so the span's length is the number of
+ * courts held. Falls back to 1 so a booking scraped without a court row, or
+ * built by hand in a test, is never given zero capacity.
+ */
+export function courtCount(booking: Booking): number {
+    return Math.max(1, booking.courtNumbers?.length ?? 1);
+}
+
 export async function convertBookingCardToBookingSession(
     bookingCard: Locator,
 ): Promise<BookingSession | null> {
