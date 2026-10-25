@@ -105,6 +105,7 @@ export async function diagnose(options: DoctorOptions): Promise<Finding[]> {
     findings.push(...checkAuthFile(options.authFile ?? authPath));
     findings.push(...checkCredentials(options.credentialsFile ?? CREDENTIALS_FILE, options.env));
     findings.push(...checkXvfb(options.xvfbRunPath ?? findOnPath("xvfb-run")));
+    findings.push(...checkReporting(config));
 
     const hasSheetJob = jobs.some((j) => j.session.roster.kind === "googleSheet");
     if (options.live && template.length === 0) {
@@ -316,6 +317,21 @@ function checkXvfb(xvfbRunPath: string): Finding[] {
         subject: "xvfb",
         message: "xvfb-run was not found on PATH — a scheduled run drives a headed browser on a virtual display, and without one Cloudflare blocks it (it 403s the HeadlessChrome user-agent a headless browser sends)",
         remedy: "apt install xvfb, then systemctl daemon-reload — the unit already points at xvfb-run",
+    }];
+}
+
+/**
+ * Post-run reporting posts a Discord summary of what the run did. It is
+ * optional — a run works fine without it — but without it a run that quietly
+ * did nothing is only visible by sshing in and grepping the log.
+ */
+function checkReporting(config: BotConfig): Finding[] {
+    if (config.reporting) return [];
+    return [{
+        severity: "advisory",
+        subject: "reporting",
+        message: "no Discord webhook configured — a run that does nothing wrong is invisible outside log/bot-<date>.log",
+        remedy: "add a reporting.discord.webhookUrl (see bot/README.md) — the URL is a credential, so keep it in bot.config.json at mode 600",
     }];
 }
 

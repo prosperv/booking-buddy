@@ -35,6 +35,15 @@ What the `bot/` CLI does on top of the library (see
   - Keys are normalized, values are kept as written (the value is what gets
     typed and logged).
 - An inline Google service-account key, required when any job reads a sheet.
+- Optional post-run reporting to a Discord channel.
+  - Configured under a top-level `reporting.discord.webhookUrl`; omit to disable.
+  - After a run, one message is posted (only after the browser closes) listing
+    players added, removed, on waitlist, overflowed, and with problems, plus the
+    session date and 12-hour time.
+  - Fires when a court was edited, when anything needs attention, or when anyone
+    was left waiting; a dry run never posts.
+  - The webhook URL is a credential (mode-600 config, never logged).
+  - `doctor` reports an advisory finding when the block is absent.
 - Validation is strict and fails loudly.
   - Path-like messages for duplicate job names, malformed fields, an empty job
     list, a missing service account, and a name map that self-maps or has two

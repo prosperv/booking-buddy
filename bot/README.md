@@ -104,6 +104,7 @@ host. Each job names the bookings to match and the session to fill:
 | `session.courtCapacity` | number | Optional, default `6`. Total players per court, **including** the organizer. A reservation covering N courts holds N times that, with one slot for its organizer. |
 | `session.organizer` | string     | Optional. The organizer's name — never added or removed by the bot. Strongly recommended, especially for single-court sessions where the "on every court" heuristic can't tell the organizer apart from a dropped player. |
 | `google.serviceAccount` | object | Required when any job uses a Google Sheet. The full service-account key, inline (only `client_email` and `private_key` are used). |
+| `reporting.discord.webhookUrl` | string (optional) | Incoming webhook URL for a Discord channel. When set, each run posts one message summarising what it did (players added/removed, waitlisted, overflowed and with problems, plus the session date and time). The URL is a credential — keep it in this mode-600 config, never in the systemd unit or `credentials.env`. Omit to disable reporting. |
 
 ## Player name map
 
@@ -116,7 +117,7 @@ translates one to the other before the bot searches:
 "nameMap": {
   "Riley Poe":  "Lee Zii Jia",
   "Riley Poo": "Lee Zii Jiaa",
-  "Phuong Truong": 6227635
+  "Lee Chong Wei": 6227635
 }
 ```
 
@@ -138,15 +139,15 @@ name (the search is a case-insensitive substring match, so the roster name is
 what brings both members back) and picks the option with that id:
 
 ```json
-"nameMap": { "Phuong Truong": 6227635 }
+"nameMap": { "Lee Chong Wei": 6227635 }
 ```
 
 **How to find the id:** run the bot and read the `ambiguous` warning. Candidates
 are listed with their ids, so the entry can be copied straight from the log:
 
 ```
-player ambiguous  name="Phuong Truong" reason="ambiguous"
-                 candidates=["PHUONG TRUONG (id 661539)", "Phuong Truong (id 6227635)"]
+player ambiguous  name="Lee Chong Wei" reason="ambiguous"
+                 candidates=["LEE CHONG WEI (id 661539)", "Lee Chong Wei (id 6227635)"]
 ```
 
 An id that is not among the search results is reported as `member-id-not-found`
@@ -389,6 +390,53 @@ Cloudflare 403s the `HeadlessChrome` user-agent — see
 `EnvironmentFile=` — see [`systemd/README.md`](systemd/README.md)), a run
 re-logs-in unattended when the saved session has gone stale, so a missing
 `auth.json` no longer blocks on the manual-login prompt.
+
+## Reporting (optional)
+
+A run can post one summary message to a Discord channel after it finishes, so
+organizers and players see who got a court, who was removed, who is waitlisted
+or overflowed (playing with no seat), and who hit a problem — without sshing
+in and grepping `log/bot-<date>.log`.
+
+Configure it under the top-level `reporting` key:
+
+```json
+"reporting": { "discord": { "webhookUrl": "https://discord.com/api/webhooks/..." } }
+```
+
+The webhook URL is a credential: it lives inline in this mode-600 config,
+exactly like `google.serviceAccount.private_key`, and is never logged (only the
+target host is). Do not put it in the systemd unit's `Environment=` or in
+`/etc/booking-buddy/credentials.env`.
+
+Behaviour:
+
+- One message per run, posted only after the browser is closed.
+- The message carries the session date and 12-hour time in its title and lists
+  five sections — players added to court, players removed, players on waitlist,
+  players overflow, players with problems — with `(none)` when a section is empty.
+- Dry runs (`--dry-run`) never post, so local checks cannot ping organizers.
+- A post fires when a court was edited, when anything needs attention, or when
+  anyone was left waiting (waitlisted or overflow). A run that did nothing, on a
+  fully-seated session with no waitlist, stays silent.
+- A failed or misconfigured webhook is logged as `report-failed` and never
+  changes the run's exit code; the run is already finished by then.
+- `doctor` reports an advisory `reporting` finding when the block is absent.
+
+To create the webhook:
+
+1. Open Discord and go to the server and channel you want reports in.
+2. Click the gear icon next to the channel name (Edit Channel).
+3. In the left sidebar, open **Integrations**.
+4. Click **Create Webhook** (or **New Webhook**).
+5. Give it a name (e.g. "Booking Buddy") and optionally an avatar, then click **Copy Webhook URL**.
+6. Paste that URL into `bot.config.json` under `reporting.discord.webhookUrl`.
+
+The URL looks like `https://discord.com/api/webhooks/<id>/<token>` and grants
+anyone who has it the ability to post to that channel, so treat it as a secret:
+keep it in the mode-600 `bot.config.json`, never commit it, and never paste it
+into the systemd unit or `credentials.env`. To revoke it, delete the webhook in
+the same Integrations panel.
 
 ## Logging
 

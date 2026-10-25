@@ -269,8 +269,8 @@ behavior. What's load-bearing here:
   by the time `readPlayerOptions` has waited for the DOM the payload is there.
 - **The member search is a case-insensitive substring match server-side** —
   `operator=contains` with `ignoreCase=true` on `DisplayName`. So searching
-  `"Phuong Truong"` returns a member registered as `PHUONG TRUONG` *and* another
-  as `Phuong Truong`: two distinct members, identical initials, no phone on file.
+  `"Lee Chong Wei"` returns a member registered as `LEE CHONG WEI` *and* another
+  as `Lee Chong Wei`: two distinct members, identical initials, no phone on file.
   `matchPlayerOption` normalizes both sides and calls that `ambiguous`, which is
   correct — a case-sensitive matcher would silently pick one of two people.
   `nameMap` with a **number** value is the way out: see `bot/name-map.ts`, where

@@ -225,11 +225,11 @@ describe("validateConfig nameMap", () => {
     });
 
     it("accepts a member id for a roster name two members share", () => {
-        // The club lists "PHUONG TRUONG" and "Phuong Truong" as separate members,
+        // The club lists "LEE CHONG WEI" and "Lee Chong Wei" as separate members,
         // and the member search returns both for either spelling, so no name
         // mapping can pick between them. The id can.
-        expect(config({ "Phuong Truong": 6227635 }).nameMap).toEqual({
-            "phuong truong": 6227635,
+        expect(config({ "Lee Chong Wei": 6227635 }).nameMap).toEqual({
+            "lee chong wei": 6227635,
         });
     });
 
@@ -238,9 +238,9 @@ describe("validateConfig nameMap", () => {
     });
 
     it("rejects a member id that is not a positive integer", () => {
-        expect(() => config({ "Phuong Truong": 0 })).toThrow(/positive integer/);
-        expect(() => config({ "Phuong Truong": -1 })).toThrow(/positive integer/);
-        expect(() => config({ "Phuong Truong": 1.5 })).toThrow(/positive integer/);
+        expect(() => config({ "Lee Chong Wei": 0 })).toThrow(/positive integer/);
+        expect(() => config({ "Lee Chong Wei": -1 })).toThrow(/positive integer/);
+        expect(() => config({ "Lee Chong Wei": 1.5 })).toThrow(/positive integer/);
     });
 
     it("rejects a value that is neither a name nor an id, naming both options", () => {
@@ -249,10 +249,10 @@ describe("validateConfig nameMap", () => {
     });
 
     it("does not call a name pinned by id a self-mapping", () => {
-        // "Phuong Truong" -> "Phuong Truong" changes no name, so as a string it
+        // "Lee Chong Wei" -> "Lee Chong Wei" changes no name, so as a string it
         // would be rejected as doing nothing; as an id it is the normal way to
         // say which of two same-named members is meant.
-        expect(config({ "Phuong Truong": 6227635 }).nameMap).toBeDefined();
+        expect(config({ "Lee Chong Wei": 6227635 }).nameMap).toBeDefined();
     });
 
     it("rejects an empty roster name", () => {
@@ -270,6 +270,56 @@ describe("validateConfig nameMap", () => {
     });
 });
 
+describe("validateConfig reporting", () => {
+    const base = { jobs: [{ name: "t", session: { roster: "r.csv" } }] };
+
+    it("accepts an absent reporting block", () => {
+        const config = validateConfig(base);
+        expect(config.reporting).toBeUndefined();
+    });
+
+    it("accepts a valid https webhook url", () => {
+        const config = validateConfig({
+            ...base,
+            reporting: { discord: { webhookUrl: "https://discord.com/api/webhooks/1/abc" } },
+        });
+        expect(config.reporting?.discord.webhookUrl).toBe("https://discord.com/api/webhooks/1/abc");
+    });
+
+    it("trims the webhook url", () => {
+        const config = validateConfig({
+            ...base,
+            reporting: { discord: { webhookUrl: "  https://discord.com/api/webhooks/1/abc  " } },
+        });
+        expect(config.reporting?.discord.webhookUrl).toBe("https://discord.com/api/webhooks/1/abc");
+    });
+
+    it("rejects a non-object reporting block", () => {
+        expect(() => validateConfig({ ...base, reporting: "x" })).toThrow(/config\.reporting must be an object/);
+    });
+
+    it("rejects a missing discord block", () => {
+        expect(() => validateConfig({ ...base, reporting: {} })).toThrow(/config\.reporting\.discord must be an object/);
+    });
+
+    it("rejects an empty webhook url", () => {
+        expect(() => validateConfig({ ...base, reporting: { discord: { webhookUrl: "" } } })).toThrow(
+            /config\.reporting\.discord\.webhookUrl must be a non-empty string/,
+        );
+    });
+
+    it("rejects a non-https webhook url", () => {
+        expect(() =>
+            validateConfig({ ...base, reporting: { discord: { webhookUrl: "http://discord.com/x" } } }),
+        ).toThrow(/config\.reporting\.discord\.webhookUrl must be an https:\/\/ URL/);
+    });
+
+    it("rejects a malformed webhook url", () => {
+        expect(() =>
+            validateConfig({ ...base, reporting: { discord: { webhookUrl: "not a url" } } }),
+        ).toThrow(/config\.reporting\.discord\.webhookUrl must be an https:\/\/ URL/);
+    });
+});
 describe("enabledJobs", () => {
     const config = validateConfig({
         jobs: [

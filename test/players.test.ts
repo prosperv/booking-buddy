@@ -96,22 +96,22 @@ describe("matchPlayerOption", () => {
     // by nothing a name matcher can see.
     describe("with a memberId", () => {
         const sameName: MemberOption[] = [
-            { displayName: "PHUONG TRUONG", memberId: 661539 },
-            { displayName: "Phuong Truong", memberId: 6227635 },
+            { displayName: "LEE CHONG WEI", memberId: 661539 },
+            { displayName: "Lee Chong Wei", memberId: 6227635 },
         ];
 
         it("picks the requested member, which name matching cannot do", () => {
-            expect(matchPlayerOption(sameName, "Phuong Truong", 6227635)).toEqual({
+            expect(matchPlayerOption(sameName, "Lee Chong Wei", 6227635)).toEqual({
                 status: "by-id",
-                name: "Phuong Truong",
+                name: "Lee Chong Wei",
                 index: 1,
             });
         });
 
         it("picks the all-caps one when that is the id asked for", () => {
-            expect(matchPlayerOption(sameName, "Phuong Truong", 661539)).toEqual({
+            expect(matchPlayerOption(sameName, "Lee Chong Wei", 661539)).toEqual({
                 status: "by-id",
-                name: "PHUONG TRUONG",
+                name: "LEE CHONG WEI",
                 index: 0,
             });
         });
@@ -119,29 +119,29 @@ describe("matchPlayerOption", () => {
         it("reports id-not-found rather than falling back to names", () => {
             // The fallback would book the other member, which is the one thing the
             // id exists to prevent, so a stale id must fail loudly.
-            const match = matchPlayerOption(sameName, "Phuong Truong", 999);
+            const match = matchPlayerOption(sameName, "Lee Chong Wei", 999);
             expect(match.status).toBe("id-not-found");
         });
 
         it("names the ids it would have accepted", () => {
-            const match = matchPlayerOption(sameName, "Phuong Truong", 999);
+            const match = matchPlayerOption(sameName, "Lee Chong Wei", 999);
             expect(match).toEqual({
                 status: "id-not-found",
-                candidates: ["PHUONG TRUONG (id 661539)", "Phuong Truong (id 6227635)"],
+                candidates: ["LEE CHONG WEI (id 661539)", "Lee Chong Wei (id 6227635)"],
             });
         });
 
         it("ignores the query entirely when an id is given", () => {
             expect(matchPlayerOption(sameName, "something else entirely", 661539)).toEqual({
                 status: "by-id",
-                name: "PHUONG TRUONG",
+                name: "LEE CHONG WEI",
                 index: 0,
             });
         });
 
         it("reports id-not-found when the payload supplied no ids at all", () => {
             const nameless: MemberOption[] = sameName.map((o) => ({ displayName: o.displayName }));
-            expect(matchPlayerOption(nameless, "Phuong Truong", 6227635).status).toBe("id-not-found");
+            expect(matchPlayerOption(nameless, "Lee Chong Wei", 6227635).status).toBe("id-not-found");
         });
     });
 

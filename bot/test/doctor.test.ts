@@ -356,6 +356,31 @@ describe("diagnose: xvfb", () => {
     });
 });
 
+describe("diagnose: reporting", () => {
+    async function reportingFinding(withReporting: boolean): Promise<{ severity: string; message: string; remedy?: string } | undefined> {
+        const cfg = withReporting
+            ? configJson({ reporting: { discord: { webhookUrl: "https://discord.com/api/webhooks/1/abc" } } })
+            : configJson();
+        const { configPath, authFile } = fixture(cfg, { "auth.json": VALID_AUTH });
+        const findings = await diagnose(options(configPath, authFile));
+        return findings.find((f) => f.subject === "reporting");
+    }
+
+    it("is advisory, not blocking", async () => {
+        expect((await reportingFinding(false))?.severity).toBe("advisory");
+    });
+
+    it("says nothing when a webhook is configured", async () => {
+        expect(await reportingFinding(true)).toBeUndefined();
+    });
+
+    it("points at the README and the mode-600 config", async () => {
+        const finding = await reportingFinding(false);
+        expect(finding?.remedy).toContain("README.md");
+        expect(finding?.remedy).toContain("mode 600");
+    });
+});
+
 describe("diagnose: --live", () => {
     it("makes no network call without --live, and says the sheet is unverified", async () => {
         const { configPath, authFile } = fixture(configJson(), { "auth.json": VALID_AUTH });

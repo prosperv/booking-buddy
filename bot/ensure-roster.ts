@@ -1,5 +1,6 @@
 import { CourtReserveClient, type Logger } from "../src";
 import { loadConfig, enabledJobs, type BotConfig, type JobConfig } from "./config";
+import { tallyNeedsAttention, maybeReportRun, emptyReportNames, formatSessionLabel, humanReason } from "./notify";
 import { formatDateKey, type Roster, type RosterSet } from "./csv";
 import { loadRoster, logRosterRead } from "./roster";
 import { resolveMapping, type NameMap } from "./name-map";
@@ -11,7 +12,7 @@ import { groupBookingsIntoSessions, planSession, sessionCourtCount, type Session
  * the session had no booking, or every player failed to search — still exits 0.
  * These are what make that visible: `run-end` emits them as one summary line.
  */
-type RunTally = {
+export type RunTally = {
     /** Sessions a roster was matched to and planned. */
     sessions: number;
     /** Courts actually saved (never incremented in a dry run). */
@@ -58,22 +59,6 @@ function emptyTally(): RunTally {
         saveUnconfirmed: 0,
         courtsFailed: 0,
     };
-}
-
-/**
- * Whether a tally describes a run that needs a human. A deferred roster is
- * deliberately not one of these — it is the normal steady state of walking
- * forward through a month.
- */
-function tallyNeedsAttention(tally: RunTally): boolean {
-    return (
-        tally.failed > 0 ||
-        tally.noBooking > 0 ||
-        tally.noUpcoming > 0 ||
-        tally.emptyRoster > 0 ||
-        tally.saveUnconfirmed > 0 ||
-        tally.courtsFailed > 0
-    );
 }
 
 /**
@@ -322,6 +307,8 @@ export async function runEnsureRoster(
     // The exit code only reports config/data problems, so this tally is how a
     // run that did nothing (or could not add a player) still says so out loud.
     const tally = emptyTally();
+    const names = emptyReportNames();
+    const sessionLabels: string[] = [];
 
     // Load every job's roster up front so a missing file or a sheet auth/network
     // failure fails fast without opening a browser. Failed jobs are skipped.
@@ -476,6 +463,12 @@ export async function runEnsureRoster(
                 );
                 logSession(logger, session, plan, job.session.courtCapacity);
                 tally.sessions += 1;
+                for (const p of plan.waitlisted) names.waitlisted.push(p);
+                for (const p of plan.overflow) names.overflow.push(`${p.name} (court ${p.court}, ${p.seated}/${p.capacity})`);
+                for (const p of plan.tooShort) names.problems.push(`${p} — too short to search`);
+                sessionLabels.push(
+                    `${formatSessionLabel(session.date, session.startTime)} @ ${session.location}`,
+                );
 
                 if (options.dryRun) continue;
 
@@ -499,6 +492,8 @@ export async function runEnsureRoster(
                         tally.added += result.added.length;
                         tally.skipped += result.skipped.length;
                         tally.failed += result.failed.length;
+                        for (const n of result.added) names.added.push(n);
+                        for (const n of result.removed) names.removed.push(n);
                         logger.info(
                             `    saved=${result.saved} confirmed=${result.confirmed} removed=${result.removed.length} added=${result.added.length} skipped=${result.skipped.length} failed=${result.failed.length}`,
                             {
@@ -534,6 +529,7 @@ export async function runEnsureRoster(
                             );
                         }
                         for (const failed of result.failed) {
+                            names.problems.push(`${failed.name} — ${humanReason(failed.reason)}`);
                             logger.warn(`    FAILED ${JSON.stringify(failed)}`, {
                                 event: "player-failed",
                                 job: job.name,
@@ -572,11 +568,15 @@ export async function runEnsureRoster(
         await client.close();
     }
 
+    const summary = tallySummary(tally);
     const level = tallyNeedsAttention(tally) ? "warn" : "info";
-    logger[level](`ensure-roster done (ok=${ok}) — ${tallySummary(tally)}`, {
+    logger[level](`ensure-roster done (ok=${ok}) — ${summary}`, {
         event: "run-end",
         ok,
         ...tally,
+    });
+    await maybeReportRun(config.reporting, { ok, tally, summary, names, sessionLabels }, logger, {
+        dryRun: options.dryRun,
     });
     return ok;
 }

@@ -99,6 +99,22 @@
             "skipFiles": [
                 "<node_internals>/**"
             ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug examples/test-reporting.ts",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "program": "${workspaceFolder}/examples/test-reporting.ts",
+            "args": [
+                "${input:webhookUrl}"
+            ],
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
         }
     ],
     "inputs": [
@@ -118,6 +134,12 @@
             "id": "playerName3",
             "type": "promptString",
             "description": "Optional: another player name (leave blank to skip)",
+            "default": ""
+        },
+        {
+            "id": "webhookUrl",
+            "type": "promptString",
+            "description": "Discord webhook URL",
             "default": ""
         }
     ]

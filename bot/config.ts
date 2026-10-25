@@ -44,6 +44,11 @@ export type ServiceAccountKey = {
     [key: string]: unknown;
 };
 
+/** Discord incoming-webhook reporting configuration. The webhook URL is a credential — it lives inline in the mode-600 config, like the service-account key, and is never logged. */
+export type ReportingConfig = {
+    discord: { webhookUrl: string };
+};
+
 export type BotConfig = {
     jobs: JobConfig[];
     /**
@@ -52,6 +57,7 @@ export type BotConfig = {
      */
     nameMap?: NameMap;
     google?: { serviceAccount: ServiceAccountKey };
+    reporting?: ReportingConfig;
 };
 
 export const DEFAULT_COURT_CAPACITY = 6;
@@ -79,9 +85,35 @@ export function validateConfig(raw: unknown): BotConfig {
         throw new ConfigError("config must be a JSON object");
     }
 
-    const root = raw as { jobs?: unknown; google?: unknown; nameMap?: unknown };
+    const root = raw as { jobs?: unknown; google?: unknown; nameMap?: unknown; reporting?: unknown };
     if (!Array.isArray(root.jobs) || root.jobs.length === 0) {
         throw new ConfigError("config.jobs must be a non-empty array");
+    }
+
+    let reporting: BotConfig["reporting"];
+    if (root.reporting !== undefined) {
+        if (!root.reporting || typeof root.reporting !== "object" || Array.isArray(root.reporting)) {
+            throw new ConfigError("config.reporting must be an object");
+        }
+        const rep = root.reporting as Record<string, unknown>;
+        const discord = rep.discord;
+        if (!discord || typeof discord !== "object" || Array.isArray(discord)) {
+            throw new ConfigError("config.reporting.discord must be an object with a webhookUrl");
+        }
+        const url = (discord as Record<string, unknown>).webhookUrl;
+        if (typeof url !== "string" || url.trim() === "") {
+            throw new ConfigError("config.reporting.discord.webhookUrl must be a non-empty string");
+        }
+        let parsed: URL;
+        try {
+            parsed = new URL(url.trim());
+        } catch {
+            throw new ConfigError("config.reporting.discord.webhookUrl must be an https:// URL");
+        }
+        if (parsed.protocol !== "https:") {
+            throw new ConfigError("config.reporting.discord.webhookUrl must be an https:// URL");
+        }
+        reporting = { discord: { webhookUrl: url.trim() } };
     }
 
     let google: BotConfig["google"];
@@ -265,7 +297,7 @@ export function validateConfig(raw: unknown): BotConfig {
         );
     }
 
-    return { jobs, ...(google ? { google } : {}), ...(nameMap ? { nameMap } : {}) };
+    return { jobs, ...(google ? { google } : {}), ...(nameMap ? { nameMap } : {}), ...(reporting ? { reporting } : {}) };
 }
 
 /** Reads, parses, and validates a config file, throwing `ConfigError` on any failure. */

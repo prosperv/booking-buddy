@@ -367,22 +367,22 @@ describe("planSession", () => {
         // Two club members share this name, so the search cannot tell them
         // apart; the id is what says which one is on the roster.
         const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
-        const plan = planSession(session, ["Phuong Truong"], 6, organizer, {
-            "phuong truong": 6227635,
+        const plan = planSession(session, ["Lee Chong Wei"], 6, organizer, {
+            "lee chong wei": 6227635,
         });
 
-        expect(plan.courts[0].add).toEqual([{ name: "Phuong Truong", memberId: 6227635 }]);
+        expect(plan.courts[0].add).toEqual([{ name: "Lee Chong Wei", memberId: 6227635 }]);
     });
 
     it("still searches by the roster name when the map pins an id", () => {
         // The member search is a case-insensitive substring match, so the roster
         // name is what brings both same-named members back to choose between.
         const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
-        const plan = planSession(session, ["Phuong Truong"], 6, organizer, {
-            "phuong truong": 6227635,
+        const plan = planSession(session, ["Lee Chong Wei"], 6, organizer, {
+            "lee chong wei": 6227635,
         });
 
-        expect(names(plan.courts[0].add)).toEqual(["Phuong Truong"]);
+        expect(names(plan.courts[0].add)).toEqual(["Lee Chong Wei"]);
     });
 
     it("keeps the name for a name mapping and adds no id", () => {
@@ -399,13 +399,13 @@ describe("planSession", () => {
         // 6th roster name has nowhere to go — and its report is the roster name
         // people recognise, not an id.
         const session = group([booking({ id: "1", court: 1, start, players: [organizer] })]);
-        const plan = planSession(session, [...NAMES.slice(0, 5), "Phuong Truong"], 6, organizer, {
-            "phuong truong": 6227635,
+        const plan = planSession(session, [...NAMES.slice(0, 5), "Lee Chong Wei"], 6, organizer, {
+            "lee chong wei": 6227635,
         });
 
         expect(names(plan.courts[0].add)).toEqual(NAMES.slice(0, 5));
         expect(plan.overflow).toEqual([
-            { name: "Phuong Truong", court: 1, bookingId: "1", seated: 6, capacity: 6 },
+            { name: "Lee Chong Wei", court: 1, bookingId: "1", seated: 6, capacity: 6 },
         ]);
     });
 

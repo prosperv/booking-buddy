@@ -9,7 +9,7 @@ const MAP: NameMap = {
 
 /** The club's two members who share a name, pinned by id. */
 const ID_MAP: NameMap = {
-    "phuong truong": 6227635,
+    "lee chong wei": 6227635,
 };
 
 describe("resolveMapping", () => {
@@ -18,8 +18,8 @@ describe("resolveMapping", () => {
     });
 
     it("carries the id for an id mapping", () => {
-        expect(resolveMapping(ID_MAP, "Phuong Truong")).toEqual({
-            name: "Phuong Truong",
+        expect(resolveMapping(ID_MAP, "Lee Chong Wei")).toEqual({
+            name: "Lee Chong Wei",
             memberId: 6227635,
         });
     });
@@ -28,7 +28,7 @@ describe("resolveMapping", () => {
         // The member search is a case-insensitive substring match, so the roster
         // name is what brings both same-named members back to choose between.
         // Inventing a query would break that.
-        expect(resolveMapping(ID_MAP, "Phuong Truong").name).toBe("Phuong Truong");
+        expect(resolveMapping(ID_MAP, "Lee Chong Wei").name).toBe("Lee Chong Wei");
     });
 
     it("leaves an unmapped name untouched", () => {
@@ -97,27 +97,27 @@ describe("playerIdentity", () => {
     // there is nothing to alias to. Treating the id as a name would normalize a
     // number and make the roster entry and the court entry look like strangers.
     it("ends the chain at an id rather than aliasing to it", () => {
-        expect(playerIdentity(ID_MAP, "Phuong Truong")).toBe("phuong truong");
+        expect(playerIdentity(ID_MAP, "Lee Chong Wei")).toBe("lee chong wei");
     });
 
     it("does not throw on an id value", () => {
-        expect(() => playerIdentity(ID_MAP, "Phuong Truong")).not.toThrow();
+        expect(() => playerIdentity(ID_MAP, "Lee Chong Wei")).not.toThrow();
     });
 
     it("keeps a court already holding the other spelling as the same person", () => {
         // Booking cards carry no member ids, so identity has to stay name-based.
-        // Normalizing "PHUONG TRUONG" the same as the roster's "Phuong Truong"
+        // Normalizing "LEE CHONG WEI" the same as the roster's "Lee Chong Wei"
         // is what stops the bot adding a second Phuong to a court that already
         // has one. The id picks which one gets added; it does not change this.
-        expect(playerIdentity(ID_MAP, "PHUONG TRUONG")).toBe(
-            playerIdentity(ID_MAP, "Phuong Truong"),
+        expect(playerIdentity(ID_MAP, "LEE CHONG WEI")).toBe(
+            playerIdentity(ID_MAP, "Lee Chong Wei"),
         );
     });
 
     it("does not let an id entry alias two different roster names together", () => {
-        const two: NameMap = { "phuong truong": 6227635, "phuong truong jr": 6227636 };
-        expect(playerIdentity(two, "Phuong Truong")).not.toBe(
-            playerIdentity(two, "Phuong Truong Jr"),
+        const two: NameMap = { "lee chong wei": 6227635, "lee chong wei jr": 6227636 };
+        expect(playerIdentity(two, "Lee Chong Wei")).not.toBe(
+            playerIdentity(two, "Lee Chong Wei Jr"),
         );
     });
 });

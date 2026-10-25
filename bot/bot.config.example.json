@@ -16,7 +16,12 @@
     "nameMap": {
         "Riley Poe": "Lee Zii Jia",
         "Riley Poo": "Lee Zii Jiaa",
-        "Phuong Truong": 6227635
+        "Lee Chong Wei": 6227635
+    },
+    "reporting": {
+        "discord": {
+            "webhookUrl": "https://discord.com/api/webhooks/REPLACE_ME/REPLACE_ME"
+        }
     },
     "jobs": [
         {
