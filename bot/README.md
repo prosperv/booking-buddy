@@ -475,6 +475,27 @@ grep '"event":"run-end"' log/bot-*.log | tail -1
 See [`bot/systemd/README.md`](systemd/README.md) for a daily `systemd` timer,
 including the unprivileged account it runs as and the install-time checks.
 
+### Manual runs
+
+Trigger the installed unit (matches the scheduled run exactly, including `xvfb-run`
+and the `pvan` account):
+
+```sh
+sudo systemctl start booking-buddy.service
+journalctl -u booking-buddy.service -f --no-pager
+```
+
+Or run the bot directly for ad-hoc flags (`--dry-run`, `--headed`, `--job <name>`):
+
+```sh
+cd /home/pvan/booking-buddy
+xvfb-run -a npx tsx bot/index.ts ensure-roster --headed --dry-run
+```
+
+The direct run still needs `xvfb-run` — CourtReserve is behind Cloudflare, which
+hard-403s any user-agent containing `HeadlessChrome`. Stop `booking-buddy.timer`
+first if you are debugging, or the two runs contend for `my-profile/`.
+
 ## Tests
 
 Unit tests (no browser) cover `bot/csv.ts`, `bot/config.ts`, `bot/doctor.ts`,
