@@ -1,6 +1,7 @@
 import { Locator, Page } from "playwright";
 import { humanClick } from "./interactions";
 import { loggerFor } from "./log-context";
+import { pendingRequests } from "./pending-requests";
 import { parseDatetime, parseCourt, parsePlayers, parseBookingId } from "./parsers";
 import { bookingListPopulateMs } from "./constants";
 import { Booking, BookingFilters, BookingSession } from "./types";
@@ -97,6 +98,7 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     const emptyState = page.locator('[data-testid="no-bookings"]');
     const eitherMarker = page.locator(`${BOOKING_CARD_SELECTOR}, [data-testid="no-bookings"]`);
 
+    const waitStartedAt = Date.now();
     let waitTimedOut = false;
     try {
         await eitherMarker.first().waitFor({ state: "attached", timeout: bookingListPopulateMs });
@@ -119,6 +121,8 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
 
     const count = await bookingCard.count();
     const sawNoBookings = (await emptyState.count()) > 0;
+    const containerPresent = (await page.locator('[data-testid="booking-list-active"]').count()) > 0;
+    const waitMs = Date.now() - waitStartedAt;
     const bookingSessions: BookingSession[] = [];
 
     for (let i = 0; i < count; i += 1) {
@@ -128,13 +132,43 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
         }
     }
 
-    loggerFor(page).info("bookings scraped", {
+    const pageTitle = await page.title().catch(() => "");
+    const pageUrl = page.url();
+    const scrapedLog: Record<string, unknown> = {
         event: "bookings-scraped",
         cards: count,
         editable: bookingSessions.length,
         timedOut: waitTimedOut,
         sawNoBookings,
-    });
+        containerPresent,
+        waitMs,
+        url: pageUrl,
+        title: pageTitle,
+    };
+    // When nothing was scraped, include outstanding requests so a slow XHR or
+    // a stalled subresource is named rather than leaving "0 cards" unexplained.
+    if (count === 0) {
+        const pending = pendingRequests(page);
+        if (pending.length > 0) scrapedLog.pending = pending;
+    }
+    loggerFor(page).info("bookings scraped", scrapedLog);
+
+    if (count === 0) {
+        const looksLikeWaf = /attention required|cloudflare|just a moment/i.test(pageTitle);
+        if (looksLikeWaf) {
+            loggerFor(page).warn("bookings page looks like a WAF/Cloudflare block page", {
+                event: "bookings-waf-block",
+                title: pageTitle,
+                url: pageUrl,
+            });
+        } else if (waitTimedOut && !sawNoBookings && !containerPresent) {
+            loggerFor(page).warn("bookings page did not render its list container; navigation or markup may have failed", {
+                event: "bookings-no-container",
+                title: pageTitle,
+                url: pageUrl,
+            });
+        }
+    }
 
     return bookingSessions;
 }
