@@ -94,12 +94,31 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     // same container, so a genuinely empty list costs nothing. A third state
     // (neither marker, i.e. changed markup) falls through on the timeout and
     // keeps the old behaviour rather than failing the run.
-    await page
-        .locator(`${BOOKING_CARD_SELECTOR}, [data-testid="no-bookings"]`)
-        .first()
-        .waitFor({ state: "attached", timeout: bookingListPopulateMs })
-        .catch(() => undefined);
+    const emptyState = page.locator('[data-testid="no-bookings"]');
+    const eitherMarker = page.locator(`${BOOKING_CARD_SELECTOR}, [data-testid="no-bookings"]`);
+
+    let waitTimedOut = false;
+    try {
+        await eitherMarker.first().waitFor({ state: "attached", timeout: bookingListPopulateMs });
+    } catch {
+        waitTimedOut = true;
+    }
+
+    if (waitTimedOut && (await bookingCard.count()) === 0 && (await emptyState.count()) === 0) {
+        loggerFor(page).warn("booking list did not populate in time; retrying once", {
+            event: "booking-list-retry",
+            timeoutMs: bookingListPopulateMs,
+        });
+        try {
+            await eitherMarker.first().waitFor({ state: "attached", timeout: bookingListPopulateMs });
+            waitTimedOut = false;
+        } catch {
+            waitTimedOut = true;
+        }
+    }
+
     const count = await bookingCard.count();
+    const sawNoBookings = (await emptyState.count()) > 0;
     const bookingSessions: BookingSession[] = [];
 
     for (let i = 0; i < count; i += 1) {
@@ -113,6 +132,8 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
         event: "bookings-scraped",
         cards: count,
         editable: bookingSessions.length,
+        timedOut: waitTimedOut,
+        sawNoBookings,
     });
 
     return bookingSessions;

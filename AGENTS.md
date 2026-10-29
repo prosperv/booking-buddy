@@ -396,7 +396,7 @@ behavior. What's load-bearing here:
   (`src/booking.ts`, `src/parsers.ts`); if the site markup changes, parsing
   breaks.
 - `collectBookingSessions` waits for the first card **or** the `no-bookings`
-  empty-state marker (`bookingListPopulateMs`, default 10s) before counting. The
+  empty-state marker (`bookingListPopulateMs`, default 30s) before counting. The
   readiness selector only covers the list *container*, which can be on screen a
   beat before the cards render into it, and counting early returns 0 — which is
   indistinguishable from an account with no bookings and makes the bot report
