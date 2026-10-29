@@ -233,6 +233,48 @@ prompt, and a `Type=oneshot` unit has no TTY to press Enter on — leaving the
 unit `activating` and piling up every later timer fire. Configuring the
 credentials above removes the cause rather than just bounding it.
 
+## Watching a run (VNC)
+
+The unit runs headed on a virtual display via `xvfb-run -a`, which picks a
+*transient* display that only exists for the duration of the run — so there is
+nothing to attach a VNC viewer to by default, and the display number changes
+each run. To actually watch a run you take the display out of `xvfb-run`'s hands
+and put it on a fixed display with `x11vnc` on top. Stop the timer first so the
+two runs don't contend for `my-profile/`:
+
+```bash
+sudo systemctl stop booking-buddy.timer
+Xvfb :99 -screen 0 1280x1024x24 -ac &
+x11vnc -display :99 -forever -shared -rfbport 5900 &
+```
+
+Then run the bot against that display instead of under `xvfb-run`:
+
+```bash
+cd /home/pvan/booking-buddy
+DISPLAY=:99 npx tsx bot/index.ts ensure-roster --headed --dry-run
+```
+
+and connect a VNC viewer to `<pi-ip>:5900` (the Pi is at `192.168.1.10` on
+the LAN). The screen size matches the unit's (`1280x1024x24`) so `viewport: null`
+resolves the same way it does in production.
+
+Notes:
+
+- `x11vnc -nopw` is unauthenticated. On a trusted LAN that is fine, but
+  prefer `x11vnc -storepasswd` (or tunnel the port over SSH:
+  `ssh -L 5900:localhost:5900 pvan@192.168.1.10`) rather than exposing 5900
+  to anything you do not trust. There is no firewall on the Pi by default.
+- For the unattended (systemd) path you do not need VNC at all. To inspect a
+  scheduled run after the fact, use `journalctl -u booking-buddy.service` and
+  the JSON-lines logs under `log/`; for a live browser inspector, set
+  `PLAYWRIGHT_DEBUG_PORT=9222` and tunnel it
+  (`ssh -L 9222:localhost:9222 pvan@<pi>`, then open `http://localhost:9222`).
+- The same `Xvfb :99 …` / `x11vnc -display :99 …` dance is documented in
+  `.env.template` under "Watching a run on a headless host", which is the file
+  the debug adapter and a plain shell read; keep the two in sync if you change
+  the display number or screen size.
+
 ## Ops
 
 - Trigger a run now: `sudo systemctl start booking-buddy.service`
