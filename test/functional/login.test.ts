@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "fs";
 import { Browser, Page } from "playwright";
-import { isLoggedIn, loginWithCredentials } from "../../src/login";
+import { getLoggedInUserName, isLoggedIn, loginWithCredentials } from "../../src/login";
 import { connectSharedBrowser, fixturePath } from "./setup";
 
 const BOOKINGS_LIST_URL = "https://app.courtreserve.com/Online/Bookings/List/7031?type=1";
@@ -70,6 +70,34 @@ describe("functional: login", () => {
             await page.goto("https://app.courtreserve.com/Online/Portal/Index/7031");
 
             await expect(isLoggedIn(page)).resolves.toBe(false);
+        });
+    });
+
+    describe("getLoggedInUserName", () => {
+        it("returns the account menu's display name when present", async () => {
+            await page.route("**/Online/Bookings/List/**", (route) =>
+                route.fulfill({
+                    body: readFileSync(fixturePath("account-menu.html"), "utf-8"),
+                    contentType: "text/html",
+                }),
+            );
+
+            await page.goto(BOOKINGS_LIST_URL);
+
+            await expect(getLoggedInUserName(page)).resolves.toBe("Prosper Van");
+        });
+
+        it("returns undefined when there is no account menu", async () => {
+            await page.route("**/Online/Bookings/List/**", (route) =>
+                route.fulfill({
+                    body: readFileSync(fixturePath("not-logged-in.html"), "utf-8"),
+                    contentType: "text/html",
+                }),
+            );
+
+            await page.goto(BOOKINGS_LIST_URL);
+
+            await expect(getLoggedInUserName(page)).resolves.toBeUndefined();
         });
     });
 

@@ -20,7 +20,7 @@ import { navigateTo } from "./navigation";
 import { authPath, courtReserveMyReservationsUrl, headless, profileDir } from "./constants";
 import { fileExists, pauseForAction } from "./utils";
 import { collectBookingSessions, filterBookings } from "./booking";
-import { isLoggedIn, loginWithCredentials, LOGIN_LINK_SELECTOR } from "./login";
+import { getLoggedInUserName, isLoggedIn, loginWithCredentials, LOGIN_LINK_SELECTOR } from "./login";
 import { createLogger, defaultLogFile, resolveLogDir, type Logger } from "./logger";
 import { attachLoggerToContext } from "./log-context";
 import { captureFailure } from "./capture";
@@ -293,7 +293,8 @@ export class CourtReserveClient {
             // `navigateTo` accepts as ready — so the login state is only known
             // here, and this is the one place that can recover it unattended.
             await this.ensureLoggedIn();
-            this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl });
+            const loggedInUser = await getLoggedInUserName(this.page);
+            this.logger.info("client ready", { event: "ready", url: courtReserveMyReservationsUrl, user: loggedInUser ?? null });
 
             if (this.options.debugPause) {
                 await this.page.pause();

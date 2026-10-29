@@ -69,3 +69,31 @@ export async function loginWithCredentials(
     }
     loggerFor(page).info("login submitted", { event: "login-submitted", username });
 }
+
+/**
+ * Reads the display name of the currently logged-in member from the bookings
+ * list's account menu (`#my-account-li-web`). CourtReserve renders that menu
+ * only for an authenticated session, so its absence (logged-out page, trimmed
+ * fixture, or a layout change) yields `undefined` rather than throwing — the
+ * caller logs `user: null` and continues.
+ *
+ * The id is the site's own hook for the "My Account" dropdown; the
+ * `[data-testid="19_link"]` selector is the fallback for pages where the id is
+ * missing but the testid survives.
+ */
+export async function getLoggedInUserName(page: Page): Promise<string | undefined> {
+    const locator = page.locator('#my-account-li-web span, [data-testid="19_link"] span').first();
+    try {
+        await locator.waitFor({ state: "attached", timeout: 2000 });
+    } catch {
+        loggerFor(page).debug("logged-in user name not found", { event: "login-user", found: false });
+        return undefined;
+    }
+    const text = (await locator.textContent())?.trim();
+    if (!text) {
+        loggerFor(page).debug("logged-in user name not found", { event: "login-user", found: false });
+        return undefined;
+    }
+    loggerFor(page).debug("logged-in user name", { event: "login-user", name: text });
+    return text;
+}
