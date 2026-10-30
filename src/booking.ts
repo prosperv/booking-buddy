@@ -86,7 +86,7 @@ export async function convertBookingCardToBookingSession(
 }
 
 export async function collectBookingSessions(page: Page): Promise<BookingSession[]> {
-    const bookingCard = page.getByTestId(/^booking-card-wrapper-\d+$/);
+    const bookingCard = page.locator('[data-testid^="booking-card-wrapper-"]:visible');
     // The readiness selector waits for the list container, which can be on
     // screen a beat before the cards render into it, so counting immediately
     // reads 0 — indistinguishable from an account with no bookings, and the
@@ -101,7 +101,7 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     const waitStartedAt = Date.now();
     let waitTimedOut = false;
     try {
-        await eitherMarker.first().waitFor({ state: "attached", timeout: bookingListPopulateMs });
+        await eitherMarker.first().waitFor({ state: "visible", timeout: bookingListPopulateMs });
     } catch {
         waitTimedOut = true;
     }
@@ -112,7 +112,7 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
             timeoutMs: bookingListPopulateMs,
         });
         try {
-            await eitherMarker.first().waitFor({ state: "attached", timeout: bookingListPopulateMs });
+            await eitherMarker.first().waitFor({ state: "visible", timeout: bookingListPopulateMs });
             waitTimedOut = false;
         } catch {
             waitTimedOut = true;
@@ -120,7 +120,7 @@ export async function collectBookingSessions(page: Page): Promise<BookingSession
     }
 
     const count = await bookingCard.count();
-    const sawNoBookings = (await emptyState.count()) > 0;
+    const sawNoBookings = await emptyState.isVisible().catch(() => false);
     const containerPresent = (await page.locator('[data-testid="booking-list-active"]').count()) > 0;
     const waitMs = Date.now() - waitStartedAt;
     const bookingSessions: BookingSession[] = [];
