@@ -29,6 +29,10 @@ nothing else catches a mistake.
 - `npm start` / `npx tsx examples/{list-bookings,add-player,remove-player,swap-player}.ts`
   — launch a real Chromium against the live site; needs a saved session, and every
   example forces `headless: false`. `--force` / `-f` forces a fresh login. Never in CI.
+- `npx tsx examples/capture-mhtml.ts` — interactive MHTML capture tool: browse
+  the live site in the headed window, press `y` to save the current page as
+  `<n>-<name-of-page>.mhtml` under `test/data/`, `x` (or Ctrl+C) to save auth and
+  exit. Feeds `test/data/recapture.ts`. Never in CI.
 - `npx tsx bot/index.ts <command>` — the `ensure-roster` bot CLI; see below.
 
 ## Project commands (`.opencode/command/`)

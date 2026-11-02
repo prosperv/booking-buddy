@@ -24,12 +24,13 @@ image inlined as a `cid:` reference.
   2026-10-20 only `login-page.mhtml` and `not-logged-in.mhtml` remain (both from
   Aug 31) — **and neither is a bookings list**, so recapturing a bookings fixture
   means capturing the page again live.
-- To capture: log into CourtReserve in a real Chromium. The `examples/*` force
-  `headless: false`, and the bot takes `--headed`; both get you a logged-in window
-  you can save from.
-- Scriptable alternative: CDP `Page.captureSnapshot({format: "mhtml"})` over
-  `context.newCDPSession(page)`. Nothing committed does this yet — if you write it
-  it belongs next to `recapture.ts`.
+- To capture: run `npx tsx examples/capture-mhtml.ts` (`--force` for a fresh
+  manual login). It opens the persistent headed Chromium, restores `auth.json`,
+  and waits in the terminal: `y` saves the current page as
+  `<n>-<name-of-page>.mhtml` into `test/data/` (or `--out <dir>`), `x` or
+  Ctrl+C saves auth/profile and exits. The `examples/*` also force
+  `headless: false`, and the bot takes `--headed`; those still get you a logged-in
+  window you can save from with the browser's own "Save page as… → MHTML".
 - `page.content()` is **not** a substitute: the script needs the multipart wrapper
   and its quoted-printable part; `page.content()` is already-decoded DOM HTML.
 

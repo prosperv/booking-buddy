@@ -5,10 +5,13 @@ CourtReserve "My Reservations" page (`app.courtreserve.com/Online/Bookings/List/
 
 ## How they were created
 
-1. **Saved from live data.** Log in to CourtReserve in a real Chromium, open the
-   bookings list, and use the browser's "Save page as..." to capture the page
-   as an MHTML file (`.mhtml`). The raw captures are gitignored and sit beside
-   the fixtures here, several MB each.
+1. **Saved from live data.** Run `npx tsx examples/capture-mhtml.ts` to open a
+   headed Chromium against the live site (it restores `auth.json` or prompts for
+   a login with `--force`). Browse to whatever page you want, press `y` to write
+   it as `<n>-<name-of-page>.mhtml` under `test/data/` (the default out dir),
+   and press `x` (or Ctrl+C) to save auth/profile and exit. The raw captures
+   are gitignored and sit beside the fixtures here, several MB each. The browser's
+   own "Save page as… → MHTML" still works if you prefer it.
 
 2. **Prune to reduce size.** `recapture.ts` does it:
 

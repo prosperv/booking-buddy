@@ -431,6 +431,26 @@ export class CourtReserveClient {
     }
 
     /**
+     * Read-only access to the live `BrowserContext` for dev tooling that needs
+     * raw Playwright/CDP access (currently `examples/capture-mhtml.ts`). Returns
+     * `undefined` before `init()` and after `close()`. The caller must not
+     * close the context itself — `close()` is the only teardown, since it is
+     * also what persists the refreshed auth state.
+     */
+    getContext(): BrowserContext | undefined {
+        return this.context;
+    }
+
+    /**
+     * Read-only access to the page `init()` opened (the My Reservations tab the
+     * user drives during a capture). Returns `undefined` before `init()` and
+     * after `close()`. See `getContext()`.
+     */
+    getPage(): Page | undefined {
+        return this.page;
+    }
+
+    /**
      * Whether the current page is on the authenticated bookings list. Callers
      * (e.g. a bot) can use this after `init()` to detect a stale or failed
      * session restore and decide to re-authenticate.

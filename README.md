@@ -251,3 +251,36 @@ Chromium). Unit tests live at the top level of each test root
 `*/test/functional/`. Run them separately with:
 
 `npm run test:unit` / `npm run test:functional`
+
+## Capturing pages as MHTML (for updating test fixtures)
+
+When CourtReserve changes its markup, the functional test fixtures in `test/data/`
+no longer match and need to be re-cut from a fresh capture. The
+`examples/capture-mhtml.ts` tool drives a headed Chromium so you can click
+through the site and save any page as MHTML on demand:
+
+```bash
+npx tsx examples/capture-mhtml.ts            # reuse saved session
+npx tsx examples/capture-mhtml.ts --force    # force a fresh manual login
+```
+
+While it runs, the window is yours to drive. In the terminal:
+
+- `y` — save the current page as `<n>-<name-of-page>.mhtml` into `test/data/`
+  (the default out dir; use `--out <dir>` to change it). The number increments
+  per capture and skips any name already on disk, so an earlier capture is never
+  overwritten.
+- `x` — save auth/profile and exit.
+- `Ctrl+C` — same as `x`.
+
+Captures land in `test/data/` by default, which is gitignored for `*.mhtml`, so
+they will not be committed. Slice a capture into a fixture with the recapture
+script:
+
+```bash
+npx tsx test/data/recapture.ts test/data/1-my-reservations.mhtml
+```
+
+See `test/data/README` and the `recapture-fixture` skill for trimming the slice
+to what the tests read and scrubbing real member names before committing the
+resulting `.html`.
