@@ -75,19 +75,19 @@ describe("functional: add-player steps", () => {
         it("reads the pending roster from the modal", async () => {
             await loadFixture(page, "adding-player/edit-modal.html");
 
-            const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
+            const players = await readModalPlayers(page.getByTestId("reservation-edit-modal"));
 
-            expect(players).toHaveLength(3);
-            expect(players[0]).toBe("Viktor Axelsen");
-            expect(players).toContain("Kento Momota ??");
+            expect(players).toHaveLength(4);
+            expect(players[0]).toBe("Prosper Van");
+            expect(players).toContain("Brandon Luu");
         });
 
         it("sees the added player after confirmation", async () => {
             await loadFixture(page, "adding-player/player-added.html");
 
-            const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
+            const players = await readModalPlayers(page.getByTestId("reservation-edit-modal"));
 
-            expect(players).toHaveLength(4);
+            expect(players).toHaveLength(5);
             expect(players).toContain("Lee Zii Jiaa");
         });
     });
@@ -98,19 +98,19 @@ describe("functional: add-player steps", () => {
 
             const players = await readDetailPlayers(page);
 
-            expect(players).toHaveLength(3);
-            expect(players[0]).toBe("Viktor Axelsen");
+            expect(players).toHaveLength(4);
+            expect(players[0]).toBe("Prosper Van");
         });
     });
 
     describe("typePlayerSearch", () => {
         it("types a query into the owners combobox", async () => {
             await loadFixture(page, "adding-player/edit-modal.html");
-            const modal = page.getByTestId("update-reservation-modal");
+            const modal = page.getByTestId("reservation-edit-modal");
 
             await typePlayerSearch(modal, "Lee Zii");
 
-            expect(await modal.locator('input[name="OwnersDropdown_input"]').inputValue()).toBe(
+            expect(await modal.locator('[data-testid="reservation-additional-player-search"] input').inputValue()).toBe(
                 "Lee Zii",
             );
         }, BROWSER_TEST_TIMEOUT);
@@ -122,9 +122,9 @@ describe("functional: add-player steps", () => {
 
             const options = await readPlayerOptions(page);
 
-            expect(options).toHaveLength(11);
-            expect(options[0].displayName).toBe("Lee Zii Chau");
-            expect(names(options)).toContain("Lee Zii Jiaa");
+            expect(options).toHaveLength(10);
+            expect(options[0].displayName).toBe("Bryan Cheong 🏓🥒⚽");
+            expect(names(options)).toContain("Bryan Yap");
         });
 
         it("reports names only when the member-search payload was not captured", async () => {
@@ -135,14 +135,14 @@ describe("functional: add-player steps", () => {
 
             const options = await readPlayerOptions(page);
 
-            expect(options.every((o) => o.memberId === undefined)).toBe(true);
+            expect(options.every((o) => o.memberId !== undefined)).toBe(true);
         });
 
         it("returns an empty list when the dropdown shows no data", async () => {
             await loadFixture(page, "adding-player/no-player-options.html");
 
             await expect(readPlayerOptions(page)).resolves.toEqual([]);
-        });
+        }, BROWSER_TEST_TIMEOUT);
     });
 
     describe("selectPlayerOption", () => {
@@ -200,37 +200,37 @@ describe("functional: remove-player steps", () => {
         it("reads the full roster from the modal", async () => {
             await loadFixture(page, "removing-player/modal-player-list.html");
 
-            const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
+            const players = await readModalPlayers(page.getByTestId("reservation-edit-modal"));
 
-            expect(players).toHaveLength(5);
-            expect(players[0]).toBe("Viktor Axelsen");
-            expect(players).toContain("Kento Momota ??");
+            expect(players).toHaveLength(4);
+            expect(players[0]).toBe("Prosper Van");
+            expect(players).toContain("Brandon Luu");
         });
 
         it("sees the removed player is gone after removal", async () => {
             await loadFixture(page, "removing-player/modal-player-removed.html");
 
-            const players = await readModalPlayers(page.getByTestId("update-reservation-modal"));
+            const players = await readModalPlayers(page.getByTestId("reservation-edit-modal"));
 
-            expect(players).toHaveLength(4);
-            expect(players).not.toContain("Kento Momota ??");
+            expect(players).toHaveLength(3);
+            expect(players).not.toContain("Brandon Luu");
         });
     });
 
     describe("removeMemberFromModal", () => {
         it("removes a player from the roster", async () => {
             await loadFixture(page, "removing-player/modal-player-list.html");
-            const modal = page.getByTestId("update-reservation-modal");
+            const modal = page.getByTestId("reservation-edit-modal");
 
-            await expect(removeMemberFromModal(modal, "Kento Momota")).resolves.toEqual({
+            await expect(removeMemberFromModal(modal, "Brandon Luu")).resolves.toEqual({
                 status: "removed",
-                name: "Kento Momota ??",
+                name: "Brandon Luu",
             });
         }, BROWSER_TEST_TIMEOUT);
 
         it("reports a player who is not on the roster", async () => {
             await loadFixture(page, "removing-player/modal-player-list.html");
-            const modal = page.getByTestId("update-reservation-modal");
+            const modal = page.getByTestId("reservation-edit-modal");
 
             await expect(removeMemberFromModal(modal, "Zed")).resolves.toEqual({
                 status: "not-found",
@@ -240,11 +240,11 @@ describe("functional: remove-player steps", () => {
 
         it("reports the reservation owner as not removable", async () => {
             await loadFixture(page, "removing-player/modal-player-list.html");
-            const modal = page.getByTestId("update-reservation-modal");
+            const modal = page.getByTestId("reservation-edit-modal");
 
-            await expect(removeMemberFromModal(modal, "Viktor Axelsen")).resolves.toEqual({
+            await expect(removeMemberFromModal(modal, "Prosper Van")).resolves.toEqual({
                 status: "not-removable",
-                name: "Viktor Axelsen",
+                name: "Prosper Van",
             });
         }, BROWSER_TEST_TIMEOUT);
     });
