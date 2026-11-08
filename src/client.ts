@@ -214,7 +214,7 @@ type ResolvedClientOptions = {
  * is a usable page too (`isLoggedIn` then reports it) rather than a hang, so
  * waiting on the list shell alone would stall `init()` for the full budget.
  */
-const BOOKINGS_LIST_READY = ['[data-testid="booking-list-active"]', LOGIN_LINK_SELECTOR];
+const BOOKINGS_LIST_READY = ['[data-testid="booking-list-active"]', '[data-testid="pending-disclosures"]', LOGIN_LINK_SELECTOR];
 
 export class CourtReserveClient {
     private context?: BrowserContext;
