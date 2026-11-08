@@ -34,8 +34,31 @@ export async function isLoggedIn(page: Page): Promise<boolean> {
     }
     const loginButton = page.locator(LOGIN_LINK_SELECTOR);
     const loggedIn = (await loginButton.count()) === 0;
-    loggerFor(page).debug("login state", { event: "login-state", loggedIn });
-    return loggedIn;
+    if (!loggedIn) {
+        loggerFor(page).debug("login state", { event: "login-state", loggedIn: false, reason: "login-button-present" });
+        return false;
+    }
+    // The bookings list is now a React SPA whose auth state is separate from the
+    // legacy server-side session. A saved session can still pass the checks above
+    // (no LOG IN button, correct URL) while the SPA considers the user anonymous,
+    // which leaves the list stuck on skeleton cards forever. Treat that as
+    // logged-out so the credential path can re-establish a real session.
+    try {
+        const authState = await page.evaluate(() => {
+            const w = window as { __CR_NET_ENTRY__?: () => { authState?: string } | null };
+            const entry = typeof w.__CR_NET_ENTRY__ === "function" ? w.__CR_NET_ENTRY__() : null;
+            return entry?.authState ?? null;
+        });
+        if (authState !== null && authState !== "member") {
+            loggerFor(page).debug("login state", { event: "login-state", loggedIn: false, reason: "spa-auth-not-member", authState });
+            return false;
+        }
+    } catch {
+        // The SPA hook may not be present on older pages; fall back to the
+        // legacy signals rather than blocking a working session.
+    }
+    loggerFor(page).debug("login state", { event: "login-state", loggedIn: true });
+    return true;
 }
 
 /**

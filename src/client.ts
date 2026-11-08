@@ -533,6 +533,16 @@ export class CourtReserveClient {
         await this.context.storageState({ path: this.options.authPath });
         this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
         await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);
+        // Credential login can land on the portal (e.g. an unsigned waiver or an
+        // account-level gate) instead of the bookings list. Detect that here so
+        // the run fails loudly with an actionable reason rather than scraping an
+        // empty list and silently doing nothing.
+        if (!(await isLoggedIn(this.page))) {
+            const reason = this.page.url().includes("/Online/Bookings/List/")
+                ? "the SPA did not establish a member session"
+                : "the account is not reaching the bookings list (an unsigned waiver or account gate is likely blocking it)";
+            throw new Error(`Credential login did not reach the bookings list: ${reason}. URL: ${this.page.url()}`);
+        }
         this.logger.info("logged in with credentials", { event: "login-credentials" });
     }
 

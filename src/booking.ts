@@ -86,6 +86,26 @@ export async function convertBookingCardToBookingSession(
 }
 
 export async function collectBookingSessions(page: Page): Promise<BookingSession[]> {
+    // If the SPA never established a member session, the list stays on skeleton
+    // cards forever and no marker ever appears. Fail fast with a clear signal
+    // instead of burning the full populate timeout.
+    try {
+        const authState = await page.evaluate(() => {
+            const w = window as { __CR_NET_ENTRY__?: () => { authState?: string } | null };
+            const entry = typeof w.__CR_NET_ENTRY__ === "function" ? w.__CR_NET_ENTRY__() : null;
+            return entry?.authState ?? null;
+        });
+        if (authState !== null && authState !== "member") {
+            loggerFor(page).warn("bookings list not authenticated (SPA authState is not 'member'); skipping scrape", {
+                event: "bookings-scrape-skipped",
+                authState,
+            });
+            return [];
+        }
+    } catch {
+        // Older pages without the SPA hook: carry on with the normal flow.
+    }
+
     const bookingCard = page.locator('[data-testid^="booking-card-wrapper-"]:visible');
     // The readiness selector waits for the list container, which can be on
     // screen a beat before the cards render into it, so counting immediately
