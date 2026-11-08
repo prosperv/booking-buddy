@@ -176,8 +176,15 @@ export async function openEditReservationModal(page: Page): Promise<Locator> {
     await humanClick(editReservationButton);
 
     const modal = page.getByTestId("reservation-edit-modal");
+    // Wait for the dialog, not the root: `reservation-edit-modal` is an
+    // `ant-modal-root` wrapper whose children are portal/absolute-positioned, so
+    // the wrapper itself renders with **zero height** and never satisfies
+    // Playwright's visibility check even when the dialog is plainly on screen.
+    // That silently reported "the modal never opened" for a modal that had
+    // opened. Wait for a descendant the user actually sees instead.
+    const dialogReady = modal.locator('[data-testid="reservation-players-table"]').first();
     try {
-        await modal.waitFor({ state: "visible" });
+        await dialogReady.waitFor({ state: "visible" });
     } catch (err) {
         const snapshot = await captureFailure(page);
         loggerFor(page).error(`edit modal did not open: ${err instanceof Error ? err.message : err}`, {
