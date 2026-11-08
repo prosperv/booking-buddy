@@ -532,7 +532,18 @@ export class CourtReserveClient {
         await loginWithCredentials(this.page, credentials.username, credentials.password);
         await this.context.storageState({ path: this.options.authPath });
         this.logger.info("navigate to My Reservations", { event: "navigate", url: courtReserveMyReservationsUrl });
-        await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);
+        try {
+            await navigateTo(this.page, courtReserveMyReservationsUrl, "CourtReserve My Reservations", BOOKINGS_LIST_READY);
+        } catch (err) {
+            const url = this.page.url();
+            if (url.includes("/Disclosures/Pending/") || url.includes("/Online/Portal/")) {
+                throw new Error(
+                    `Credential login succeeded but the account is gated behind a pending disclosure/waiver ` +
+                    `(URL: ${url}). Sign the outstanding waiver(s) for this account in a browser, then re-run.`,
+                );
+            }
+            throw err;
+        }
         // Credential login can land on the portal (e.g. an unsigned waiver or an
         // account-level gate) instead of the bookings list. Detect that here so
         // the run fails loudly with an actionable reason rather than scraping an
