@@ -73,7 +73,17 @@ export async function loginWithCredentials(
     username: string,
     password: string,
 ): Promise<void> {
-    await navigateTo(page, courtReserveLoginUrl, "CourtReserve Login", 'input[name="email"]');
+    await navigateTo(page, courtReserveLoginUrl, "CourtReserve Login", ['input[name="email"]', '[data-testid="pending-disclosures"]']);
+    if (!page.url().includes("/Online/Account/LogIn/")) {
+        const url = page.url();
+        if (url.includes("/Disclosures/Pending/")) {
+            throw new Error(
+                `Cannot reach the login page: the account is gated behind a pending disclosure ` +
+                `(URL: ${url}). Sign the outstanding waiver(s) in a browser first, then re-run.`,
+            );
+        }
+        throw new Error(`Cannot reach the login page (redirected to ${url}).`);
+    }
     loggerFor(page).info("navigate to login", { event: "navigate", url: courtReserveLoginUrl });
 
     await page.locator('input[name="email"]').fill(username);
