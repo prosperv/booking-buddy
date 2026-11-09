@@ -24,7 +24,7 @@ export const headless = process.env.HEADLESS !== "false";
 // instead of becoming `--remote-debugging-port=`.
 export const playwrightDebugPort = process.env.PLAYWRIGHT_DEBUG_PORT;
 export const minActionDelay = Number(process.env.MIN_ACTION_DELAY_MS ?? 1000);
-export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 3000);
+export const maxActionDelay = Number(process.env.MAX_ACTION_DELAY_MS ?? 2000);
 // Budget for a single navigation: the `goto` itself plus the wait for the
 // caller-supplied readiness selector (see src/navigation.ts). CourtReserve's
 // list page pulls third-party resources that occasionally stall for far longer

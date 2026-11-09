@@ -342,7 +342,7 @@ behavior. What's load-bearing here:
   offers — the Google path needs a browser you log into yourself, and the code
   path needs an inbox. So an account with no CourtReserve password cannot be
   recovered unattended.
-- `pauseForAction()` inserts a random anti-bot delay (default 1000–3000ms via
+- `pauseForAction()` inserts a random anti-bot delay (default 1000–2000ms via
   `MIN_ACTION_DELAY_MS`/`MAX_ACTION_DELAY_MS`) before every navigation, click,
   and per-player step. Use fake timers in unit tests; never assert real timing.
 - `navigateTo` (`src/navigation.ts`) takes a **required readiness selector** (a
